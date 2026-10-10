@@ -1,0 +1,26 @@
+name: Testing slots
+# Books FaceTime testing slots from "[slot]" issues. First valid issue for a slot wins.
+on:
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  issues: write
+  contents: read
+concurrency:
+  group: testing-slots
+  cancel-in-progress: false
+jobs:
+  book:
+    if: startsWith(github.event.issue.title, '[slot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docs/slots
+            scripts
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const bot = require('./scripts/slot-bot.js');
+            await bot({ github, context, core });

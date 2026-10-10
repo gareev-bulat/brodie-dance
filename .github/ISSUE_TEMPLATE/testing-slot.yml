@@ -1,0 +1,103 @@
+name: Book a FaceTime testing slot
+description: Claim a 15-minute turn on the shared Chert FaceTime line. First come, first served.
+title: "[slot] "
+labels: ["slot"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        See open slots at https://seraphimlabs-dev.github.io/brodie-starter/slots/ . If the slot is already taken, the bot closes this and tells you. Max 2 upcoming slots per team.
+  - type: dropdown
+    id: slot
+    attributes:
+      label: Slot
+      options:
+        - "Sat Oct 10 · 7:00 PM ET"
+        - "Sat Oct 10 · 7:15 PM ET"
+        - "Sat Oct 10 · 7:30 PM ET"
+        - "Sat Oct 10 · 7:45 PM ET"
+        - "Sat Oct 10 · 8:00 PM ET"
+        - "Sat Oct 10 · 8:15 PM ET"
+        - "Sat Oct 10 · 8:30 PM ET"
+        - "Sat Oct 10 · 8:45 PM ET"
+        - "Sat Oct 10 · 9:00 PM ET"
+        - "Sat Oct 10 · 9:15 PM ET"
+        - "Sat Oct 10 · 9:30 PM ET"
+        - "Sat Oct 10 · 9:45 PM ET"
+        - "Sat Oct 10 · 10:00 PM ET"
+        - "Sat Oct 10 · 10:15 PM ET"
+        - "Sat Oct 10 · 10:30 PM ET"
+        - "Sat Oct 10 · 10:45 PM ET"
+        - "Sat Oct 10 · 11:00 PM ET"
+        - "Sat Oct 10 · 11:15 PM ET"
+        - "Sat Oct 10 · 11:30 PM ET"
+        - "Sat Oct 10 · 11:45 PM ET"
+        - "Sun Oct 11 · 9:00 AM ET"
+        - "Sun Oct 11 · 9:15 AM ET"
+        - "Sun Oct 11 · 9:30 AM ET"
+        - "Sun Oct 11 · 9:45 AM ET"
+        - "Sun Oct 11 · 10:00 AM ET"
+        - "Sun Oct 11 · 10:15 AM ET"
+        - "Sun Oct 11 · 10:30 AM ET"
+        - "Sun Oct 11 · 10:45 AM ET"
+        - "Sun Oct 11 · 11:00 AM ET"
+        - "Sun Oct 11 · 11:15 AM ET"
+        - "Sun Oct 11 · 11:30 AM ET"
+        - "Sun Oct 11 · 11:45 AM ET"
+        - "Sun Oct 11 · 12:00 PM ET"
+        - "Sun Oct 11 · 12:15 PM ET"
+        - "Sun Oct 11 · 12:30 PM ET"
+        - "Sun Oct 11 · 12:45 PM ET"
+        - "Sun Oct 11 · 1:00 PM ET"
+        - "Sun Oct 11 · 1:15 PM ET"
+        - "Sun Oct 11 · 1:30 PM ET"
+        - "Sun Oct 11 · 1:45 PM ET"
+        - "Sun Oct 11 · 2:00 PM ET"
+        - "Sun Oct 11 · 2:15 PM ET"
+        - "Sun Oct 11 · 2:30 PM ET"
+        - "Sun Oct 11 · 2:45 PM ET"
+        - "Sun Oct 11 · 3:00 PM ET"
+        - "Sun Oct 11 · 3:15 PM ET"
+        - "Sun Oct 11 · 3:30 PM ET"
+        - "Sun Oct 11 · 3:45 PM ET"
+        - "Sun Oct 11 · 4:00 PM ET"
+        - "Sun Oct 11 · 4:15 PM ET"
+        - "Sun Oct 11 · 4:30 PM ET"
+        - "Sun Oct 11 · 4:45 PM ET"
+        - "Sun Oct 11 · 5:00 PM ET"
+        - "Sun Oct 11 · 5:15 PM ET"
+        - "Sun Oct 11 · 5:30 PM ET"
+        - "Sun Oct 11 · 5:45 PM ET"
+    validations:
+      required: true
+  - type: input
+    id: team
+    attributes:
+      label: Team name
+      placeholder: Team Squat Rack
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent name
+      description: The AGENT_NAME from your .env.local, used in `chert dev --agent`
+      placeholder: team-yourname-agent
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: Discord handle
+      description: So the team before you can ping you when the line is free
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Testing from
+      options:
+        - In person (JMHH 265)
+        - Remote
+    validations:
+      required: true

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FaceTime Testing Slots</title>
+<meta name="description" content="Book a 15-minute turn on the shared Chert FaceTime line for the IvyHacks Brodie hackathon.">
+<link rel="icon" href="brodie.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one column. "On the line now" first, then the day-by-day slot sheet. Brodie hackathon brand (matches the submission form), dark only. */
+:root{
+  --bg:#0A0A0B; --raised:#16171A; --line:#2A2C31; --ink:#F4F4F0; --muted:#9A9DA4; --dim:#5D6068;
+  --accent:#D9FF3D; --accent-ink:#0A0A0B; --cream:#EFE7DA; --bad:#FF8A7A;
+  --display:'Archivo',Arial,sans-serif; --body:'Plus Jakarta Sans',Arial,sans-serif; --mono:'JetBrains Mono','Courier New',monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding-inline:20px;padding-block:calc(44px + env(safe-area-inset-top,0px)) calc(72px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:40px}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+.eyebrow{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+header{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end}
+header > div{min-width:0}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(42px,9vw,68px);line-height:.92;letter-spacing:-.02em;margin:10px 0 0;text-transform:uppercase;text-wrap:balance}
+.lede{color:var(--muted);margin:14px 0 0;max-width:48ch}
+.mascot{width:132px;height:auto;filter:drop-shadow(0 10px 18px rgba(0,0,0,.5));transform:rotate(4deg)}
+h2{font-family:var(--display);font-weight:800;font-size:22px;margin:0;letter-spacing:-.01em}
+
+.now{background:var(--raised);border:1px solid var(--line);border-radius:18px;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.now > div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.now .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.now .v{font-family:var(--display);font-weight:800;font-size:22px;line-height:1.15;overflow-wrap:anywhere}
+.now .t{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.live{display:inline-flex;align-items:center;gap:7px;color:var(--accent)}
+.live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.live::before{animation:pulse 1.6s ease-in-out infinite}@keyframes pulse{50%{opacity:.3}}}
+
+.steps{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:s}
+.steps li{border-top:2px solid var(--line);padding-top:12px;font-size:14.5px;color:var(--muted);counter-increment:s}
+.steps li::before{content:counter(s);display:block;font-family:var(--display);font-weight:900;font-size:26px;color:var(--ink);line-height:1;margin-bottom:6px}
+.steps b{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.86em;background:var(--raised);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+
+.toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.status{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.status.bad{color:var(--bad)}
+button{font:inherit;font-weight:700;font-size:14px;border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;background:transparent;color:var(--ink)}
+button:hover{border-color:var(--muted)}
+.count{font-family:var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}
+
+.day{display:flex;flex-direction:column;gap:10px}
+.day h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0}
+.sheet{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.slot{display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line);min-height:52px}
+.slot:last-child{border-bottom:0}
+.slot .time{font-family:var(--mono);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.slot .who{min-width:0;font-size:15px;overflow-wrap:anywhere}
+.slot .who small{display:block;color:var(--muted);font-size:12.5px}
+.slot .free{color:var(--muted)}
+.book{font-weight:700;font-size:14px;text-decoration:none;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:7px 14px;white-space:nowrap}
+.book:hover{background:#E7FF7A}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap;text-decoration:none}
+a.tag:hover{color:var(--ink);border-color:var(--muted)}
+.slot.taken .who{font-weight:600}
+.slot.past{opacity:.38}
+.slot.current{background:color-mix(in srgb,var(--accent) 9%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+
+@media (max-width:560px){
+  header{grid-template-columns:1fr}
+  .mascot{width:96px;order:-1}
+  .now{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .slot{grid-template-columns:72px 1fr;row-gap:8px;padding:11px 14px}
+  .slot > :last-child{grid-column:2;justify-self:start}
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">IvyHacks · Shared FaceTime line</div>
+      <h1>Book the line.</h1>
+      <p class="lede">Everyone shares one Chert FaceTime line. Grab a 15-minute turn to test your agent on a real call. In person or remote, same process. Max 2 upcoming slots per team.</p>
+    </div>
+    <img class="mascot" src="brodie.png" alt="Brodie flexing" width="314" height="320">
+  </header>
+
+  <section class="now" aria-label="Line status">
+    <div><span class="k live">On the line now</span><span class="v" id="nowWho">Loading…</span><span class="t" id="nowWhen"></span></div>
+    <div><span class="k">Up next</span><span class="v" id="nextWho">—</span><span class="t" id="nextWhen"></span></div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px" aria-labelledby="how-h">
+    <h2 id="how-h">How it works</h2>
+    <ol class="steps">
+      <li><b>Book</b> a free slot below. It opens a GitHub form; submit it. A bot confirms within a minute, or tells you it's taken.</li>
+      <li><b>At your time</b> run <code>npm start</code> and <code>chert dev --agent &lt;your-agent&gt;</code>, then call the shared address on FaceTime.</li>
+      <li><b>Release it.</b> Hang up, Ctrl+C in the Chert terminal, wait for <i>Stopped</i>, then ping the next team.</li>
+    </ol>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:18px" aria-labelledby="sheet-h">
+    <div class="toolbar">
+      <h2 id="sheet-h">Slots <span class="count" id="count"></span></h2>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <div id="days" style="display:flex;flex-direction:column;gap:26px"></div>
+  </section>
+
+  <footer>
+    <span>Can't make your slot? Close your booking issue and it opens back up.</span>
+    <span>Times are US Eastern. Bookings live as issues on <a href="https://github.com/seraphimlabs-dev/brodie-starter/issues?q=is%3Aissue+label%3Abooked">seraphimlabs-dev/brodie-starter</a>. Questions: #help or <code>/join</code> in #oh-queue.</span>
+  </footer>
+</main>
+
+<script>
+const REPO = 'seraphimlabs-dev/brodie-starter';
+const $ = id => document.getElementById(id);
+let SLOTS = [], booked = new Map(), lastOk = null;
+
+function field(body, name){
+  const m = (body||'').match(new RegExp('### '+name+'\\s*\\n+([^\\n]+)'));
+  const v = m ? m[1].trim() : '';
+  return v === '_No response_' ? '' : v;
+}
+const timeOf = s => new Date(s.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'});
+const dayOf = s => new Date(s.start).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'America/New_York'});
+const bookUrl = s => `https://github.com/${REPO}/issues/new?template=testing-slot.yml&title=${encodeURIComponent('[slot] '+s.label)}&slot=${encodeURIComponent(s.label)}`;
+
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+
+function render(){
+  const now = Date.now();
+  const days = $('days'); days.replaceChildren();
+  const groups = new Map();
+  for(const s of SLOTS){ const d=dayOf(s); if(!groups.has(d)) groups.set(d,[]); groups.get(d).push(s); }
+  let free = 0;
+  for(const [d, list] of groups){
+    const sec = el('section','day'); sec.append(el('h3',null,d));
+    const ul = el('ul','sheet');
+    for(const s of list){
+      const b = booked.get(s.label);
+      const start = +new Date(s.start), end = +new Date(s.end);
+      const past = end <= now, current = start <= now && now < end;
+      const li = el('li','slot'+(b?' taken':'')+(past?' past':'')+(current?' current':''));
+      li.append(el('span','time',timeOf(s)));
+      const who = el('span','who');
+      if(b){ who.textContent = b.team; who.append(el('small',null,b.where==='Remote'?'Remote':'In person')); }
+      else { who.append(el('span','free', past ? '—' : 'Open')); if(!past) free++; }
+      li.append(who);
+      if(b){ const a=el('a','tag',current?'On now':'#'+b.number); a.href=b.url; li.append(a); }
+      else if(!past){ const a=el('a','book','Book'); a.href=bookUrl(s); a.target='_blank'; a.rel='noopener'; a.setAttribute('aria-label','Book '+s.label); li.append(a); }
+      else li.append(el('span'));
+      ul.append(li);
+    }
+    sec.append(ul); days.append(sec);
+  }
+  $('count').textContent = SLOTS.length ? `${free} open` : '';
+
+  const cur = SLOTS.find(s => +new Date(s.start) <= now && now < +new Date(s.end));
+  const curB = cur && booked.get(cur.label);
+  $('nowWho').textContent = !SLOTS.length ? '—' : curB ? curB.team : cur ? 'Free right now' : 'No slot running';
+  $('nowWhen').textContent = cur ? `${timeOf(cur)} – ${new Date(cur.end).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})}` : '';
+  const next = SLOTS.find(s => +new Date(s.start) > now && booked.get(s.label));
+  $('nextWho').textContent = next ? booked.get(next.label).team : 'Nobody booked yet';
+  $('nextWhen').textContent = next ? next.label : '';
+}
+
+async function load(){
+  $('status').className='status'; $('status').textContent='Updating…';
+  try{
+    if(!SLOTS.length){ const r = await fetch('slots.json',{cache:'no-store'}); SLOTS = (await r.json()).slots; }
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues?state=open&labels=booked&per_page=100`,{headers:{Accept:'application/vnd.github+json'}});
+    if(r.status===403||r.status===429) throw new Error('rate');
+    if(!r.ok) throw new Error('http');
+    const issues = await r.json();
+    const m = new Map();
+    for(const i of issues.sort((a,b)=>a.number-b.number)){
+      if(!i.title.startsWith('[slot]')) continue;
+      const label = field(i.body,'Slot');
+      if(label && !m.has(label)) m.set(label,{team:field(i.body,'Team name')||'Booked',where:field(i.body,'Testing from'),number:i.number,url:i.html_url});
+    }
+    booked = m; lastOk = new Date();
+    $('status').textContent = 'Updated '+lastOk.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  }catch(e){
+    $('status').className='status bad';
+    $('status').textContent = e.message==='rate' ? 'GitHub is rate-limiting this network. Try again in a few minutes.' : 'Couldn’t reach GitHub. Showing the last known bookings.';
+  }
+  render();
+}
+
+$('refresh').addEventListener('click', load);
+load();
+setInterval(load, 120000);   // GitHub allows 60 unauthenticated calls per hour per IP
+setInterval(render, 30000);  // keep "on now" current between fetches
+</script>
+</body>
+</html>
