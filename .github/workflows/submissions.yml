@@ -1,0 +1,24 @@
+name: Submissions
+# Checks "[submission]" issues: valid links, one per team, on time.
+on:
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  issues: write
+  contents: read
+concurrency:
+  group: submissions
+  cancel-in-progress: false
+jobs:
+  check:
+    if: startsWith(github.event.issue.title, '[submission]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const bot = require('./scripts/submission-bot.js');
+            await bot({ github, context });

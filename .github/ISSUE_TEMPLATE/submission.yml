@@ -1,0 +1,49 @@
+name: Submit your build
+description: IvyHacks Brodie submission. One per team, due Sunday Oct 11 at 6 PM ET. Edit this issue to update it.
+title: "[submission] "
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One submission per team. To change it later, edit this issue (… menu → Edit) before **Sun Oct 11, 6 PM ET**. Issues are public: don't put emails or phone numbers here.
+  - type: input
+    id: team
+    attributes:
+      label: Team name
+      placeholder: Team Squat Rack
+    validations:
+      required: true
+  - type: textarea
+    id: members
+    attributes:
+      label: Team members
+      description: One per line, name and GitHub or Discord handle. No emails.
+      placeholder: |
+        Jordan Lee, @jordanlee
+        Sam Patel, discord: sampatel
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: GitHub repo
+      description: Your fork of brodie-starter. Must be public.
+      placeholder: https://github.com/your-team/brodie-starter
+    validations:
+      required: true
+  - type: input
+    id: post
+    attributes:
+      label: First post link
+      description: IG, TikTok, X, LinkedIn or YouTube
+      placeholder: https://www.instagram.com/p/...
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What your Brodie skill does
+      description: One or two sentences for the judges.
+    validations:
+      required: false

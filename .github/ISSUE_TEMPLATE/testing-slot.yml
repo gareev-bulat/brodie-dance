@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        See open slots at https://seraphimlabs-dev.github.io/brodie-starter/slots/ . If the slot is already taken, the bot closes this and tells you. Max 2 upcoming slots per team.
+        See open slots at https://ivyhacks-brodie.vercel.app/slots/ . If the slot is already taken, the bot closes this and tells you. Max 2 upcoming slots per team.
   - type: dropdown
     id: slot
     attributes:

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IvyHacks Submissions</title>
+<meta name="description" content="Submit your Brodie hackathon build. One per team, due Sunday Oct 11 at 6 PM ET.">
+<link rel="icon" href="../slots/brodie.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one column. Deadline + submit button first, then the live list of submitted teams. Brodie hackathon brand, dark only. */
+:root{
+  --bg:#0A0A0B; --raised:#16171A; --line:#2A2C31; --ink:#F4F4F0; --muted:#9A9DA4;
+  --accent:#D9FF3D; --accent-ink:#0A0A0B; --warn:#FFC266; --bad:#FF8A7A;
+  --display:'Archivo',Arial,sans-serif; --body:'Plus Jakarta Sans',Arial,sans-serif; --mono:'JetBrains Mono','Courier New',monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding-inline:20px;padding-block:calc(44px + env(safe-area-inset-top,0px)) calc(72px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:40px}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:6px}
+.eyebrow{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+header{display:flex;flex-direction:column;gap:14px}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(42px,9vw,68px);line-height:.92;letter-spacing:-.02em;margin:0;text-transform:uppercase;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:52ch}
+h2{font-family:var(--display);font-weight:800;font-size:22px;margin:0;letter-spacing:-.01em}
+
+.deadline{display:grid;grid-template-columns:auto 1fr;gap:18px 26px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:18px;padding:20px}
+.clock{font-family:var(--display);font-weight:900;font-size:clamp(34px,7vw,48px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.clock small{display:block;font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:14px 26px}
+.btn:hover{background:#E7FF7A}
+.ghost{font-weight:600;font-size:14px;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:9px 16px}
+.ghost:hover{border-color:var(--muted)}
+
+.need{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px}
+.need li{border-top:1px solid var(--line);padding-top:10px;font-size:14.5px;color:var(--muted)}
+.need b{display:block;color:var(--ink);font-weight:600;font-size:15px}
+
+.toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.status{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.status.bad{color:var(--bad)}
+button{font:inherit;font-weight:700;font-size:14px;border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;background:transparent;color:var(--ink)}
+button:hover{border-color:var(--muted)}
+.count{font-family:var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.sub{border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.sub .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sub .team{font-family:var(--display);font-weight:800;font-size:20px;overflow-wrap:anywhere}
+.sub .members{color:var(--muted);font-size:14px;white-space:pre-line;overflow-wrap:anywhere}
+.sub .what{font-size:14.5px;overflow-wrap:anywhere}
+.sub .links{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
+.sub .links a{overflow-wrap:anywhere}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1px solid;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.pill.ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.pill.fix{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.pill.late{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.empty{border:1px dashed var(--line);border-radius:16px;padding:22px;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+
+@media (max-width:560px){
+  .deadline{grid-template-columns:1fr}
+  .need{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">IvyHacks · Brodie skills</div>
+    <h1>Submit your build.</h1>
+    <p class="lede">One submission per team, as a GitHub issue. A bot checks your links within a minute and tells you what to fix. Keep editing it until the deadline.</p>
+  </header>
+
+  <section class="deadline" aria-label="Deadline">
+    <div class="clock"><span id="clock">—</span><small id="clockLabel">until Sun Oct 11, 6:00 PM ET</small></div>
+    <div class="actions">
+      <a class="btn" id="submitBtn" href="https://github.com/seraphimlabs-dev/brodie-starter/issues/new?template=submission.yml" target="_blank" rel="noopener">Submit on GitHub</a>
+      <a class="ghost" href="https://github.com/seraphimlabs-dev/brodie-starter/issues?q=is%3Aissue+label%3Asubmission+author%3A%40me" target="_blank" rel="noopener">Edit my submission</a>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:14px" aria-labelledby="need-h">
+    <h2 id="need-h">What you need</h2>
+    <ul class="need">
+      <li><b>Team name</b>One submission per name. A second one gets closed.</li>
+      <li><b>Members</b>Names with GitHub or Discord handles. No emails: issues are public.</li>
+      <li><b>Public GitHub repo</b>Your fork of brodie-starter.</li>
+      <li><b>First post link</b>IG, TikTok, X, LinkedIn or YouTube.</li>
+    </ul>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px" aria-labelledby="list-h">
+    <div class="toolbar">
+      <h2 id="list-h">Submitted <span class="count" id="count"></span></h2>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+        <button id="csv" type="button">Copy as CSV</button>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <ul class="list" id="list"><li class="empty">Loading submissions…</li></ul>
+  </section>
+
+  <footer>
+    <span>Need a FaceTime test first? <a href="../slots/">Book a testing slot</a>. Drawing Brodie? Use the <a href="https://github.com/seraphimlabs-dev/brodie-character-kit">character kit</a>.</span>
+    <span>Questions: #help or <code style="font-family:var(--mono)">/join</code> in #oh-queue.</span>
+  </footer>
+</main>
+
+<script>
+const REPO = 'seraphimlabs-dev/brodie-starter';
+const DEADLINE = new Date('2026-10-11T18:00:00-04:00');
+const $ = id => document.getElementById(id);
+let subs = [];
+
+function field(body, name){
+  const m = (body||'').match(new RegExp('### '+name+'\\s*\\n+([\\s\\S]*?)(?=\\n### |$)'));
+  const v = m ? m[1].trim() : '';
+  return v === '_No response_' ? '' : v;
+}
+function safeUrl(v){ try{ const u=new URL(v); return /^https?:$/.test(u.protocol) ? u.href : null }catch{ return null } }
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+
+function tick(){
+  const ms = DEADLINE - Date.now();
+  if(ms <= 0){ $('clock').textContent='Closed'; $('clockLabel').textContent='Deadline was Sun Oct 11, 6:00 PM ET'; return; }
+  const h = Math.floor(ms/3.6e6), m = Math.floor(ms%3.6e6/6e4);
+  $('clock').textContent = h ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
+}
+
+function render(){
+  const ul = $('list'); ul.replaceChildren();
+  $('count').textContent = subs.length || '';
+  if(!subs.length){ ul.append(el('li','empty','No submissions yet. Be the first.')); return; }
+  for(const s of subs){
+    const li = el('li','sub');
+    const top = el('div','top'); top.append(el('span','team',s.team));
+    const pills = el('div','pills');
+    if(s.labels.includes('complete')) pills.append(el('span','pill ok','Complete'));
+    else if(s.labels.includes('needs-fixes')) pills.append(el('span','pill fix','Needs fixes'));
+    else pills.append(el('span','pill fix','Checking'));
+    if(s.labels.includes('late')||s.labels.includes('edited-after-deadline')) pills.append(el('span','pill late','Late'));
+    top.append(pills); li.append(top);
+    if(s.members) li.append(el('div','members',s.members));
+    if(s.what) li.append(el('div','what',s.what));
+    const links = el('div','links');
+    for(const [txt,href] of [['Repo',s.repo],['First post',s.post],['Issue #'+s.number,s.url]]){
+      const u = safeUrl(href); if(!u) continue;
+      const a = el('a',null,txt); a.href=u; a.target='_blank'; a.rel='noopener'; links.append(a);
+    }
+    li.append(links); ul.append(li);
+  }
+}
+
+async function load(){
+  $('status').className='status'; $('status').textContent='Updating…';
+  try{
+    const r = await fetch(`https://api.github.com/repos/${REPO}/issues?state=open&labels=submission&per_page=100&sort=created&direction=asc`,{headers:{Accept:'application/vnd.github+json'}});
+    if(r.status===403||r.status===429) throw new Error('rate');
+    if(!r.ok) throw new Error('http');
+    subs = (await r.json()).filter(i => i.title.startsWith('[submission]')).map(i => ({
+      number:i.number, url:i.html_url, labels:i.labels.map(l=>l.name), updated:i.updated_at,
+      team:field(i.body,'Team name')||'Untitled team', members:field(i.body,'Team members'),
+      repo:field(i.body,'GitHub repo'), post:field(i.body,'First post link'), what:field(i.body,'What your Brodie skill does')
+    }));
+    $('status').textContent = 'Updated '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  }catch(e){
+    $('status').className='status bad';
+    $('status').textContent = e.message==='rate' ? 'GitHub is rate-limiting this network. Try again in a few minutes.' : 'Couldn’t reach GitHub. Showing the last known list.';
+  }
+  render();
+}
+
+$('csv').addEventListener('click', async () => {
+  const esc = v => '"'+String(v??'').replace(/"/g,'""')+'"';
+  const rows = [['Team','Members','Repo','First post','What','Status','Issue','Updated']]
+    .concat(subs.map(s => [s.team,s.members,s.repo,s.post,s.what,s.labels.filter(l=>l!=='submission').join(' '),s.url,s.updated]));
+  const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+  try{ await navigator.clipboard.writeText(csv); $('status').textContent='Copied. Paste into a spreadsheet.'; }
+  catch{ $('status').className='status bad'; $('status').textContent='Copy was blocked. Select the list and copy it instead.'; }
+});
+$('refresh').addEventListener('click', load);
+tick(); setInterval(tick, 30000);
+load(); setInterval(load, 120000);
+</script>
+</body>
+</html>

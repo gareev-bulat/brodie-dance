@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IvyHacks Brodie</title>
+<meta name="description" content="Everything for the IvyHacks Health x FaceTime hackathon: starter repo, testing slots, submissions, Brodie character kit.">
+<link rel="icon" href="slots/brodie.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: hub. Title + mascot, then one row per link in the order a team needs them. Brodie hackathon brand, dark only. */
+:root{
+  --bg:#0A0A0B; --raised:#16171A; --line:#2A2C31; --ink:#F4F4F0; --muted:#9A9DA4; --accent:#D9FF3D;
+  --display:'Archivo',Arial,sans-serif; --body:'Plus Jakarta Sans',Arial,sans-serif; --mono:'JetBrains Mono','Courier New',monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:720px;margin:0 auto;padding-inline:20px;padding-block:calc(44px + env(safe-area-inset-top,0px)) calc(72px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:36px}
+.eyebrow{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+header{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end}
+header > div{min-width:0;display:flex;flex-direction:column;gap:12px}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(42px,9vw,68px);line-height:.92;letter-spacing:-.02em;margin:0;text-transform:uppercase;text-wrap:balance}
+p{margin:0;color:var(--muted);max-width:52ch}
+.mascot{width:128px;height:auto;transform:rotate(4deg);filter:drop-shadow(0 10px 18px rgba(0,0,0,.5))}
+.links{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.links a{display:grid;grid-template-columns:1fr auto;gap:4px 16px;padding:18px 4px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
+.links a:hover .t,.links a:focus-visible .t{color:var(--accent)}
+.links a:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+.t{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em}
+.d{grid-column:1;color:var(--muted);font-size:14.5px}
+.arrow{grid-row:1 / span 2;grid-column:2;align-self:center;font-family:var(--mono);color:var(--muted)}
+.req{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:4px}
+.where{display:flex;flex-direction:column;gap:4px;font-size:14.5px;color:var(--muted)}
+.where b{color:var(--ink);font-weight:600}
+@media (max-width:560px){header{grid-template-columns:1fr}.mascot{width:96px;order:-1}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <span class="eyebrow">IvyHacks · Health x FaceTime</span>
+      <h1>Build a Brodie skill.</h1>
+      <p>Everything your team needs, in the order you need it. Submissions close Sunday Oct 11 at 6 PM ET.</p>
+    </div>
+    <img class="mascot" src="slots/brodie.png" alt="Brodie flexing" width="314" height="320">
+  </header>
+
+  <ul class="links">
+    <li><a href="https://github.com/seraphimlabs-dev/brodie-starter"><span class="t">Starter repo<span class="req">Required</span></span><span class="d">Fork it and build on it to be prize-eligible.</span><span class="arrow">→</span></a></li>
+    <li><a href="https://docs.trychert.com/facetime-cli/overview"><span class="t">FaceTime CLI docs</span><span class="d">Chert setup: connect your local agent to the shared line.</span><span class="arrow">→</span></a></li>
+    <li><a href="https://github.com/cherthq/chert-facetime-opensource"><span class="t">Open-source FaceTime framework</span><span class="d">For testing without the shared line.</span><span class="arrow">→</span></a></li>
+    <li><a href="slots/"><span class="t">Book a testing slot</span><span class="d">15-minute turns on the shared FaceTime line. In person or remote.</span><span class="arrow">→</span></a></li>
+    <li><a href="https://brodie-character-kit.vercel.app/"><span class="t">Brodie character kit<span class="req">Required</span></span><span class="d">Any Brodie art in your skill comes from here. He's cream, never pink.</span><span class="arrow">→</span></a></li>
+    <li><a href="submit/"><span class="t">Submit your build</span><span class="d">One per team, as a GitHub issue. Due Sun Oct 11, 6 PM ET.</span><span class="arrow">→</span></a></li>
+  </ul>
+
+  <div class="where">
+    <span><b>Where:</b> Huntsman Hall 265 (JMHH 265), 3730 Walnut St</span>
+    <span><b>Stuck?</b> Post in #help, or run /join in #oh-queue and a mentor comes to your table.</span>
+  </div>
+</main>
+</body>
+</html>

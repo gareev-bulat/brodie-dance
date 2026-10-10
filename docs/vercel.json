@@ -1,0 +1,7 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": true,
+  "headers": [
+    { "source": "/slots/slots.json", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] }
+  ]
+}

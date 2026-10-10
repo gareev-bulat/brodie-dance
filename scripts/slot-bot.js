@@ -2,7 +2,7 @@
 const fs = require('fs');
 const MAX_PER_TEAM = 2;
 const MARK = '<!-- slot-bot -->';
-const PAGE = 'https://seraphimlabs-dev.github.io/brodie-starter/slots/';
+const PAGE = 'https://ivyhacks-brodie.vercel.app/slots/';
 
 function field(body, name) {
   const m = (body || '').match(new RegExp('### ' + name + '\\s*\\n+([^\\n]+)'));
