@@ -230,8 +230,14 @@ async def pump(track, tee, session, call):
                                                     f'{json.dumps(move)}. React in one short sentence and rate it out of 10.')
 
 
+def face_frames(key):
+    return sprites(key) or real_frames(key)
+
+
 def prewarm(proc: JobProcess):
-    for key in VARIANTS: sprites(key) or real_frames(key)   # face frames off the event loop, before any call
+    # Only the faces a FaceTime call can need (its character, and Cruelty mid-call): all six take 4 s here and far longer on a slow
+    # disk, and a process that isn't ready within initialize_process_timeout fails. Web calls load their character in a thread.
+    for key in {CHARACTER if CHARACTER in VARIANTS else DEFAULT, 'cruelty'}: face_frames(key)
 
 
 async def entrypoint(ctx: JobContext):
@@ -241,7 +247,7 @@ async def entrypoint(ctx: JobContext):
     if ctx.is_fake_job():                                # console: local mic/speaker, nobody to wait for
         await session.start(make(key, call), room=ctx.room)
         return
-    await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
+    await asyncio.gather(ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL), asyncio.to_thread(face_frames, key))   # cached after
     call.room, call.avatar = ctx.room, Avatar(VARIANTS[key])
     call.tasks.add(await call.avatar.publish(ctx.room))
     voice_out = _ParticipantAudioOutput(ctx.room, sample_rate=24000, num_channels=1,
@@ -328,4 +334,6 @@ async def entrypoint(ctx: JobContext):
 if __name__ == '__main__':
     if CHARACTER not in VARIANTS: raise SystemExit(f'VERITY_CHARACTER={CHARACTER!r}: pick one of {", ".join(VARIANTS)}')
     print(f'[verity] default character {VARIANTS[CHARACTER]["name"]}, agent name {os.environ.get("AGENT_NAME", "")!r}', flush=True)
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.environ.get('AGENT_NAME', ''), num_idle_processes=1))   # a preloaded process: no 7 s cold start on the call
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.environ.get('AGENT_NAME', ''),
+                              num_idle_processes=1,                                   # a preloaded process: no 7 s cold start on the call
+                              initialize_process_timeout=60, shutdown_process_timeout=30))   # slow Windows/OneDrive disks: 10 s defaults time out
