@@ -83,13 +83,14 @@ class Call:
 
 
 # Fish Audio voices (fish.audio/m/<id>): with FISH_API_KEY set, these characters think in Gemini (text out) and speak in Fish.
-FISH_VOICES = {'verity': os.environ.get('VERITY_FISH_VOICE', '894f0267a5194c30814e6b15c07da862')}
+FISH_VOICE = os.environ.get('VERITY_FISH_VOICE', '894f0267a5194c30814e6b15c07da862')   # every character speaks with it
+FISH_VOICES = {}                                                     # per-character overrides, e.g. {'cruelty': '<fish voice id>'}
 
 
 def fish_tts(key):
-    if not os.environ.get('FISH_API_KEY') or not FISH_VOICES.get(key): return None
+    if not os.environ.get('FISH_API_KEY'): return None
     from livekit.plugins import fishaudio
-    return fishaudio.TTS(model=os.environ.get('FISH_MODEL', 's2.1-pro-free'), voice_id=FISH_VOICES[key], sample_rate=24000,
+    return fishaudio.TTS(model=os.environ.get('FISH_MODEL', 's2.1-pro-free'), voice_id=FISH_VOICES.get(key, FISH_VOICE), sample_rate=24000,
                          latency_mode='balanced')   # 24 kHz like voice_out
 
 
@@ -348,6 +349,8 @@ async def entrypoint(ctx: JobContext):
 if __name__ == '__main__':
     if CHARACTER not in VARIANTS: raise SystemExit(f'VERITY_CHARACTER={CHARACTER!r}: pick one of {", ".join(VARIANTS)}')
     print(f'[verity] default character {VARIANTS[CHARACTER]["name"]}, agent name {os.environ.get("AGENT_NAME", "")!r}', flush=True)
+    print(f'[verity] voice: Fish Audio {os.environ.get("FISH_MODEL", "s2.1-pro-free")}, voice {FISH_VOICE}' if os.environ.get('FISH_API_KEY') else
+          '[verity] voice: Gemini Live (add FISH_API_KEY to .env.local for the Fish voice)', flush=True)
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.environ.get('AGENT_NAME', ''),
                               num_idle_processes=1,                                   # a preloaded process: no 7 s cold start on the call
                               initialize_process_timeout=60, shutdown_process_timeout=30))   # slow Windows/OneDrive disks: 10 s defaults time out
