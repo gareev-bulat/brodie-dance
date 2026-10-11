@@ -3,12 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Verity Agent</title>
-<meta name="description" content="It's me, it's Verity. Your personal helper friend. Call it, show it your room, or just type.">
+<script>   /* Settings > Theme, applied before paint; first visit follows the device */
+  try { const t = (JSON.parse(localStorage.getItem('verity-settings')) || {}).theme;
+        document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch {}
+</script>
+<title>Verity: AI dance coach</title>
+<meta name="description" content="Verity is the AI dance coach you video call. You dance, it watches through your camera and coaches you live, with zero mercy.">
 <link rel="icon" href="assets/verity-face.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.7/dist/livekit-client.umd.js"></script>
 <script src="lore.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -304,6 +308,282 @@ try {
     .ball-wrap, .home .ball { width: 150px; height: 150px; }
   }
   @media (prefers-reduced-motion: reduce) { .tile .wait img, body.cruel .tile, .timer::before { animation: none; } #view-home, .side, .cta, .pick img { transition: none; } }
+
+  /* =====================================================================================================================
+     BRAINROT LAYER: the visual skin over the app above (layout and behaviour unchanged). One beat drives every loop.
+     ===================================================================================================================== */
+  :root {
+    --sun: #efe7da; --butter: #fff; --honey: #c2a882; --black: #1a1919; --white: #fff;   /* the Brodie kit (brodie.json): body cream, white, tan, ink; flat, never pink */
+    --ink-b: #1a1919; --shade: #1a1919;
+    --beat: .5s;                                     /* 120 BPM: pulses, wiggles, the dancer and the ticker all count from this */
+    --paper: #fff; --side: var(--butter); --card: #fff; --ink: #1a1919; --muted: #3a3a3a; --line: #1a1919;
+    --verity: var(--sun); --gold: var(--honey); --call: #1a1919; --bad: #d62828;
+    --round: "Anton", "Impact", sans-serif; --body: "Comic Neue", "Comic Sans MS", system-ui, sans-serif;
+    --hard: 5px 5px 0 var(--shade);
+  }
+  body { background: var(--sun); font: 400 1.0625rem/1.5 var(--body); font-synthesis: none; }
+  .view { overflow-x: hidden; }
+  :focus-visible { outline: 4px solid #1a1919; outline-offset: 3px; box-shadow: 0 0 0 7px #fff; }
+  .main { color: #1a1919;
+          background: var(--sun) linear-gradient(rgba(26, 25, 25, .06) 2px, transparent 2px) 0 0 / 64px 64px,
+                      linear-gradient(90deg, rgba(26, 25, 25, .06) 2px, transparent 2px) 0 0 / 64px 64px; }
+
+  /* the meme caption: Anton, white fill, fat black stroke */
+  .cap { font-family: var(--round); font-weight: 400; text-transform: lowercase; letter-spacing: .01em; color: #fff;
+         -webkit-text-stroke: 3px #1a1919; paint-order: stroke fill; text-shadow: 4px 4px 0 var(--shade); }
+
+  /* buttons: thick border, hard shadow, they squish on press like a step on the beat */
+  .cta, .btn, .chips button, .decline, #callbtn, .tile-tools button, .feed-head button, .ity button {
+    border: 3px solid #1a1919 !important; box-shadow: var(--hard); transition: transform .08s, box-shadow .08s; }
+  .cta:active, .btn:active, .chips button:active, .decline:active, #callbtn:active, .tile-tools button:active, .feed-head button:active {
+    transform: translate(4px, 4px) scale(.97, .93); box-shadow: 1px 1px 0 var(--shade); }
+  .btn { background: var(--honey); color: #1a1919; font: 400 1.05rem/1 var(--round); letter-spacing: .02em; text-transform: lowercase; border-radius: 12px; padding: 11px 18px; }
+  .btn.ghost { background: #fff; color: #1a1919; }
+  .btn.danger { background: var(--bad); color: #1a1919; }
+
+  /* ---------- sidebar: a highlighter strip ---------- */
+  .side { border-right: 4px solid #1a1919; color: #1a1919; }
+  .side-top { font: 400 1.4rem/1 var(--round); text-transform: lowercase; }
+  .tabs { border-bottom: 3px solid #1a1919; }
+  .tabs button { font: 700 1rem var(--body); color: #1a1919; opacity: .65; }
+  .tabs button[aria-selected="true"] { opacity: 1; border-bottom: 4px solid #1a1919; }
+  .nav button, .nav a { font-size: 1rem; font-weight: 700; border-radius: 10px; }
+  .nav button:hover, .nav a:hover, .nav button[aria-current="true"] { background: #1a1919; color: var(--sun); }
+  .group { font: 400 1.15rem/1 var(--round); color: #1a1919; text-transform: lowercase; }
+  .char { border-radius: 12px; }
+  .char[aria-pressed="true"] { background: #fff; border: 3px solid #1a1919; box-shadow: 3px 3px 0 var(--shade); }
+  .char small, .recent span:last-child, .empty { color: #222; font-size: .85rem; }
+  .side-foot { border-top: 3px solid #1a1919; color: #1a1919; font-size: .85rem; font-weight: 700; }
+  .dot { border: 2px solid #1a1919; }
+
+  /* ---------- marquee ---------- */
+  .ticker { position: relative; z-index: 2; margin: 18px -20px 0; overflow: hidden; background: #1a1919; border-block: 4px solid #1a1919;
+            transform: rotate(-2deg); white-space: nowrap; }
+  .ticker-track { display: inline-flex; gap: 40px; padding: 10px 0; animation: ticker calc(var(--beat) * 48) linear infinite; }
+  .ticker span { font: 400 clamp(1.1rem, 2.4vw, 1.6rem)/1 var(--round); color: var(--sun); text-transform: lowercase; }
+  .ticker span::after { content: "💃"; margin-left: 40px; }
+  @keyframes ticker { to { transform: translateX(-50%); } }
+
+  /* ---------- home ---------- */
+  #view-home { background: transparent; color: #1a1919; }
+  .home { position: relative; display: block; text-align: left; max-width: 1180px; margin: 0 auto; padding: 26px 28px 150px; min-height: 0; }
+  .hero { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: 44px; align-items: center; }
+  .pitch { min-width: 0; }
+  .wordmark.cap { font-size: clamp(4.5rem, 13vw, 11rem); line-height: .82; -webkit-text-stroke: 6px #1a1919; text-shadow: 8px 8px 0 var(--shade);
+                  color: #fff; transform: rotate(-3deg); transform-origin: left bottom; margin: 0 0 10px; }
+  .tagline { margin: 18px 0 0; max-width: 34ch; font: 700 clamp(1.2rem, 2vw, 1.5rem)/1.3 var(--body); }
+  .tagline mark { background: #1a1919; color: var(--sun); padding: 0 .2em; }
+  .home .glow { text-align: left; color: #fff; -webkit-text-stroke: 5px #1a1919; font: 400 clamp(1.1rem, 2vw, 1.5rem)/1.2 var(--round); }
+  .home .sub { margin: 12px 0 0; max-width: 46ch; font-size: 1.0625rem; opacity: 1; color: #1a1919; }
+  .home .sub a { color: #1a1919; font-weight: 700; text-decoration-thickness: 3px; }
+  .badges { justify-content: flex-start; }
+  .badge { background: #1a1919; color: var(--sun); border: 2px solid #1a1919; font: 400 .9rem var(--round); }
+  .picker { margin: 22px 0 0; }
+  .picker-row { justify-content: flex-start; gap: 14px; flex-wrap: wrap; }
+  .pick { width: 74px; color: #1a1919; }
+  .pick img { width: 62px; height: 62px; background: #fff; border: 3px solid #1a1919; outline: 0; box-shadow: 3px 3px 0 var(--shade); transition: transform .1s; }
+  .pick:hover img { transform: rotate(-6deg) scale(1.05); }
+  .pick[aria-pressed="true"] img { box-shadow: 0 0 0 4px #fff, 0 0 0 7px #1a1919; }
+  .pick b { font: 400 1rem/1.1 var(--round); text-transform: lowercase; }
+  .pick small { font-size: .8rem; opacity: .85; }
+  .chips { justify-content: flex-start; margin-top: 20px; }
+  .chips button { background: #fff; color: #1a1919; border-radius: 999px; padding: 7px 15px; font: 700 1rem var(--body); box-shadow: 3px 3px 0 var(--shade); }
+  .chips button:nth-child(2n) { background: var(--butter); } .chips button:nth-child(3n) { background: var(--honey); }
+  .chips button:hover { transform: rotate(-2deg); }
+
+  /* the hero: an incoming video call from Verity */
+  .callcard { position: relative; background: #fff; color: #1a1919; border: 5px solid #1a1919; border-radius: 34px; padding: 12px; box-shadow: 10px 10px 0 var(--shade);
+              transform: rotate(2.5deg); }
+  .call-top { display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; font-weight: 700; }
+  .live { background: var(--bad); color: #fff; border: 2px solid #1a1919; border-radius: 6px; padding: 0 7px; font: 400 .95rem/1.4 var(--round); text-transform: lowercase; }
+  .caller { flex: 1; font: 400 1.25rem/1 var(--round); text-transform: lowercase; }
+  .clock { font-weight: 700; }
+  .cam { position: relative; height: clamp(260px, calc(100dvh - 360px), 540px); border-radius: 22px;   /* the whole call, answer included, fits above the composer on a 720p projector */
+         overflow: hidden; border: 3px solid #1a1919;
+         background: #1a1919; }
+  .floor-lines { position: absolute; inset: auto 0 0; height: 32%; background: repeating-linear-gradient(90deg, rgba(239, 231, 218, .35) 0 2px, transparent 2px 42px),
+                 repeating-linear-gradient(0deg, rgba(239, 231, 218, .35) 0 2px, transparent 2px 22px); transform: perspective(240px) rotateX(48deg); transform-origin: bottom; }
+  .dancer { position: absolute; left: 50%; bottom: 12%; height: 62%; width: auto; translate: -50% 0; overflow: visible; }
+  .dancer .bod { animation: bounce var(--beat) ease-in-out infinite alternate; transform-origin: 50% 100%; }
+  .dancer .armL { animation: armL calc(var(--beat) * 2) ease-in-out infinite; transform-origin: 50px 52px; }
+  .dancer .armR { animation: armR calc(var(--beat) * 2) ease-in-out infinite; transform-origin: 70px 52px; }
+  .dancer .legL { animation: legL calc(var(--beat) * 2) ease-in-out infinite; transform-origin: 54px 96px; }
+  .dancer .legR { animation: legR calc(var(--beat) * 2) ease-in-out infinite; transform-origin: 66px 96px; }
+  @keyframes bounce { from { transform: translateY(0) scaleY(1); } to { transform: translateY(-9px) scaleY(1.03) rotate(-3deg); } }
+  @keyframes armL { 0%, 100% { transform: rotate(30deg); } 50% { transform: rotate(-70deg); } }
+  @keyframes armR { 0%, 100% { transform: rotate(-80deg); } 50% { transform: rotate(25deg); } }
+  @keyframes legL { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-22deg); } }
+  @keyframes legR { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(12deg); } }
+  .pipface { position: absolute; right: 10px; top: 10px; width: 30%; aspect-ratio: 1; height: auto; margin: 0; border-radius: 18px; background: #1a1919; border: 3px solid #fff;
+             box-shadow: 3px 3px 0 var(--shade); padding: 4px; }
+  .home .pipface .ball { width: 100%; height: 100%; }
+  .you { position: absolute; left: 10px; top: 10px; background: rgba(0, 0, 0, .7); color: #fff; border-radius: 8px; padding: 1px 8px; font-size: .85rem; font-weight: 700; }
+  .bubbles { position: absolute; inset: 0; pointer-events: none; }
+  .bubble { position: absolute; max-width: 62%; padding: 6px 11px; border: 3px solid #1a1919; border-radius: 14px 14px 14px 3px; background: var(--sun); color: #1a1919;
+            font: 700 .98rem/1.2 var(--body); box-shadow: 3px 3px 0 var(--shade); animation: pop calc(var(--beat) * .6) cubic-bezier(.3, 1.6, .5, 1) both; }
+  .bubble.good { background: #fff; } .bubble.bad { background: var(--honey); } .bubble.meh { background: var(--butter); }
+  @keyframes pop { from { transform: scale(.3) rotate(-12deg); opacity: 0; } }
+  .aura { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px; color: #fff; font: 400 1.05rem/1 var(--round); text-transform: lowercase; }
+  .aura-bar { flex: 1; height: 16px; border: 3px solid #1a1919; border-radius: 99px; background: #fff; overflow: hidden; }
+  .aura-bar i { display: block; height: 100%; width: 60%; background: var(--honey); transition: width calc(var(--beat) * .8) cubic-bezier(.3, 1.5, .5, 1); }
+  .aura b { min-width: 4.2ch; text-align: right; font-weight: 400; color: var(--sun); -webkit-text-stroke: 3px #1a1919; paint-order: stroke fill; }
+  .call-actions { display: flex; justify-content: space-between; gap: 10px; padding: 14px 6px 6px; }
+  .decline { border-radius: 999px; background: var(--bad); color: #fff; padding: 10px 16px; font: 400 1.05rem/1 var(--round); text-transform: lowercase; cursor: pointer; }
+  .cta.answer { margin: 0; border-radius: 999px; background: #1a1919; color: var(--sun); padding: 12px 22px; font: 400 1.4rem/1 var(--round); text-transform: lowercase;
+                animation: pulse var(--beat) ease-in-out infinite alternate; }
+  .cta.answer svg { width: 22px; height: 22px; }
+  @keyframes pulse { to { transform: scale(1.06); } }
+
+  /* how it works: dance-floor tiles that step down the page */
+  .steps-wrap, .judges-wrap { position: relative; z-index: 1; margin-top: 90px; }
+  .sec-title.cap { margin: 0 0 22px; font-size: clamp(2.4rem, 6vw, 4.2rem); line-height: .9; transform: rotate(-2deg); transform-origin: left; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+  .steps li { position: relative; padding: 18px 18px 20px; border: 4px solid #1a1919; border-radius: 6px; color: #1a1919; box-shadow: 8px 8px 0 var(--shade); }
+  .steps li:nth-child(1) { background: #fff; transform: rotate(-3deg); }
+  .steps li:nth-child(2) { background: var(--butter); transform: rotate(2deg); margin-top: 40px; }
+  .steps li:nth-child(3) { background: var(--honey); transform: rotate(-1.5deg); margin-top: 80px; }
+  .steps .n { display: block; font: 400 4.6rem/.9 var(--round); color: #fff; -webkit-text-stroke: 5px #1a1919; paint-order: stroke fill; }
+  .steps h3 { margin: 4px 0 6px; font: 400 1.8rem/1 var(--round); text-transform: lowercase; }
+  .steps p { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.35; }
+
+  /* features: the judging panel holds up its paddles */
+  .judges { display: flex; flex-wrap: wrap; gap: 26px 20px; align-items: flex-end; }
+  .paddle { flex: 1 1 210px; max-width: 270px; display: flex; flex-direction: column; align-items: center; color: #1a1919; }
+  .paddle .card { width: 100%; background: #fff; border: 4px solid #1a1919; border-radius: 16px; box-shadow: 6px 6px 0 var(--shade); padding: 0 0 14px; overflow: hidden; text-align: center; }
+  .paddle .score { display: block; padding: 8px 0 4px; font: 400 clamp(3.6rem, 7vw, 5rem)/1 var(--round); color: #fff; -webkit-text-stroke: 5px #1a1919; paint-order: stroke fill;
+                   background: var(--pc); border-bottom: 4px solid #1a1919; }
+  .paddle h3 { margin: 10px 12px 4px; font: 400 1.5rem/1 var(--round); text-transform: lowercase; }
+  .paddle p { margin: 0 14px; font-size: 1rem; font-weight: 700; line-height: 1.35; }
+  .paddle .stick { width: 18px; height: 56px; background: #8a5a2b; border: 4px solid #1a1919; border-top: 0; }
+  .paddle .judge { margin-top: 6px; color: #1a1919; font-weight: 700; font-size: .95rem; }
+  .paddle:nth-child(1) { transform: rotate(-4deg); --pc: var(--sun); }
+  .paddle:nth-child(2) { transform: rotate(3deg) translateY(-22px); --pc: var(--honey); }
+  .paddle:nth-child(3) { transform: rotate(-2deg) translateY(10px); --pc: var(--butter); }
+  .paddle:nth-child(4) { transform: rotate(5deg) translateY(-8px); --pc: #1a1919; }
+
+  /* stickers: decoration only, never in the way */
+  .stickers { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .sticker { position: absolute; font: 400 1.6rem/1 var(--round); color: #1a1919; padding: 6px 12px; border: 3px solid #1a1919; border-radius: 10px; box-shadow: 3px 3px 0 var(--shade);
+             animation: wiggle calc(var(--beat) * 2) ease-in-out infinite; text-transform: none; }
+  .sticker.e { border: 0; box-shadow: none; padding: 0; font-size: 2.6rem; background: none; }
+  .sticker.burst { padding: 18px 14px; border: 0; box-shadow: none; clip-path: polygon(50% 0, 61% 30%, 95% 18%, 72% 45%, 100% 62%, 66% 66%, 72% 100%, 50% 76%, 25% 100%, 32% 68%, 0 62%, 28% 44%, 5% 18%, 39% 30%); }
+  @keyframes wiggle { 0%, 100% { rotate: -8deg; } 50% { rotate: 8deg; } }
+
+  /* the one interaction effect: emoji burst where you click */
+  .boom { position: fixed; z-index: 50; pointer-events: none; font-size: 1.7rem; animation: boom calc(var(--beat) * 1.6) ease-out forwards; }
+  @keyframes boom { to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+
+  /* ---------- call view ---------- */
+  .stage-head h2 { font: 400 clamp(2.4rem, 4vw, 3.4rem)/1 var(--round); color: #fff; -webkit-text-stroke: 3px #1a1919; paint-order: stroke fill; text-shadow: 4px 4px 0 var(--shade); text-transform: lowercase; }
+  .pill { background: #fff; color: #1a1919; border: 2px solid #1a1919; font-weight: 700; font-size: .9rem; }
+  .pill.speaking { background: var(--sun); } .pill.thinking { background: var(--butter); }
+  .timer { color: #1a1919; font-size: .95rem; font-weight: 700; }
+  .meters { background: #fff; color: #1a1919; border: 3px solid #1a1919; box-shadow: 3px 3px 0 var(--shade); }
+  .tile { border: 5px solid #1a1919; border-radius: 26px; box-shadow: 8px 8px 0 var(--shade); }
+  .tile .wait { color: #fff; font-size: 1.1rem; font-weight: 700; }
+  .tile .wait img { animation-duration: calc(var(--beat) * 2); }
+  .tile-tools button { background: var(--sun); color: #1a1919; font: 400 1rem var(--round); text-transform: lowercase; }
+  .feed { border: 4px solid #1a1919; color: #1a1919; box-shadow: 8px 8px 0 var(--shade); }
+  .feed-head { border-bottom: 3px solid #1a1919; }
+  .feed-head h3 { font: 400 1.4rem/1 var(--round); text-transform: lowercase; }
+  .feed-head button { background: var(--sun); border-radius: 10px; font-weight: 700; font-size: .9rem; }
+  .log:empty::before { content: "start dancing or say hi. every roast, strike and verdict lands here."; color: #333; font-size: 1rem; font-weight: 700; }
+  .msg p { background: #f1f1f1; border: 2px solid #1a1919; font-size: 1rem; }
+  .msg.me p { background: #1a1919; color: #fff; }
+  .msg small { color: #333; }
+  .ev { background: var(--butter); border: 2px solid #1a1919; color: #1a1919; font-size: .9rem; font-weight: 700; }
+  .ev.bad { background: var(--honey); border-color: #1a1919; }
+  .ev.big { background: var(--bad); color: #fff; border: 3px solid #1a1919; font: 400 1.2rem var(--round); }
+  .verdict-card { background: #1a1919; color: var(--sun); border: 4px solid var(--sun); box-shadow: 5px 5px 0 var(--honey); }
+  .verdict-card b { font: 400 2.2rem/1 var(--round); }
+  .verdict-card small { color: #fff; font-size: .9rem; }
+
+  /* ---------- galleries + history ---------- */
+  .gallery h2 { font: 400 clamp(2.6rem, 6vw, 4.4rem)/.95 var(--round); color: #fff; -webkit-text-stroke: 4px #1a1919; paint-order: stroke fill; text-shadow: 6px 6px 0 var(--shade);
+                text-transform: lowercase; transform: rotate(-2deg); transform-origin: left; margin-bottom: 14px; }
+  .gallery > p { color: #1a1919; font-size: 1.0625rem; }
+  .meme { border: 3px solid #1a1919; box-shadow: 5px 5px 0 var(--shade); color: #1a1919; }
+  
+  .meme span { font-size: .95rem; font-weight: 700; } .meme small { color: #333; font-size: .82rem; }
+  .ity { color: #1a1919; border: 4px solid #1a1919; box-shadow: 6px 6px 0 var(--c); }
+  .ity .tag { font: 400 1.5rem/1 var(--round); }
+  .ity p { font-size: .95rem; font-weight: 700; }
+  .history-log { color: #1a1919; border: 4px solid #1a1919; box-shadow: 8px 8px 0 var(--shade); }
+  #history-sub { color: #1a1919; }
+
+  /* ---------- composer ---------- */
+  .composer { border: 4px solid #1a1919 !important; border-radius: 18px; color: #1a1919; box-shadow: 6px 6px 0 var(--honey), 6px 6px 0 4px var(--shade); }
+  .composer input { font-size: 1.05rem; font-weight: 700; }
+  .composer input::placeholder { color: #555; }
+  .composer select { color: #1a1919; font-weight: 700; font-size: .95rem; }
+  .icon { border: 2.5px solid #1a1919; color: #1a1919; }
+  .icon.on { background: #1a1919; color: var(--sun); }
+  #callbtn { background: #1a1919; color: var(--sun); font: 400 1.1rem/1 var(--round); text-transform: lowercase; box-shadow: 3px 3px 0 var(--shade); }
+  #callbtn.end { background: var(--bad); color: #fff; }
+  .status { color: #333; font-size: .8rem; }
+  .topbar { border-bottom: 4px solid #1a1919; color: #1a1919; }
+  .topbar b { font: 400 1.35rem/1 var(--round); text-transform: lowercase; }
+
+  /* ---------- dialogs + toast ---------- */
+  dialog { border: 5px solid #1a1919; border-radius: 22px; box-shadow: 10px 10px 0 var(--shade); }
+  dialog::backdrop { background: rgba(0, 0, 0, .7); }
+  .dlg h2 { font: 400 2.3rem/1 var(--round); text-transform: lowercase; }
+  .dlg h3 { font: 400 1.4rem/1 var(--round); text-transform: lowercase; }
+  .dlg h3:not(:first-of-type) { border-top: 3px solid #1a1919; }
+  .row small, .note { color: #333; font-size: .9rem; }
+  .seg { border: 2.5px solid #1a1919; } .seg label:has(input:checked) { background: #1a1919; color: var(--sun); }
+  .switch { border: 2.5px solid #1a1919; background: #ddd; } .switch:checked { background: var(--sun); } .switch::after { border: 2px solid #1a1919; top: 1px; left: 1px; }
+  .mem { border: 2.5px solid #1a1919; }
+  .toast { background: var(--sun); color: #1a1919; border: 4px solid #1a1919; box-shadow: 5px 5px 0 var(--shade); font: 700 1.05rem var(--body); }
+
+  @media (max-width: 900px) {
+    .home { padding: 20px 16px 140px; }
+    .hero { grid-template-columns: 1fr; gap: 34px; }
+    .callcard { max-width: 380px; margin: 0 auto; width: 100%; transform: rotate(1.5deg); }
+    .hero { display: flex; flex-direction: column; }
+    .pitch { display: contents; }
+    .wordmark.cap { order: 1; } .tagline { order: 2; margin-top: 4px; } .callcard { order: 3; }
+    .pitch > :not(.wordmark):not(.tagline) { order: 4; }
+    .home .glow { margin-top: 6px; } .picker, .chips { margin-top: 0; }
+    .wordmark.cap { -webkit-text-stroke: 4px #1a1919; text-shadow: 5px 5px 0 var(--shade); }
+    .steps { grid-template-columns: 1fr; gap: 26px; }
+    .steps li:nth-child(n) { margin-top: 0; }
+    .steps li:nth-child(2) { margin-left: 18px; } .steps li:nth-child(3) { margin-left: 36px; }
+    .paddle { flex-basis: 140px; }
+    .paddle .score { font-size: 3.4rem; }
+    .ticker { margin-inline: -16px; }
+    .pick { width: auto; }
+    .pick img { width: 52px; height: 52px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track, .dancer *, .cta.answer, .sticker, .bubble, .tile .wait img { animation: none !important; }
+    .ticker-track { flex-wrap: wrap; white-space: normal; }
+    .aura-bar i { transition: none; }
+  }
+
+  /* ---------- dark mode (Settings > Theme): an ink ground, cream type, tan shadows; the cards stay light ---------- */
+  :root[data-theme="dark"] { --shade: #c2a882; color-scheme: dark; }
+  [data-theme="dark"] body { background: #1a1919; }
+  [data-theme="dark"] .main { color: var(--sun);
+          background: #1a1919 linear-gradient(rgba(239, 231, 218, .06) 2px, transparent 2px) 0 0 / 64px 64px,
+                      linear-gradient(90deg, rgba(239, 231, 218, .06) 2px, transparent 2px) 0 0 / 64px 64px; }
+  [data-theme="dark"] .side, [data-theme="dark"] .topbar { background: #242222; color: var(--sun); border-color: var(--sun); }
+  [data-theme="dark"] .side .tabs, [data-theme="dark"] .side-foot { border-color: var(--sun); }
+  [data-theme="dark"] .side .tabs button, [data-theme="dark"] .side .group, [data-theme="dark"] .side-foot, [data-theme="dark"] .char small,
+  [data-theme="dark"] .recent span:last-child, [data-theme="dark"] .side .empty, [data-theme="dark"] .side .linkbtn { color: var(--sun); }
+  [data-theme="dark"] .side .tabs button[aria-selected="true"] { border-color: var(--sun); }
+  [data-theme="dark"] .nav button:hover, [data-theme="dark"] .nav a:hover, [data-theme="dark"] .nav button[aria-current="true"] { background: var(--sun); color: #1a1919; }
+  [data-theme="dark"] .char:hover, [data-theme="dark"] .recent:hover { background: rgba(239, 231, 218, .1); }
+  [data-theme="dark"] .char[aria-pressed="true"] { color: #1a1919; } [data-theme="dark"] .char[aria-pressed="true"] small { color: #3a3a3a; }
+  [data-theme="dark"] .topbar .icon { color: var(--sun); border-color: var(--sun); }
+  [data-theme="dark"] #view-home, [data-theme="dark"] .home .sub, [data-theme="dark"] .home .sub a, [data-theme="dark"] .pick, [data-theme="dark"] .paddle .judge,
+  [data-theme="dark"] .gallery > p, [data-theme="dark"] #history-sub, [data-theme="dark"] .timer, [data-theme="dark"] .status { color: var(--sun); }
+  [data-theme="dark"] .tagline mark { background: var(--sun); color: #1a1919; }
+  [data-theme="dark"] .ticker { background: var(--sun); border-color: var(--sun); } [data-theme="dark"] .ticker span { color: #1a1919; }
+  [data-theme="dark"] .badge { background: var(--sun); color: #1a1919; }
+  [data-theme="dark"] .pick[aria-pressed="true"] img { box-shadow: 0 0 0 4px #1a1919, 0 0 0 7px var(--sun); }
+  [data-theme="dark"] .cta.answer, [data-theme="dark"] #callbtn:not(.end) { background: var(--sun); color: #1a1919; }
+  [data-theme="dark"] .tile, [data-theme="dark"] .callcard .cam { border-color: var(--sun); }
 </style>
 </head>
 <body>
@@ -324,9 +604,9 @@ try {
         <a href="about.html"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Lore</a>
       </nav>
       <div data-pane="calls">
-        <p class="group">Characters</p>
+        <p class="group">the squad</p>
         <div id="chars"></div>
-        <p class="group">Recent calls</p>
+        <p class="group">receipts (recent calls)</p>
         <div id="recent"></div>
       </div>
       <div data-pane="lore" hidden>
@@ -350,22 +630,86 @@ try {
     </header>
 
     <section class="view" id="view-home" aria-labelledby="wm">
+      <div class="ticker" aria-hidden="true"><div class="ticker-track">
+        <span>verity watched 10,000 tiktok dances and chose violence</span><span>your mom's zumba class could never</span>
+        <span>no cap the ai has better rhythm than you</span><span>certified hip-hop coach (self-proclaimed)</span><span>it sees your feet. yes, those feet</span>
+        <span>verity watched 10,000 tiktok dances and chose violence</span><span>your mom's zumba class could never</span>
+        <span>no cap the ai has better rhythm than you</span><span>certified hip-hop coach (self-proclaimed)</span><span>it sees your feet. yes, those feet</span>
+      </div></div>
       <div class="home">
-        <div class="ball-wrap"><img class="ball" id="home-ball" src="assets/3d/verity/face.png" alt="Verity"><canvas class="ball" id="ball3d" hidden aria-label="Verity, 3D. Hover to make it talk"></canvas></div>
-        <h1 class="wordmark" id="wm">Verity Agent</h1>
-        <p class="glow" id="home-sub" aria-live="polite"></p>
-        <div class="badges" id="badges"></div>
-        <p class="sub">Call it, show it your room, or just type. Mess up three times and you'll meet Cruelty. <a href="about.html">Read the lore</a>.</p>
-        <div class="picker" id="picker" hidden>
-          <div class="picker-row" id="home-chars" role="group" aria-label="Pick who to call"></div>
+        <div class="stickers" aria-hidden="true">
+          <span class="sticker e" style="left:-6px; top:46%">💃</span>
+          <span class="sticker" style="right:2%; top:2%; background:#fff">W</span>
+          <span class="sticker burst" style="right:3%; top:20%; background:#fff; animation-delay:-.3s">ATE</span>
+          <span class="sticker" style="right:6%; top:47%; background:var(--honey); animation-delay:-.5s">+AURA</span>
+          <span class="sticker e" style="right:1%; top:63%; animation-delay:-.2s">🔥</span>
+          <span class="sticker" style="left:2%; top:66%; background:var(--bad); animation-delay:-.7s">L</span>
+          <span class="sticker e" style="left:48%; top:72%">💀</span>
+          <span class="sticker" style="right:3%; bottom:12%; background:var(--butter); animation-delay:-.4s">fr</span>
+          <span class="sticker e" style="left:30%; bottom:3%; animation-delay:-.6s">🕺</span>
         </div>
-        <div><button type="button" class="cta" id="home-call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span id="home-call-label">Call Verity</span></button></div>
-        <div class="chips" id="starters">
-          <button>What's the capital of France?</button>
-          <button>Roast my room</button>
-          <button>Rate my dance</button>
-          <button>What -ity am I?</button>
+        <div class="hero">
+          <div class="callcard" role="group" aria-label="Incoming video call from Verity: a preview of a coaching call">
+            <div class="call-top"><span class="live">live</span><span class="caller">verity is calling…</span><span class="clock num" id="fake-clock">0:07</span></div>
+            <div class="cam">
+              <div class="floor-lines"></div>
+              <svg class="dancer" viewBox="0 0 120 150" aria-hidden="true">
+                <g class="bod" stroke="#000" stroke-width="7" stroke-linecap="round" fill="none">
+                  <g class="legL"><path d="M54 96 L42 140" stroke="#000"/><path d="M54 96 L42 140" stroke="var(--butter)" stroke-width="3"/></g>
+                  <g class="legR"><path d="M66 96 L78 140"/><path d="M66 96 L78 140" stroke="var(--butter)" stroke-width="3"/></g>
+                  <rect x="46" y="44" width="28" height="56" rx="14" fill="var(--honey)"/>
+                  <g class="armL"><path d="M50 52 L26 76"/><path d="M50 52 L26 76" stroke="var(--sun)" stroke-width="3"/></g>
+                  <g class="armR"><path d="M70 52 L94 76"/><path d="M70 52 L94 76" stroke="var(--sun)" stroke-width="3"/></g>
+                  <circle cx="60" cy="26" r="15" fill="var(--sun)"/>
+                  <path d="M54 30 q6 5 12 0" stroke-width="3"/><circle cx="55" cy="23" r="1.5" fill="#000"/><circle cx="65" cy="23" r="1.5" fill="#000"/>
+                </g>
+              </svg>
+              <span class="you">you</span>
+              <div class="ball-wrap pipface"><img class="ball" id="home-ball" src="assets/3d/verity/face.png" alt="Verity"><canvas class="ball" id="ball3d" hidden aria-label="Verity, 3D. Hover to make it talk"></canvas></div>
+              <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+              <div class="aura" aria-hidden="true"><span>aura</span><div class="aura-bar"><i id="aura-fill"></i></div><b id="aura-num" class="num">+420</b></div>
+            </div>
+            <div class="call-actions">
+              <button type="button" class="decline" id="decline">decline</button>
+              <button type="button" class="cta answer" id="home-call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span id="home-call-label">answer</span></button>
+            </div>
+          </div>
+          <div class="pitch">
+            <h1 class="wordmark cap" id="wm">Verity</h1>
+            <p class="tagline">the AI dance coach you <mark>video call</mark>. you dance, it watches through your camera and coaches you live. zero mercy, max aura.</p>
+            <p class="glow" id="home-sub" aria-live="polite"></p>
+            <div class="badges" id="badges"></div>
+            <p class="sub">hit answer, prop your phone up, and move. it calls out every offbeat step, and if you keep catching Ls it gets mad. <a href="about.html">read the lore</a></p>
+            <div class="picker" id="picker" hidden>
+              <div class="picker-row" id="home-chars" role="group" aria-label="Pick who to call"></div>
+            </div>
+            <div class="chips" id="starters">
+              <button>Rate my dance</button>
+              <button>Teach me a move</button>
+              <button>Roast my footwork</button>
+              <button>What -ity am I?</button>
+            </div>
+          </div>
         </div>
+
+        <section class="steps-wrap" aria-labelledby="how-title">
+          <h2 class="sec-title cap" id="how-title">how it works (the choreo)</h2>
+          <ol class="steps">
+            <li><span class="n" aria-hidden="true">1</span><h3>call verity</h3><p>hit answer on this page, or video call it from your phone. no app, no signup, no excuses.</p></li>
+            <li><span class="n" aria-hidden="true">2</span><h3>hit your moves</h3><p>step back so it can see you head to toe, then dance. it watches live, one frame at a time.</p></li>
+            <li><span class="n" aria-hidden="true">3</span><h3>get roasted into greatness</h3><p>instant feedback out loud: what ate, what flopped, what to fix. then it scores you. run it back.</p></li>
+          </ol>
+        </section>
+
+        <section class="judges-wrap" aria-labelledby="judges-title">
+          <h2 class="sec-title cap" id="judges-title">the judges have spoken</h2>
+          <div class="judges">
+            <div class="paddle"><div class="card"><span class="score">9.8</span><h3>it sees you</h3><p>watches your camera live, so it coaches the move you actually did, not the one you think you did.</p></div><div class="stick"></div><span class="judge">judge: your camera</span></div>
+            <div class="paddle"><div class="card"><span class="score">10</span><h3>it talks back</h3><p>real-time voice. it reacts mid-move, and you can talk over it like a real coach.</p></div><div class="stick"></div><span class="judge">judge: the beat</span></div>
+            <div class="paddle"><div class="card"><span class="score">7.2</span><h3>zero mercy</h3><p>honest notes on timing, arms and footwork. mess up enough and it gets mad. respectfully.</p></div><div class="stick"></div><span class="judge">judge: your ego</span></div>
+            <div class="paddle"><div class="card"><span class="score">11</span><h3>a whole squad</h3><p>verity, dancity (actual dance lessons), gravity, polarity, intensity. one call, one coach.</p></div><div class="stick"></div><span class="judge">judge: the -ity council</span></div>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -383,7 +727,7 @@ try {
           </div>
           <div class="tile" id="tile">
             <video id="agent-video" autoplay playsinline muted></video>
-            <div class="wait" id="wait"><img id="wait-face" src="assets/3d/verity/face.png" alt=""><span id="wait-text">Ringing…</span></div>
+            <div class="wait" id="wait"><img id="wait-face" src="assets/3d/verity/face.png" alt=""><span id="wait-text">ringing… verity is stretching</span></div>
             <p class="captions glow" id="captions" aria-hidden="true"></p>
             <div class="tile-tools">
               <button type="button" id="interrupt" hidden aria-label="Make it stop talking">Stop talking</button>
@@ -406,7 +750,7 @@ try {
         <h2 id="history-title">Call</h2>
         <p id="history-sub"></p>
         <div class="history-actions">
-          <button class="btn" type="button" id="call-again">Call again</button>
+          <button class="btn" type="button" id="call-again">run it back (call again)</button>
           <button class="btn ghost" type="button" id="history-export">Export</button>
         </div>
         <div class="history-log" id="history-log"></div>
@@ -415,7 +759,7 @@ try {
 
     <section class="view" id="view-memes" hidden aria-labelledby="memes-title">
       <div class="gallery">
-        <h2 id="memes-title">The meme wall</h2>
+        <h2 id="memes-title">the meme wall</h2>
         <p>Verity as the internet made it: edits, AI slop, monsters and remixes. Every image links to its creator.</p>
         <div class="masonry" id="memes"></div>
       </div>
@@ -423,7 +767,7 @@ try {
 
     <section class="view" id="view-fans" hidden aria-labelledby="fans-title">
       <div class="gallery">
-        <h2 id="fans-title">Fan -ities</h2>
+        <h2 id="fans-title">fan -ities</h2>
         <p>The -ity multiverse the fans built, from the Verity Wiki. Hover (or tap "monster") to see a monster form. Ours are in the sidebar; Cruelty is the one Verity turns into when you mess up.</p>
         <div class="fans" id="fans"></div>
       </div>
@@ -432,11 +776,11 @@ try {
     <form class="composer" id="composer">
       <button type="button" class="icon on" id="cam" aria-pressed="true" aria-label="Camera"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3z"/></svg></button>
       <label class="sr-only" for="say">Message</label>
-      <input id="say" autocomplete="off" placeholder="Say something to Verity…">
+      <input id="say" autocomplete="off" placeholder="type to verity (or just dance)…">
       <label class="sr-only" for="pick">Character</label>
       <select id="pick"></select>
       <button type="button" class="icon on" id="mic" aria-pressed="true" aria-label="Microphone"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-      <button type="button" class="icon go" id="callbtn" aria-label="Call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span class="lbl" aria-hidden="true">Call</span></button>
+      <button type="button" class="icon go" id="callbtn" aria-label="Call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span class="lbl" aria-hidden="true">call fr</span></button>
     </form>
     <div class="status"><span id="room" class="num"></span><span id="ptt-hint" hidden>Hold Space to talk</span></div>
   </main>
@@ -445,6 +789,11 @@ try {
 <dialog id="settings" aria-labelledby="settings-title">
   <form method="dialog" class="dlg" id="settings-form">
     <div class="dlg-head"><h2 id="settings-title">Settings</h2><button class="icon" value="done" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <h3>Look</h3>
+    <div class="row"><span><b>Theme</b><small>Light is Brodie cream, dark is Brodie ink. Saved in this browser.</small></span>
+      <span class="seg" role="radiogroup" aria-label="Theme">
+        <label><input type="radio" name="theme" value="light">Light</label><label><input type="radio" name="theme" value="dark">Dark</label>
+      </span></div>
     <h3>Voice</h3>
     <div class="row"><span><b>Voice mode</b><small>Mommy ASMR: soft, slow, whispery, very comforting. Switches live, mid-call.</small></span>
       <span class="seg" role="radiogroup" aria-label="Voice mode">
@@ -490,11 +839,12 @@ const store = {   // per-browser conveniences; everything still works without st
 // ---- identity + settings ----
 let uid = store.get('verity-uid', '');
 if (!/^[a-f0-9]{16}$/.test(uid)) { uid = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join(''); store.set('verity-uid', uid); }
-const DEFAULTS = { asmr: 'off', voice: '', strikes: true, memory: true, captions: true, ptt: false, cam: true, mic: true, ring: true };
+const DEFAULTS = { theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light', asmr: 'off', voice: '', strikes: true, memory: true, captions: true, ptt: false, cam: true, mic: true, ring: true };
 let settings = { ...DEFAULTS, ...store.get('verity-settings', {}) };
 const agentSettings = () => ({ asmr: settings.asmr, voice: settings.voice, strikes: true, memory: settings.memory });   // Cruelty isn't optional
 
 function applySettings() {
+  document.documentElement.dataset.theme = settings.theme === 'dark' ? 'dark' : 'light';
   document.body.classList.toggle('no-captions', !settings.captions);
   $('#badges').innerHTML = [settings.asmr === 'mommy' && 'Mommy ASMR', settings.voice && `Voice: ${settings.voice}`]
     .filter(Boolean).map((b) => `<span class="badge">${esc(b)}</span>`).join('');
@@ -503,12 +853,12 @@ function applySettings() {
 }
 function fillSettingsForm() {
   const f = $('#settings-form');
-  f.asmr.value = settings.asmr; f.voice.value = settings.voice;
+  f.theme.value = settings.theme; f.asmr.value = settings.asmr; f.voice.value = settings.voice;
   for (const k of ['memory', 'captions', 'ptt', 'cam', 'mic', 'ring']) f[k].checked = settings[k];
 }
 $('#settings-form').addEventListener('change', async () => {
   const f = $('#settings-form'), before = JSON.stringify(agentSettings());
-  settings = { asmr: f.asmr.value, voice: f.voice.value, ...Object.fromEntries(['memory', 'captions', 'ptt', 'cam', 'mic', 'ring'].map((k) => [k, f[k].checked])) };
+  settings = { theme: f.theme.value, asmr: f.asmr.value, voice: f.voice.value, ...Object.fromEntries(['memory', 'captions', 'ptt', 'cam', 'mic', 'ring'].map((k) => [k, f[k].checked])) };
   store.set('verity-settings', settings); applySettings();
   if (room && JSON.stringify(agentSettings()) !== before) {      // live: the agent updates its instructions mid-call
     try { await room.localParticipant.setAttributes({ 'verity.settings': JSON.stringify(agentSettings()) }); }
@@ -545,7 +895,8 @@ $('#fans').innerHTML = LORE.variants.map((v) => `<article class="ity${v.alt ? ' 
   ${v.alt ? '<button type="button">monster</button>' : ''}<p>${esc(v.about)}</p></article>`).join('');
 document.querySelectorAll('.ity button').forEach((b) => b.addEventListener('click', () => b.closest('.ity').classList.toggle('flip')));
 
-let ii = 0, lines = LORE.intro, typeT;
+const COACH_LINES = ["it's me, it's verity. show me your moves.", 'step back bestie, i need to see your feet.', 'one more time. on the beat this time.'];
+let ii = 0, lines = COACH_LINES, typeT;
 function intro() {   // the picked character's first lines (Verity's are from the series), typed like the music video's subtitles
   clearTimeout(typeT);
   const t = lines[ii++ % lines.length], el = $('#home-sub'); let i = 0;
@@ -581,13 +932,13 @@ function renderChars() {
   document.querySelectorAll('.pick').forEach((b) => b.addEventListener('click', () => pickChar(b.dataset.key)));
   $('#picker').hidden = !CHARS.length;
   const c = CHARS.find((x) => x.key === current);
-  $('#home-call-label').textContent = `Call ${c?.name || 'Verity'}`;
+  $('#home-call-label').textContent = `answer ${(c?.name || 'Verity').toLowerCase()}`;
   if (c) {   // dark faces (Gravity's indigo) get light text
     const [r2, g, b] = c.color.map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
     const home = $('#view-home'); home.style.setProperty('--ground', rgb(c.color));
     home.style.setProperty('--on-ground', .2126 * r2 + .7152 * g + .0722 * b > .22 ? '#1a1400' : '#fffdf2');
     home.style.setProperty('--wm-fill', c.key === 'verity' ? '#fffdf2' : 'var(--verity)');   // yellow on yellow would vanish
-    const next = c.key === 'verity' ? LORE.intro : [c.intro];
+    const next = c.key === 'verity' ? COACH_LINES : [c.intro];
     if (next[0] !== lines[0]) { lines = next; ii = 0; intro(); }
   }
 }
@@ -597,10 +948,10 @@ function show3d() {
 }
 addEventListener('verity3d', show3d);
 function pickChar(key) {
-  if (room) return toast('Hang up first. One -ity per call.');
+  if (room) return toast('hang up first. one -ity per call, no cap.');
   current = key; renderChars();
   const c = CHARS.find((x) => x.key === key);
-  $('#say').placeholder = `Say something to ${c.name}…`; $('#wm').textContent = `${c.name} Agent`;
+  $('#say').placeholder = `type to ${c.name.toLowerCase()} (or just dance)…`; $('#wm').textContent = c.name; $('.caller').textContent = `${c.name.toLowerCase()} is calling…`;
   $('#home-ball').src = ours(key); show3d();
   show('home');
 }
@@ -669,7 +1020,24 @@ function setChar(c) {
 }
 function meter(id, n) { document.querySelectorAll(`#${id} i`).forEach((p, i) => p.classList.toggle('on', i < n)); }
 
-const clean = (t) => t.replace(/<[^>]*>?/g, '').replace(/\*/g, '').replace(/\s+/g, ' ');   // stage directions the model writes, e.g. <whispering>, *sighs*
+// What the model actually said. Besides stage directions (<whispering>, *sighs*), the transcript channel through the hackathon's
+// Gemini relay sometimes carries the model's private planning glued in front of the spoken line with no space ("Let's go
+// again.Your left arm..."), markdown notes, or "Follow specific talk style guidelines: ...". The audio is clean (checked by
+// recording it); this keeps the captions clean too. Same rules as facetime/voice.py clean_transcript().
+const clean = (t) => {
+  let s = (t || '').replace(/<[^>]*>?/g, '');
+  const glue = [...s.matchAll(/[.!?]["”)\]]?(?=[A-Z])/g)];
+  if (glue.length) { const g = glue[glue.length - 1]; s = s.slice(g.index + g[0].length); }
+  for (const m of [...s.matchAll(/[a-z](?=[A-Z])/g)].reverse()) {   // "...pulling itThat run...": a draft of the line, then the line
+    const tail = s.slice(m.index + 1); if (tail.length >= 20 && s.slice(0, m.index + 1).includes(tail.slice(0, 20))) { s = tail; break; }
+  }
+  s = s.replace(/^(?:the )?(?:final |spoken )?(?:output|response|line|reply)(?: should be)?:\s*/i, '');
+  s = s.split('\n').filter((l) => l.trim() && !/^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)/.test(l) && !l.includes('**')).join(' ');
+  s = s.replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+  if (/^(?:follow (?:the |specific |these )?(?:talk |style |tone |persona )*(?:guidelines|rules|instructions)|my persona|persona:|goal:|current goal|analysis of|required response|drafting|the (?:user|caller) (?:successfully|scored|has|is|wants|asked)|i need to|i should|i will|okay,? (?:so )?the (?:user|caller)|\(private)/i.test(s)) return '';
+  if (s.includes('"') && s.split(' ').length < 4) return '';   // 'Again".': the tail of an instruction echoed, not a line
+  return s;
+};
 let capT;
 function caption(text) {
   const el = $('#captions'); el.textContent = text.trim().split(/\s+/).slice(-12).join(' ');
@@ -708,7 +1076,7 @@ async function startCall(firstText) {
   if (room) return;
   const c = CHARS.find((x) => x.key === current); if (!c) return toast('Backend offline: start python -m verity.server');
   setChar(c); log.innerHTML = ''; queue = []; greeted = false; meter('strikes', 0); document.body.classList.remove('cruel');
-  setAgentState('initializing'); $('#state').textContent = 'Ringing…'; $('#wait').hidden = false; $('#wait-text').textContent = 'Ringing…'; show('call');
+  setAgentState('initializing'); $('#state').textContent = 'Ringing…'; $('#wait').hidden = false; $('#wait-text').textContent = 'ringing… verity is stretching'; show('call');
   entry = { name: c.name, key: c.key, t: Date.now(), cruel: false, verdict: '', lines: [] };
   ringtone(true);
   let info;
@@ -778,7 +1146,7 @@ function onEvent(e) {
     const cruel = e.to === 'cruelty';
     document.body.classList.toggle('cruel', cruel); if (cruel) entry.cruel = true; meter('strikes', cruel ? 3 : 0);
     ev(cruel ? `${esc(callChar.name).toUpperCase()} WENT FULL CRUELTY` : '<code>forgive()</code> → Verity is back', cruel ? 'big' : '');
-    toast(cruel ? 'You made it angry.' : 'Forgiven. Verity is back.');
+    toast(cruel ? 'you made it mad. apologize fr.' : 'forgiven. verity is back (for now).');
   } else if (e.type === 'verdict') {
     if (entry.verdict !== e.name) { entry.verdict = e.name; add({ verdict: e.name }); }
   } else if (e.type === 'remember') {
@@ -809,11 +1177,47 @@ async function endCall(remote) {
 }
 function setCallButton(live) {
   const b = $('#callbtn'); b.classList.toggle('go', !live); b.classList.toggle('end', live);
-  b.setAttribute('aria-label', live ? 'Hang up' : 'Call'); b.querySelector('.lbl').textContent = live ? 'End' : 'Call';
+  b.setAttribute('aria-label', live ? 'Hang up' : 'Call'); b.querySelector('.lbl').textContent = live ? 'hang up' : 'call fr';
 }
 
 $('#callbtn').addEventListener('click', () => room ? endCall() : startCall());
 $('#home-call').addEventListener('click', () => startCall());
+$('#decline').addEventListener('click', () => toast('decline? in this economy? hit answer to start the call.'));
+
+// ---- the beat (120 BPM, --beat): fake coaching on the hero call, the aura meter, the call clock ----
+const BEAT_MS = 500, calm = matchMedia('(prefers-reduced-motion: reduce)');
+const FEEDBACK = [['arms are giving wet noodle 😭', 'bad'], ['ok that spin ATE', 'good'], ['+500 aura', 'good'], ['bro is offbeat fr', 'bad'],
+  ['footwork is cooked, again', 'bad'], ['W hip isolation', 'good'], ['knees. bend. them.', 'meh'], ['hit the 1, not the 1.5', 'meh'],
+  ['that freeze was clean ngl', 'good'], ['-200 aura for that shuffle', 'bad']];
+let beat = 0, fb = 0, clockS = 7;
+function onBeat() {
+  if (calm.matches || $('#view-home').hidden) return;
+  beat++;
+  const aura = 30 + Math.round(Math.random() * 70);
+  $('#aura-fill').style.width = `${aura}%`; $('#aura-num').textContent = `+${aura * 7}`;
+  if (beat % 2 === 0) { clockS++; $('#fake-clock').textContent = `${Math.floor(clockS / 60)}:${String(clockS % 60).padStart(2, '0')}`; }
+  if (beat % 4 === 0) {                                   // a new note every 4 beats (one per 2 s), at most 3 on screen
+    const box = $('#bubbles'), [text, kind] = FEEDBACK[fb++ % FEEDBACK.length], b = document.createElement('span');
+    b.className = `bubble ${kind}`; b.textContent = text;
+    const slot = fb % 3; b.style.top = `${[22, 42, 62][slot]}%`; b.style.left = `${[5, 30, 9][slot] + Math.random() * 6}%`;   // three slots: never stacked
+    box.append(b); while (box.children.length > 3) box.firstElementChild.remove();
+  }
+}
+setInterval(onBeat, BEAT_MS);
+if (calm.matches) { $('#bubbles').innerHTML = '<span class="bubble good" style="left:8%;top:30%">ok that spin ATE</span><span class="bubble bad" style="left:20%;top:52%">arms are giving wet noodle 😭</span>'; }
+
+// ---- the one interaction effect: a 💃🔥 burst where you click ----
+const BOOM = ['💃', '🔥', '🕺', '💀', '🎵', '🔥'];
+addEventListener('pointerdown', (e) => {
+  if (calm.matches || document.querySelectorAll('.boom').length > 24) return;
+  for (let i = 0; i < 6; i++) {
+    const el = document.createElement('span'), a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 70;
+    el.className = 'boom'; el.textContent = BOOM[i]; el.setAttribute('aria-hidden', 'true');
+    el.style.left = `${e.clientX - 14}px`; el.style.top = `${e.clientY - 14}px`;
+    el.style.setProperty('--dx', `${Math.cos(a) * d}px`); el.style.setProperty('--dy', `${Math.sin(a) * d - 30}px`); el.style.setProperty('--rot', `${Math.random() * 120 - 60}deg`);
+    document.body.append(el); el.addEventListener('animationend', () => el.remove());
+  }
+});
 $('#composer').addEventListener('submit', (e) => { e.preventDefault(); send($('#say').value); $('#say').value = ''; });
 document.querySelectorAll('#starters button').forEach((b) => b.addEventListener('click', () => send(b.textContent)));
 for (const id of ['mic', 'cam']) $(`#${id}`).addEventListener('click', async (e) => {

@@ -62,8 +62,15 @@ class Screen:
         if not len(self.frames): return np.zeros((H, W, 3), np.uint8)
         return self.frames[int(np.clip(round(t * self.fps), 0, len(self.frames) - 1))].copy()
 
+    @staticmethod
+    def playing(st):
+        """True while a part's clip is being heard (its audio was pushed and has not finished)."""
+        play = st.get('play'); rec = play.get('rec') if play else None
+        return bool(play and isinstance(rec, dict) and rec.get('t_push') and not rec.get('t_done'))
+
     def render(self, st, now):
-        """st: the handler's state dict. Returns H x W x 3 RGB."""
+        """st: the handler's state dict. Returns H x W x 3 RGB.
+        No creator video (frames empty): the clip view is a plain dark background with the count, the cards still work."""
         ref = self.ref; play = st.get('play'); k = st.get('chunk', 0); n = ref.n_chunks
         rec = play.get('rec') if play else None
         t_push = rec.get('t_push') if isinstance(rec, dict) else None
@@ -71,13 +78,14 @@ class Screen:
             el = now - t_push - 0.1                                    # seconds into the clip, as heard
             t_vid = ref.first_beat_s + 8 * play['k0'] * ref.beat_s - 4 * ref.beat_s + el
             img = self.frame_at(t_vid)
+            if not len(self.frames): img[:] = (24, 20, 40)
             beat = int(np.floor(el / ref.beat_s))
             if 0 <= beat < 4:
                 _text(img, str(5 + beat), (0, 360), 5.0, VOLT, 8, center=True)
             elif beat >= 4:
                 b = beat - 4
                 if b < 8 * (play['k1'] - play['k0']):
-                    _text(img, str(b % 8 + 1), (W - 80, 90), 2.6, VOLT, 5)
+                    _text(img, str(b % 8 + 1), (W - 80, 90) if len(self.frames) else (0, 360), 2.6 if len(self.frames) else 5.0, VOLT, 5, center=not len(self.frames))
             label = 'FULL DANCE' if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
             _text(img, label, (14, 40), 0.9, WHITE, 2)
             return img

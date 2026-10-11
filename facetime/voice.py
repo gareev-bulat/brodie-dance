@@ -37,7 +37,7 @@ set_input_enabled / generate / interrupt / add_context (the tests use a fake). E
 GEMINI_LIVE_MODEL (default DEFAULT_MODEL), GEMINI_VOICE (default Puck), GEMINI_LANGUAGE (default en-US: the model answered in
 German once on the 10-09 call; the persona says English too).
 """
-import asyncio, importlib.util, logging, os, time
+import asyncio, importlib.util, logging, os, re, time
 import numpy as np
 from facetime import ROOT, SAMPLE_RATE
 
@@ -64,6 +64,34 @@ def read_text(path, default=''):
         with open(path) as f: return f.read().strip() or default
     except OSError:
         return default
+
+
+_GLUE = re.compile(r'[.!?]["\u201d)\]]?(?=[A-Z])')          # a sentence end glued to a capital with no space: planning | spoken line
+_MD_LINE = re.compile(r'^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)')     # markdown bullets, headers, numbered lists, bold
+_NOTE = re.compile(r'^(?:follow (?:the |specific |these )?(?:talk |style |tone |persona )*(?:guidelines|rules|instructions)|my persona|persona:|goal:|current goal|analysis of|'
+                   r'required response|drafting|the (?:user|caller) (?:successfully|scored|has|is|wants|asked)|i need to|i should|i will|'
+                   r'okay,? (?:so )?the (?:user|caller)|\(private)', re.I)
+
+
+def clean_transcript(text):
+    """What the model actually said, out of the transcript channel. Through the hackathon relay that channel also carried the model's
+    private planning (markdown bullets, "My persona: ...", a restated instruction), glued in front of the spoken line with no space
+    ("Let's go again.Your left arm was..."); a speech transcription always has a space between sentences. So: keep the tail after
+    the last glue point, drop markdown and note-like lines, collapse whitespace. '' when nothing spoken is left. The audio itself
+    was clean in every recorded call (verity/README.md, relay quirk); this only keeps captions and the event log honest."""
+    t = re.sub(r'<[^>]*>?', '', text or '').strip()                   # stage directions the model writes: <whispering>
+    if not t: return ''
+    cuts = list(_GLUE.finditer(t))
+    if cuts: t = t[cuts[-1].end():]
+    for m in reversed(list(re.finditer(r'[a-z](?=[A-Z])', t))):        # "...pulling itThat run..." : a draft of the line, then the line
+        tail = t[m.end():]
+        if len(tail) >= 20 and tail[:20] in t[:m.end()]: t = tail; break
+    t = re.sub(r'^(?:the )?(?:final |spoken )?(?:output|response|line|reply)(?: should be)?:\s*', '', t, flags=re.I)   # "The output should be: ..."
+    lines = [l for l in t.split('\n') if l.strip() and not _MD_LINE.match(l) and '**' not in l]
+    t = ' '.join(' '.join(lines).split())
+    if not t or _NOTE.match(t): return ''
+    if '"' in t and len(t.split()) < 4: return ''                   # ' Again".': the tail of an instruction echoed, not a line
+    return t
 
 
 def load_handlers(path=HANDLERS_PATH):
@@ -461,8 +489,40 @@ class GeminiModel:
                 from google.genai import types                             # the SDK builds the Live websocket URL from base_url (wss) and sends the key as x-goog-api-key
                 kw['http_options'] = types.HttpOptions(base_url=base_url)
                 print(f'[voice] gemini via relay {base_url}', flush=True)
+            kw.update(self.listening_options())
             self.rt = google.beta.realtime.RealtimeModel(**kw)
         return self.rt
+
+    @staticmethod
+    def listening_options():
+        """How the Live API's own voice activity detection treats the caller (2026-10-11 calls: it answered half-sentences and lost
+        the first word after its own line). end-of-speech sensitivity LOW + a longer silence before a turn ends = it waits for the
+        caller to finish; prefix padding keeps the first syllables. Vision frames at the model's high resolution (--vision).
+        Env: GEMINI_END_SENSITIVITY low|high|off (off = the API defaults), GEMINI_SILENCE_MS (default 700), GEMINI_PREFIX_MS (300),
+        GEMINI_MEDIA_RESOLUTION low|medium|high (default: not sent, the API's own; high made a 100 s call with 1 fps vision slow
+        and the model started speaking its reasoning aloud)."""
+        out = {}
+        try:
+            from google.genai import types
+        except Exception:
+            return out
+        end = os.environ.get('GEMINI_END_SENSITIVITY', 'low').strip().lower()
+        if end in ('low', 'high'):
+            try:
+                out['realtime_input_config'] = types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False, start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW if end == 'low' else types.EndSensitivity.END_SENSITIVITY_HIGH,
+                    prefix_padding_ms=int(os.environ.get('GEMINI_PREFIX_MS', '300') or 300),
+                    silence_duration_ms=int(os.environ.get('GEMINI_SILENCE_MS', '700') or 700)))
+            except Exception as e:
+                log.warning('activity detection options not applied: %r', e)
+        res = os.environ.get('GEMINI_MEDIA_RESOLUTION', '').strip().lower()
+        if res in ('low', 'medium', 'high'):
+            try: out['media_resolution'] = getattr(types.MediaResolution, f'MEDIA_RESOLUTION_{res.upper()}')
+            except Exception as e: log.warning('media resolution not applied: %r', e)
+        # Not here on purpose: thinking_config(thinking_budget=0). Tried on 10-11: gemini-3.8-live then answered every ask with an
+        # empty turn ("\n\n"), no audio at all. The model needs its thinking; the persona tells it to speak only its line.
+        return out
 
     async def start(self, sink, room=None, participant_identity=None, video=None):
         """video: a VideoTee (or any livekit.agents VideoInput) set as session.input.video before start(): the framework then
@@ -491,7 +551,9 @@ class GeminiModel:
         item = getattr(ev, 'item', None)
         if getattr(item, 'role', None) == 'assistant': self.last_coach_t = time.monotonic()
         if getattr(item, 'role', None) == 'assistant' and self.on_turn:
-            text = (getattr(item, 'text_content', None) or '').strip()
+            raw = (getattr(item, 'text_content', None) or '').strip(); text = clean_transcript(raw)
+            if raw and not text: print(f'[voice] transcript dropped (planning notes, nothing spoken): {raw[:90]!r}', flush=True)
+            elif text != raw: print(f'[voice] transcript trimmed: {len(raw) - len(text)} chars of notes before the line', flush=True)
             if text: self.on_turn('coach', text)
         if getattr(item, 'role', None) == 'user' and self.on_turn and self.text:          # typed chat (--text): a caller turn too
             text = (getattr(item, 'text_content', None) or '').strip()

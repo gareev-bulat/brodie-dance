@@ -22,12 +22,13 @@ import asyncio, collections, glob, os, random, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path: sys.path.insert(0, ROOT)
 import numpy as np  # noqa: E402
+import cv2  # noqa: E402
 from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E402
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
 from verity.variants import ANGER, CRUELTY_INTRO  # noqa: E402
 
-PASS = float(os.environ.get('DANCE_PASS', '0.7'))           # score needed to move on
+PASS = float(os.environ.get('DANCE_PASS', '0.5'))           # score needed to move on (the judge gives the creator's own clip 96-99%, jumping jacks 15-33%)
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
 COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '1') != '0'   # count "One" .. "Eight" over the music while teaching
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
@@ -61,10 +62,27 @@ REF = _load_reference() or _Practice()
 print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm:g} bpm; pass {PASS:.0%}; '
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
-S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
+S = dict(state='idle', visible=False, vis_full=False, vis_upper=False, upper_run=0, upper_miss=0, chunk=0, tries=0, scores={},
+         full_scores=None, say=None, ask=None, last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
+# A dancer counts as "in view" when Brodie's rule says the whole body is in frame OR the upper body is: nose, both shoulders and
+# both hips inside the frame and confidently seen (MediaPipe indices). The judge needs shoulders and hips (keypoints.normalize,
+# the trained judge's ok mask); the reference clips are often framed waist-up themselves, and a laptop webcam or a hand-held
+# phone rarely shows the ankles. Brodie's own "whole body" rule (facetime/visibility.py) still applies to workouts.
+UPPER_BODY = [0, 11, 12, 23, 24]
+UPPER_VIS = float(os.environ.get('DANCE_UPPER_VIS', '0.5'))
+UPPER_ON_FRAMES, UPPER_OFF_FRAMES = 5, 30                   # 0.5 s in view to count, 3 s lost to drop (like Brodie's partial_s)
+
+
+def _upper_body_in_frame(kp):
+    """kp: the pose event's (33, 4) x, y in 0..1 of the frame, z, visibility -> True when the upper body is inside and seen."""
+    try:
+        a = np.asarray(kp, np.float32)[UPPER_BODY]
+    except Exception:
+        return False
+    inside = bool(((a[:, 0] > 0.02) & (a[:, 0] < 0.98) & (a[:, 1] > 0.02) & (a[:, 1] < 0.98)).all())
+    return inside and bool((a[:, 3] >= UPPER_VIS).all())
 
 
 def _loop():
@@ -78,21 +96,101 @@ def _player():
 
 
 def _ensure_screen():
-    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room)."""
+    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room). With a face track
+    (--avatar, the Verity characters) the creator's clip, the counts and the cards are drawn INTO that track, so the call has one
+    video: the clip with the character in a corner while a part plays, the character with the card between parts. Without a
+    face the Screen publishes its own track as before."""
     if S['screen'] or not SHOW_VIDEO: return
     S['screen'] = True
     try:
-        room = S['say'].__self__.job.room
+        job = S['say'].__self__.job; room = job.room
         from starter.dance.screen import Screen
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
     path = getattr(REF, 'video_path', None) or os.path.join(reference.DANCES_DIR, f'{REF.name}.mp4')
-    task = _loop().create_task(Screen(REF, path).run(room, lambda: S))
+    screen = Screen(REF, path); avatar = getattr(job, 'avatar', None)
+    task = _loop().create_task(_compose_into(avatar, screen) if avatar is not None else screen.run(room, lambda: S))
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
 
 
+async def _compose_into(avatar, screen):
+    """Replace the avatar's draw(): its own face frame, composed with the Screen (clip + counts while a part plays, the card text
+    otherwise). The clip is decoded off the loop first. The mouth sync (verity.avatar.tap) is untouched: it feeds render()."""
+    from livekit import rtc
+    from starter.dance import screen as screen_mod
+    await _loop().run_in_executor(None, screen.load)
+    W, H = screen_mod.W, screen_mod.H
+    orig_render = avatar.render
+    def draw(now):
+        face = orig_render(now)
+        if face.shape[0] != H or face.shape[1] != W: face = cv2.resize(face, (W, H))
+        img = compose(face, screen, S, time.time())
+        rgba = np.dstack([img, np.full((H, W), 255, np.uint8)])
+        return rtc.VideoFrame(W, H, rtc.VideoBufferType.RGBA, np.ascontiguousarray(rgba).tobytes())
+    avatar.draw = draw
+    print('[dance] screen drawn into the face track (clip + counts while a part plays, the card between parts)', flush=True)
+
+
+def _blend(dst, src_rgba, x, y):
+    """Alpha-blend an RGBA image onto an RGB one at (x, y), clipped."""
+    h, w = src_rgba.shape[:2]; H, W = dst.shape[:2]
+    x0, y0 = max(x, 0), max(y, 0); x1, y1 = min(x + w, W), min(y + h, H)
+    if x1 <= x0 or y1 <= y0: return
+    s = src_rgba[y0 - y:y1 - y, x0 - x:x1 - x].astype(np.float32); a = s[..., 3:4] / 255.0
+    dst[y0:y1, x0:x1] = (s[..., :3] * a + dst[y0:y1, x0:x1].astype(np.float32) * (1 - a)).astype(np.uint8)
+
+
+def compose(face, screen, st, now):
+    """face: the character's RGBA frame (W x H, the ball mid-frame); -> RGB W x H for the call."""
+    from starter.dance.screen import W, H, VOLT, WHITE, _text
+    import textwrap
+    if screen.playing(st):                                            # a part is playing: the clip and the count, the face small
+        out = screen.render(st, now)
+        small = cv2.resize(face, (W // 3, H // 3), interpolation=cv2.INTER_AREA)
+        _blend(out, small, W - small.shape[1] - 6, H - small.shape[0] - 6)
+        return out
+    out = np.zeros((H, W, 3), np.uint8)                               # between parts: the face on top, the card below
+    top = face[90:500]                                                # the ball and its gear (verity.avatar: centre 320, radius 151)
+    th = 290; tw = int(top.shape[1] * th / top.shape[0])
+    _blend(out, cv2.resize(top, (tw, th), interpolation=cv2.INTER_AREA), (W - tw) // 2, 6)
+    ref = REF; k = st.get('chunk', 0); n = ref.n_chunks; state = st.get('state'); y = 340
+    if state == 'idle' or not st.get('visible'):
+        for i, line in enumerate(['Step back a little so', 'I can see your head', 'and your hips']):
+            _text(out, line, (0, y + 40 * i), 0.9, WHITE, 2, center=True)
+        return out
+    if state == 'done':
+        fs = st.get('full_scores') or st.get('scores') or {}
+        good = bool(fs) and sum(fs.values()) / len(fs) >= PASS * 100
+        _text(out, 'YOU DID IT!' if good else 'KEEP PRACTISING', (0, y), 1.4 if good else 1.1, VOLT, 3, center=True)
+        for i, (kk, s) in enumerate(sorted(fs.items())[:6]):
+            _text(out, f'Part {kk + 1}: {s}%', (0, y + 55 + 40 * i), 0.9, WHITE, 2, center=True)
+        return out
+    _text(out, 'FULL DANCE NEXT' if state == 'full' else f'PART {k + 1}/{n}', (0, y), 1.2, VOLT, 3, center=True)
+    last = st.get('last_pct'); y += 50
+    if last is not None: _text(out, f'Last try: {last}%', (0, y), 0.9, WHITE, 2, center=True); y += 44
+    steps = ref.step(k) if state != 'full' else None
+    if steps:
+        for i, line in enumerate(textwrap.wrap(steps, 30)[:7]):
+            _text(out, line, (0, y + 30 * i), 0.62, WHITE, 2, center=True)
+    return out
+
+
 def _ask(prompt):
+    """Ask the character (through Brodie's ask_voice); returns the prompt so when_quiet(..., retry=prompt) can ask it again if lost."""
     if S['ask']: S['ask'](prompt)
+    return prompt
+
+
+# The comedy: how each situation is played. The persona has the character; these say what kind of bit the moment is. One bit per
+# line, the joke lands at the end, specific beats generic. All PG (the persona's own rules still apply).
+def _flavour(pct, passed):
+    """A one-line stage direction for the reaction to a score."""
+    if passed and pct >= 90: return 'They nailed it: react like a stunned proud coach who did not expect this, one over-the-top compliment.'
+    if passed: return 'They passed: one hype line like a dance teacher who secretly had money on them.'
+    if pct < 15: return 'They barely moved: tease that the video must have frozen, or that this was a statue impression, then the tip.'
+    if pct < 35: return 'They did a confident different dance: say what it looked like instead (one funny guess), then the tip.'
+    if pct >= PASS * 100 - 10: return 'So close: play the dramatic almost ("I felt that in my headphones"), then the tip.'
+    return 'Mid: a backhanded compliment first ("the energy was there, the arms were somewhere else"), then the tip.'
 
 
 def _anger(n):
@@ -166,18 +264,26 @@ def _watch_play():
     _loop().call_later(0.1, _watch_play)
 
 
-def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0):
+RETRY_AFTER_S = 3.0                                         # a reply that has not started by then was lost (relay: "no active generation"); replies start in 0.6-1.8 s
+
+
+def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0, retry=None):
     """Run fn once Gemini has finished talking: at least min_wait (its reply takes ~1 s to start), then quiet_s with no voice
-    audio buffered, at most max_wait (then the leftover voice audio is dropped so it does not play over the dance)."""
-    player = _player(); t0 = time.monotonic(); last = [time.monotonic()]
+    audio buffered, at most max_wait (then the leftover voice audio is dropped so it does not play over the dance).
+    retry: the prompt that was just asked; if no voice audio at all has played RETRY_AFTER_S after the ask, the reply was lost
+    (seen through the relay: "received server content but no active generation") and the prompt is asked once more."""
+    player = _player(); t0 = [time.monotonic()]; last = [time.monotonic()]; heard = [False]; retried = [False]
+    if retry: min_wait = max(min_wait, RETRY_AFTER_S + 1.0)     # leave room for the retry: fn must not run before the second ask could
     def tick():
         mix = getattr(player, 'mix', None) if player is not None else None
         now = time.monotonic()
-        if mix is not None and mix.active: last[0] = now
-        if now - t0 >= max_wait:
+        if mix is not None and mix.active: last[0] = now; heard[0] = True
+        if retry and not heard[0] and not retried[0] and now - t0[0] >= RETRY_AFTER_S:
+            retried[0] = True; t0[0] = now; print('[dance] no reply heard: asking again', flush=True); _ask(retry)
+        if now - t0[0] >= max_wait:
             if mix is not None: mix.clear()
             fn(); return
-        if now - t0 >= min_wait and now - last[0] >= quiet_s:
+        if now - t0[0] >= min_wait and now - last[0] >= quiet_s:
             fn(); return
         _loop().call_later(0.1, tick)
     _loop().call_later(0.1, tick)
@@ -242,18 +348,23 @@ def on_result(res):
         if k + 1 >= REF.n_chunks:
             return start_full_run()
         S['chunk'] += 1; S['tries'] = 0; S['last_pct'] = None
-        what = f'passed part {k + 1} with {pct}%' if score >= PASS else f'got {pct}% on part {k + 1}, close enough to move on'
-        _ask(f'The caller {what} of the {REF.name} dance. {mood} In ONE short sentence react, then introduce part {k + 2}.' + _describe(k + 1))
+        if score >= PASS:
+            what = f'passed part {k + 1} with {pct}%. {_flavour(pct, True)}'
+        else:
+            what = (f'got {pct}% on part {k + 1} after {MAX_TRIES} tries, so you are moving on anyway: one line of theatrical defeat '
+                    f'("we will pretend that was on purpose"), no tip')
+        p = _ask(f'The caller {what} {mood} In ONE short sentence, then introduce part {k + 2}.' + _describe(k + 1))
     else:
         part = res.get('worst_part'); move = res.get('move')
         tip = f'The body part furthest from the creator was the {part}.' if part else 'Their timing was off.'
         steps = f' The moves are: "{REF.step(k)}".' if REF.step(k) else ''
-        _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
-             + (f' The move was "{move}".' if move else '') + steps
-             + (f' {mood} In ONE or two short sentences: one concrete tip about that body part, said that way, then say we will run it again.'
-                if mood else ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.'))
+        again = f' Try {S["tries"] + 1} of {MAX_TRIES} is next.'
+        p = _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
+                 + (f' The move was "{move}".' if move else '') + steps + ' ' + _flavour(pct, False) + again
+                 + (f' {mood} Two short sentences at most: the bit, then one concrete tip about that body part said in that mood, then "again".'
+                    if mood else ' Two short sentences at most: the bit, then one concrete tip about that body part, then "again".'))
     S['state'] = 'waiting'
-    when_quiet(teach_part)
+    when_quiet(teach_part, retry=p)
 
 
 def start_full_run():
@@ -261,13 +372,13 @@ def start_full_run():
         return finish()
     S['state'] = 'full'
     mood = ANGER[S['anger']] if S['anger'] else ''
-    _ask(f'The caller has been through all {REF.n_chunks} parts of the {REF.name} dance. {mood} In ONE short sentence, '
-         + ('hype them up' if not mood else 'say it like that') + ': now the whole dance from the top'
-         + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
+    p = _ask(f'The caller has been through all {REF.n_chunks} parts of the {REF.name} dance. {mood} In ONE short sentence, like a game '
+             + ('show host announcing the final round' if not mood else 'furious game show host who still has to announce the final round')
+             + ': now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
     def go():
         print('[dance] full run', flush=True)
         play_parts(0, REF.n_chunks, False, lambda wins: judge_async(sorted(wins.items()), on_full_result))
-    when_quiet(go)
+    when_quiet(go, retry=p)
 
 
 def on_full_result(res):
@@ -287,22 +398,36 @@ def finish():
     good = bool(scores) and sum(scores) / len(scores) >= PASS * 100
     mood = _anger(0 if good else S['anger'])
     _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} {mood} In two short sentences, '
-         + ('celebrate, name their strongest part, and tell them they are ready to post it.' if good else
-            'be honest that it was not there yet, name their best part, and tell them to practise before they post it.'))
+         + ('celebrate like they just won a dance show, name their strongest part, and tell them to post it and tag you (you will know if they do not).' if good else
+            'be honest that it was not there yet, like a loving but disappointed coach, name their best part, and tell them to practise '
+            'before they post it, because you will be watching. Lovingly.'))
 
 
 # ---- the events ----
+def _set_visible():
+    """visible = Brodie's whole-body rule OR the upper-body rule; the first time the dancer is in view the lesson starts."""
+    was = S['visible']; S['visible'] = bool(S['vis_full'] or S['vis_upper'])
+    if S['visible'] and not was and S['state'] == 'idle':
+        S['state'] = 'intro'
+        S['say']('Great, I can see you', 'visibility')
+        p = _ask(f'The caller just stepped into frame, ready. In two short sentences: say hi with your intro line, then sell today\'s '
+                 f'lesson like a dance teacher who has had too much caffeine: the {REF.name} dance, {REF.n_chunks} parts of eight counts'
+                 + (', with the music' if REF.audio is not None else '') + ', and you count them in.' + _describe(0))
+        when_quiet(teach_part, min_wait=4.0, retry=p)
+
+
 def on_event(event, say_now, ask_voice):
     S['say'] = say_now; S['ask'] = ask_voice
     _ensure_screen()
     t = event['type']
     if t == 'pose':
-        if event.get('ok'): POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        ok = bool(event.get('ok'))
+        if ok: POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        if ok and _upper_body_in_frame(event['kp']):
+            S['upper_run'] += 1; S['upper_miss'] = 0
+            if S['upper_run'] >= UPPER_ON_FRAMES and not S['vis_upper']: S['vis_upper'] = True; _set_visible()
+        else:
+            S['upper_miss'] += 1; S['upper_run'] = 0
+            if S['upper_miss'] >= UPPER_OFF_FRAMES and S['vis_upper']: S['vis_upper'] = False; _set_visible()
     elif t == 'visibility':
-        was = S['visible']; S['visible'] = event.get('state') == 'full'
-        if S['visible'] and not was and S['state'] == 'idle':
-            S['state'] = 'intro'
-            say_now('Great, I can see you', 'visibility')
-            ask_voice(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
-                      f'in {REF.n_chunks} parts of eight counts, and that you will count them in.' + _describe(0))
-            when_quiet(teach_part, min_wait=4.0)
+        S['vis_full'] = event.get('state') == 'full'; _set_visible()

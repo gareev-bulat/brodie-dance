@@ -22,18 +22,23 @@ async def main(a):
         async def read(): print(f'[{time.monotonic() - t0:5.1f}s] {who}: {await reader.read_all()}', flush=True)
         asyncio.create_task(read())
     room.register_text_stream_handler('lk.transcription', on_text)
+    writer = {'w': None}
     async def grab(track):                                   # the agent's face: one png per 0.5 s while it talks, to eyeball mouth + color
         n = 0
         async for ev in rtc.VideoStream(track, format=rtc.VideoBufferType.RGBA):
             n += 1
-            if n % 7 == 0:
-                f = ev.frame; img = np.frombuffer(f.data, np.uint8).reshape(f.height, f.width, 4)
-                cv2.imwrite(f'data/tmp/smoke_face_{n // 7:03d}.png', cv2.cvtColor(img, cv2.COLOR_RGBA2BGR))
-    sent = {'t': None}
+            f = ev.frame
+            if a.video_out or n % 7 == 0: img = np.frombuffer(f.data, np.uint8).reshape(f.height, f.width, 4)
+            if n % 7 == 0: cv2.imwrite(f'data/tmp/smoke_face_{n // 7:03d}.png', cv2.cvtColor(img, cv2.COLOR_RGBA2BGR))
+            if a.video_out:                                  # every frame into an mp4 (the agent publishes at 15 fps)
+                if writer['w'] is None: writer['w'] = cv2.VideoWriter(a.video_out + '.video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 15, (f.width, f.height))
+                writer['w'].write(cv2.cvtColor(img, cv2.COLOR_RGBA2BGR))
+    sent = {'t': None}; rec = []
     async def hear(track):                                   # time from each caller line to the first sound of the reply
         talking = False
         async for ev in rtc.AudioStream(track):
             pcm = np.frombuffer(ev.frame.data, np.int16)
+            if a.record: rec.append((ev.frame.sample_rate, ev.frame.num_channels, pcm.copy()))
             loud = pcm.size and np.sqrt(np.mean((pcm.astype(np.float32) / 32768) ** 2)) > 0.02
             if loud and not talking and sent['t'] is not None:
                 print(f'[{time.monotonic() - t0:5.1f}s] (reply audio started {time.monotonic() - sent["t"]:.1f}s after the line)', flush=True); sent['t'] = None
@@ -60,6 +65,21 @@ async def main(a):
         print(f'[{time.monotonic() - t0:5.1f}s] CALLER: {line}', flush=True)
         await room.local_participant.send_text(line, topic='lk.chat'); sent['t'] = time.monotonic()
     await asyncio.sleep(a.seconds if a.silent else 10); task.cancel(); await room.disconnect()
+    if a.record and rec:                                     # everything the agent played (voice, counts, music) as one wav
+        import wave
+        rate, ch = rec[0][0], rec[0][1]; pcm = np.concatenate([p for _, _, p in rec])
+        with wave.open(a.record, 'wb') as w:
+            w.setnchannels(ch); w.setsampwidth(2); w.setframerate(rate); w.writeframes(pcm.tobytes())
+        print(f'recorded {len(pcm) / ch / rate:.1f} s of the agent\'s audio to {a.record}', flush=True)
+    if a.video_out and writer['w'] is not None:              # the agent's video, with its audio when --record was given (ffmpeg)
+        import shutil, subprocess
+        writer['w'].release(); v = a.video_out + '.video.mp4'
+        if a.record and rec and shutil.which('ffmpeg'):
+            r = subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', v, '-i', a.record, '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                                '-c:a', 'aac', '-shortest', a.video_out])
+            if r.returncode == 0: os.remove(v); print(f'wrote {a.video_out} (the agent\'s video + audio)', flush=True)
+            else: print(f'ffmpeg failed; silent video left at {v}', flush=True)
+        else: os.replace(v, a.video_out); print(f'wrote {a.video_out} (video only; add --record for audio)', flush=True)
 
 
 if __name__ == '__main__':
@@ -67,4 +87,6 @@ if __name__ == '__main__':
     ap.add_argument('--room', help='default: a fresh web-<character>-<id> room (the room name picks the character)')
     ap.add_argument('--video', default='data/tmp/mac_handoff/crops/live.mp4')
     ap.add_argument('--silent', action='store_true', help='send no chat lines (a dancer)'); ap.add_argument('--seconds', type=float, default=120)
+    ap.add_argument('--record', metavar='WAV', help="save the agent's audio to this wav (to hear or transcribe what was really said)")
+    ap.add_argument('--video-out', metavar='MP4', help="save the agent's video (with the audio when --record is given) to this mp4: a demo clip")
     asyncio.run(main(ap.parse_args()))

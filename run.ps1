@@ -69,8 +69,12 @@ $voice = & $py -c "from verity.variants import VARIANTS as V; k='$Character'; as
 if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
 $env:VERITY_CHARACTER = $Character
 $args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
-if ($Character -eq 'dancity' -and -not $env:DANCE_VIDEO) { $env:DANCE_VIDEO = '0' }   # the call video is Dancity's face (its anger stages)
-$args_ += if ($Character -eq 'dancity') { ' --dance --leave-grace-s -1' } else { ' --perception off --vision --video-quality high --barge-in --handlers starter/verity/handlers.py' }
+# Same flags as scripts/run_verity.sh: --vision shows the character the caller, sharp (--video-quality high), one frame every 4 s for
+# Dancity (it looks between parts) or 2 s for a conversation (1 fps bloats the model's context and slows its replies); VISION_FPS and
+# DANCE_PASS (the score that passes a part; 70% was too strict for a learner) can be set in .env.local; DANCE_VIDEO=0 = the face alone.
+$fps = if ($env:VISION_FPS) { $env:VISION_FPS } else { if ($Character -eq 'dancity') { '0.25' } else { '0.5' } }
+if ($Character -eq 'dancity' -and -not $env:DANCE_PASS) { $env:DANCE_PASS = '0.5' }
+$args_ += if ($Character -eq 'dancity') { " --dance --leave-grace-s -1 --vision --vision-fps $fps --video-quality high" } else { " --perception off --vision --vision-fps $fps --video-quality high --barge-in --handlers starter/verity/handlers.py" }
 # start --log-level info, not dev: dev logs every debug line, and a Windows console is slow enough to stall the audio
 if ($Agent) {
     Remove-Item env:VERITY_CHARACTER -ErrorAction SilentlyContinue   # the web app may call any character; the agent picks it from the room name
