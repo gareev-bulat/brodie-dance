@@ -63,6 +63,13 @@ from facetime.pipeline import FPS
 from facetime.perception import Perception, Config, add_arguments, build_pipeline, EVENT_SCHEMA_VERSION
 from facetime.coach_agent import frame_to_rgb              # the same frame conversion as the demo coach
 
+# livekit-agents lets a plugin register (on import) only on the main thread. On Windows the jobs run in threads, so importing the
+# Gemini plugin lazily when a caller binds fails with "Plugins must be registered on the main thread" and the voice never starts.
+# Import the plugins the voice can use here, at module load, which is on the main thread (also in forkserver job processes).
+for _plugin in ('google', 'fishaudio'):
+    try: __import__(f'livekit.plugins.{_plugin}')
+    except ImportError: pass
+
 log = logging.getLogger('worker')
 ARGS_ENV = 'RTCOACH_WORKER_ARGS'      # main() hands the parsed flags to the job processes as JSON (forkserver children re-import this module)
 DEFAULT_PLAN = 'squats:10,pushups:8,jumping jacks:20,lunges:10'
@@ -207,6 +214,9 @@ def prewarm(proc: JobProcess):
     if not a.events_only:
         from facetime.audio_out import CueBank
         proc.userdata['bank'] = CueBank()
+    if getattr(a, 'avatar', None):                             # the face frames, decoded before a call (1.6 s on the call's loop otherwise)
+        from verity.avatar import sprites, real_frames
+        for k in {a.avatar, 'cruelty'}: sprites(k) or real_frames(k)
     if perception_off(a):
         print(f'[worker] prewarm: loaded in {time.time() - t:.1f} s (perception OFF: no pose model, no session script; voice {a.voice}, vision {"on" if a.vision else "off"}, '
               f'floor {a.floor}, audio {"OFF (events only)" if a.events_only else "cue bank"})', flush=True)
