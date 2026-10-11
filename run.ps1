@@ -4,6 +4,7 @@
 param([string]$Character = 'verity')
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'   # PowerShell 5's download progress bar makes Invoke-WebRequest many times slower
 Set-Location $PSScriptRoot
 
 # 1. uv (installs Python 3.12 and the packages)
