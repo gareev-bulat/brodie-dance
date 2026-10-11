@@ -1,0 +1,4 @@
+# Vercel only serves the static landing page (web/); the Python server runs elsewhere (docs/HOSTING.md)
+*
+!web/**
+!vercel.json
