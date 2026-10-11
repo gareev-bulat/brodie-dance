@@ -1,0 +1,168 @@
+{
+  "video": "data/dance/raw/samyzgl_0729aa.mp4",
+  "width": 544,
+  "height": 960,
+  "fps": 30.0,
+  "frames": 536,
+  "frames_probed": 536,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 7,
+  "member_ids": [
+    7
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    7,
+    14,
+    1,
+    16,
+    2,
+    4,
+    25,
+    13,
+    17,
+    10,
+    5
+  ],
+  "frames_with_dancer": 401,
+  "coverage": 0.7481,
+  "first_frame": 11,
+  "last_frame": 413,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {
+    "1": {
+      "frames": 210,
+      "first_frame": 0,
+      "last_frame": 211,
+      "mean_box_area": 216160.0,
+      "frames_overlapping_main": 199,
+      "mean_iou_with_main": 0.138,
+      "used_to_fill_gaps": 0
+    },
+    "2": {
+      "frames": 122,
+      "first_frame": 0,
+      "last_frame": 122,
+      "mean_box_area": 77607.8,
+      "frames_overlapping_main": 112,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "4": {
+      "frames": 16,
+      "first_frame": 7,
+      "last_frame": 40,
+      "mean_box_area": 312317.1,
+      "frames_overlapping_main": 12,
+      "mean_iou_with_main": 0.077,
+      "used_to_fill_gaps": 0
+    },
+    "5": {
+      "frames": 1,
+      "first_frame": 8,
+      "last_frame": 8,
+      "mean_box_area": 15504.9,
+      "frames_overlapping_main": 0,
+      "mean_iou_with_main": null,
+      "used_to_fill_gaps": 0
+    },
+    "10": {
+      "frames": 1,
+      "first_frame": 39,
+      "last_frame": 39,
+      "mean_box_area": 19258.3,
+      "frames_overlapping_main": 1,
+      "mean_iou_with_main": 0.236,
+      "used_to_fill_gaps": 0
+    },
+    "13": {
+      "frames": 7,
+      "first_frame": 133,
+      "last_frame": 139,
+      "mean_box_area": 43234.2,
+      "frames_overlapping_main": 7,
+      "mean_iou_with_main": 0.064,
+      "used_to_fill_gaps": 0
+    },
+    "14": {
+      "frames": 264,
+      "first_frame": 149,
+      "last_frame": 415,
+      "mean_box_area": 109568.8,
+      "frames_overlapping_main": 262,
+      "mean_iou_with_main": 0.14,
+      "used_to_fill_gaps": 0
+    },
+    "16": {
+      "frames": 193,
+      "first_frame": 218,
+      "last_frame": 415,
+      "mean_box_area": 139206.0,
+      "frames_overlapping_main": 191,
+      "mean_iou_with_main": 0.011,
+      "used_to_fill_gaps": 0
+    },
+    "17": {
+      "frames": 3,
+      "first_frame": 226,
+      "last_frame": 228,
+      "mean_box_area": 14003.6,
+      "frames_overlapping_main": 3,
+      "mean_iou_with_main": 0.017,
+      "used_to_fill_gaps": 0
+    },
+    "25": {
+      "frames": 8,
+      "first_frame": 408,
+      "last_frame": 415,
+      "mean_box_area": 204522.4,
+      "frames_overlapping_main": 7,
+      "mean_iou_with_main": 0.412,
+      "used_to_fill_gaps": 0
+    }
+  },
+  "mean_keypoint_conf": {
+    "nose": 0.965,
+    "left_eye": 0.935,
+    "right_eye": 0.945,
+    "left_ear": 0.72,
+    "right_ear": 0.75,
+    "left_shoulder": 0.929,
+    "right_shoulder": 0.912,
+    "left_elbow": 0.834,
+    "right_elbow": 0.8,
+    "left_wrist": 0.814,
+    "right_wrist": 0.78,
+    "left_hip": 0.929,
+    "right_hip": 0.919,
+    "left_knee": 0.663,
+    "right_knee": 0.667,
+    "left_ankle": 0.197,
+    "right_ankle": 0.231
+  },
+  "weak_joints_frac_below_0.5": {
+    "left_knee": 0.329,
+    "right_knee": 0.259,
+    "left_ankle": 0.855,
+    "right_ankle": 0.803
+  },
+  "video_frames_written": 536,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/samyzgl_0729aa.npz",
+    "csv": "data/dance/pose/samyzgl_0729aa.csv",
+    "video": "data/dance/pose/samyzgl_0729aa.pose.mp4"
+  }
+}

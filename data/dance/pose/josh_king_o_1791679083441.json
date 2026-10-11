@@ -1,0 +1,91 @@
+{
+  "video": "data/dance/raw/josh_king_o_1791679083441.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 285,
+  "frames_probed": 285,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 2,
+  "member_ids": [
+    2
+  ],
+  "main_dancer_ambiguous": true,
+  "ranked_ids": [
+    2,
+    1,
+    3
+  ],
+  "frames_with_dancer": 285,
+  "coverage": 1.0,
+  "first_frame": 0,
+  "last_frame": 284,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {
+    "1": {
+      "frames": 285,
+      "first_frame": 0,
+      "last_frame": 284,
+      "mean_box_area": 161091.6,
+      "frames_overlapping_main": 285,
+      "mean_iou_with_main": 0.05,
+      "used_to_fill_gaps": 0
+    },
+    "3": {
+      "frames": 11,
+      "first_frame": 181,
+      "last_frame": 199,
+      "mean_box_area": 254726.0,
+      "frames_overlapping_main": 11,
+      "mean_iou_with_main": 0.422,
+      "used_to_fill_gaps": 0
+    }
+  },
+  "mean_keypoint_conf": {
+    "nose": 0.846,
+    "left_eye": 0.683,
+    "right_eye": 0.725,
+    "left_ear": 0.444,
+    "right_ear": 0.54,
+    "left_shoulder": 0.95,
+    "right_shoulder": 0.965,
+    "left_elbow": 0.945,
+    "right_elbow": 0.977,
+    "left_wrist": 0.9,
+    "right_wrist": 0.956,
+    "left_hip": 0.995,
+    "right_hip": 0.997,
+    "left_knee": 0.692,
+    "right_knee": 0.74,
+    "left_ankle": 0.074,
+    "right_ankle": 0.074
+  },
+  "weak_joints_frac_below_0.5": {
+    "left_eye": 0.267,
+    "right_eye": 0.218,
+    "left_ear": 0.632,
+    "right_ear": 0.389,
+    "left_knee": 0.337,
+    "left_ankle": 1.0,
+    "right_ankle": 1.0
+  },
+  "video_frames_written": 285,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/josh_king_o_1791679083441.npz",
+    "csv": "data/dance/pose/josh_king_o_1791679083441.csv",
+    "video": "data/dance/pose/josh_king_o_1791679083441.pose.mp4"
+  }
+}

@@ -128,6 +128,9 @@ def build_parser():
                                                                                                            'joins, binds to the caller, starts the voice and emits one synthetic session {state: open} event; the floor is then always open')
     ap.add_argument('--floor', default=os.environ.get('FLOOR') or None, choices=['gated', 'open'], help='gated = the voice speaks between sets only (the default with perception on); '
                                                                                                         'open = always allowed to speak, nothing is ever cut (the default with --perception off; env FLOOR)')
+    ap.add_argument('--barge-in', action='store_true', default=os.environ.get('BARGE_IN') == '1',
+                    help="keep the caller's audio flowing while the voice talks (conversation; the phone's echo cancellation keeps the model "
+                         'from hearing itself). Default: the echo guard mutes the caller while any audio plays (env BARGE_IN=1)')
     ap.add_argument('--avatar', default=os.environ.get('AVATAR') or None, help='publish a face video track for this Verity character (verity/variants.py key; env AVATAR): Chert expects audio + video from the agent')
     ap.add_argument('--text', action='store_true', default=truthy(os.environ.get('VOICE_TEXT')), help='with --voice gemini: typed chat in (lk.chat) and transcripts out (lk.transcription), for the web app (env VOICE_TEXT=1)')
     ap.add_argument('--vision', action='store_true', default=truthy(os.environ.get('VISION')), help='with --voice gemini: tee the caller\'s video into the model session at --vision-fps (env VISION=1)')
@@ -614,6 +617,7 @@ class CoachJob:
         if floor_open and not self.voice_mode: print('[voice] --floor open with perception on: the voice is never cut by a set (it will talk over the counts)', flush=True)
         v = VoiceLayer(self, model=model, plan=a.plan, handlers=handlers, probe=bool(getattr(a, 'latency_probe', False)), floor_open=floor_open, vision=self.vision)
         if model is not None:
+            if v.floor is not None: v.floor.echo_guard = not getattr(a, 'barge_in', False)
             v.attach()
             print(f'[voice] gemini {model.model_id} voice {model.voice} language {model.language or "model default"}; persona {a.persona} ({len(model.persona)} chars'
                   + (f', plan text {len(a.plan_text)} chars from {a.plan_file}' if getattr(a, 'plan_text', None) else '') + f'); '
