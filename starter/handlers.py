@@ -1,5 +1,8 @@
 """Brodie the dance teacher: teaches a TikTok dance 8 counts at a time, with the song.
 
+DANCE_MODE=poses (the default) runs starter/dance/posegame.py instead: one still target pose at a time over the caller's own
+camera (their skeleton + a ghost of the target), no counting, no music; DANCE_MODE=counts is the lesson described below.
+
 Run the worker in dance mode (pose events, no workout script, the voice may speak any time):
   python -m facetime.worker --voice gemini --dance --leave-grace-s -1 dev
 Pick the dance with DANCE=<name> (data/dances/<name>.npz, made with starter/dance/reference.py); default: the first one there.
@@ -26,7 +29,7 @@ import cv2  # noqa: E402
 from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E402
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
-from verity.variants import ANGER, CRUELTY_INTRO  # noqa: E402
+from verity.variants import ANGER, CRUELTY_INTRO, FINAL_FORM_INTRO  # noqa: E402
 
 PASS = float(os.environ.get('DANCE_PASS', '0.5'))           # score needed to move on (the judge gives the creator's own clip 96-99%, jumping jacks 15-33%)
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
@@ -61,6 +64,11 @@ class _Practice:
 REF = _load_reference() or _Practice()
 print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm:g} bpm; pass {PASS:.0%}; '
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
+# DANCE_MODE=poses (default): one still target pose at a time over the caller's own camera, no counting and no music
+# (starter/dance/posegame.py); DANCE_MODE=counts: the 8-count lesson with the music below, unchanged.
+DANCE_MODE = os.environ.get('DANCE_MODE', 'poses').strip().lower()
+POSES_MODE = DANCE_MODE == 'poses' and not isinstance(REF, _Practice)
+if DANCE_MODE == 'poses' and not POSES_MODE: print('[dance] DANCE_MODE=poses needs a reference dance: falling back to counts', flush=True)
 
 S = dict(state='idle', visible=False, vis_full=False, vis_upper=False, upper_run=0, upper_miss=0, chunk=0, tries=0, scores={},
          full_scores=None, say=None, ask=None, last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
@@ -108,27 +116,35 @@ def _ensure_screen():
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
     path = getattr(REF, 'video_path', None) or os.path.join(reference.DANCES_DIR, f'{REF.name}.mp4')
-    screen = Screen(REF, path); avatar = getattr(job, 'avatar', None)
+    avatar = getattr(job, 'avatar', None)
+    screen = None if (POSES_MODE and avatar is not None) else Screen(REF, path)   # poses mode draws the camera, not the clip
     task = _loop().create_task(_compose_into(avatar, screen) if avatar is not None else screen.run(room, lambda: S))
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
 
 
 async def _compose_into(avatar, screen):
     """Replace the avatar's draw(): its own face frame, composed with the Screen (clip + counts while a part plays, the card text
-    otherwise). The clip is decoded off the loop first. The mouth sync (verity.avatar.tap) is untouched: it feeds render()."""
+    otherwise), or in poses mode with posegame.compose_pose (the caller's camera, skeletons, the match meter). The clip is
+    decoded off the loop first. The mouth sync (verity.avatar.tap) is untouched: it feeds render()."""
     from livekit import rtc
     from starter.dance import screen as screen_mod
-    await _loop().run_in_executor(None, screen.load)
+    if screen is not None: await _loop().run_in_executor(None, screen.load)
     W, H = screen_mod.W, screen_mod.H
-    orig_render = avatar.render
+    orig_render = avatar.render; failed = [0]
     def draw(now):
         face = orig_render(now)
         if face.shape[0] != H or face.shape[1] != W: face = cv2.resize(face, (W, H))
-        img = compose(face, screen, S, time.time())
+        try:
+            img = posegame.compose_pose(face, S, time.time()) if screen is None else compose(face, screen, S, time.time())
+        except Exception as e:                                                 # never let a drawing bug kill the video
+            failed[0] += 1
+            if failed[0] <= 3: print(f'[dance] compose failed: {e!r}', flush=True)
+            img = face[..., :3]
         rgba = np.dstack([img, np.full((H, W), 255, np.uint8)])
         return rtc.VideoFrame(W, H, rtc.VideoBufferType.RGBA, np.ascontiguousarray(rgba).tobytes())
     avatar.draw = draw
-    print('[dance] screen drawn into the face track (clip + counts while a part plays, the card between parts)', flush=True)
+    print('[dance] ' + ('pose game drawn into the face track (camera + skeletons + ghost)' if screen is None else
+                        'screen drawn into the face track (clip + counts while a part plays, the card between parts)'), flush=True)
 
 
 def _blend(dst, src_rgba, x, y):
@@ -200,7 +216,8 @@ def _anger(n):
     except Exception: avatar = None
     if avatar is not None: avatar.set_stage(n)
     print(f'[dance] anger {n}', flush=True)
-    return (ANGER[n] + (' ' + CRUELTY_INTRO if n == len(ANGER) - 1 and was < n else '')) if n else ''
+    intro = FINAL_FORM_INTRO.get(os.environ.get('VERITY_CHARACTER', '').strip().lower(), CRUELTY_INTRO)   # Brodie: coach mode, not Cruelty
+    return (ANGER[n] + (' ' + intro if n == len(ANGER) - 1 and was < n else '')) if n else ''
 
 
 # ---- audio: one clip per part = the song + the counts ----
@@ -408,6 +425,8 @@ def _set_visible():
     """visible = Brodie's whole-body rule OR the upper-body rule; the first time the dancer is in view the lesson starts."""
     was = S['visible']; S['visible'] = bool(S['vis_full'] or S['vis_upper'])
     if S['visible'] and not was and S['state'] == 'idle':
+        if POSES_MODE:
+            S['state'] = 'poses'; posegame.start(); return
         S['state'] = 'intro'
         S['say']('Great, I can see you', 'visibility')
         p = _ask(f'The caller just stepped into frame, ready. In two short sentences: say hi with your intro line, then sell today\'s '
@@ -423,6 +442,7 @@ def on_event(event, say_now, ask_voice):
     if t == 'pose':
         ok = bool(event.get('ok'))
         if ok: POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        if POSES_MODE: posegame.on_pose(event)
         if ok and _upper_body_in_frame(event['kp']):
             S['upper_run'] += 1; S['upper_miss'] = 0
             if S['upper_run'] >= UPPER_ON_FRAMES and not S['vis_upper']: S['vis_upper'] = True; _set_visible()
@@ -431,3 +451,11 @@ def on_event(event, say_now, ask_voice):
             if S['upper_miss'] >= UPPER_OFF_FRAMES and S['vis_upper']: S['vis_upper'] = False; _set_visible()
     elif t == 'visibility':
         S['vis_full'] = event.get('state') == 'full'; _set_visible()
+
+
+if POSES_MODE:                                              # the pose game uses this module's helpers (asks, retries, anger, the loop)
+    from starter.dance import posegame
+    posegame.bind(dict(S=S, ref=REF, ask=_ask, when_quiet=when_quiet, anger=_anger, loop=_loop))
+    print('[dance] mode: poses (one pose at a time over the camera; DANCE_MODE=counts for the 8-count lesson)', flush=True)
+else:
+    print('[dance] mode: counts (8-count parts with the music)', flush=True)

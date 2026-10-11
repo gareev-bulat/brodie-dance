@@ -1023,7 +1023,9 @@ $('#export').addEventListener('click', () => entry && download(entry));
 async function checkBackend() {
   try {
     const j = await (await fetch('/api/health')).json();
-    CHARS = j.characters; renderChars();
+    CHARS = j.characters;
+    const live = CHARS.find((c) => c.key === j.live && !c.secret);   // the character the worker is running (Brodie): pick it up front
+    if (live && live.key !== current) pickChar(live.key); else renderChars();
     $('#voice-select').insertAdjacentHTML('beforeend', j.voices.map((v) => `<option value="${v}">${v}</option>`).join(''));
     $('#dot').className = 'dot ok'; $('#backend').textContent = 'Backend ready';
   } catch {
