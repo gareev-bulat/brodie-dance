@@ -163,7 +163,8 @@ def resolve_mode(a):
         a.plan_text = None; a.floor = getattr(a, 'floor', None) or ('open' if getattr(a, 'dance', False) else 'gated')   # dance: no sets, the voice may speak any time
         if a.exercise: a.plan = None
         elif getattr(a, 'auto', False): a.plan = None
-        else: a.plan = a.plan or os.environ.get('PLAN') or read_plan_file(getattr(a, 'plan_file', None)) or DEFAULT_PLAN
+        elif getattr(a, 'dance', False): a.plan = None     # dance mode runs no workout script; the demo plan leaked into the persona
+        else: a.plan = a.plan or os.environ.get('PLAN') or read_plan_file(getattr(a, 'plan_file', None)) or DEFAULT_PLAN   # ("let's start with ten squats", 11:43 call)
     a.vision_fps = max(0.1, min(float(getattr(a, 'vision_fps', 1.0) or 1.0), 2.0))
     h = getattr(a, 'handlers', None)
     if h and str(h).strip().lower() in ('none', 'off'): a.handlers = 'none'          # kept as the string: the job process resolves the flags again
