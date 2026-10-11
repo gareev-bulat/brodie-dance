@@ -45,7 +45,7 @@ def _load_reference():
     name = os.environ.get('DANCE')
     try:
         if name: return reference.load(name)
-        found = sorted(glob.glob(os.path.join(reference.DANCES_DIR, '*.npz')))
+        found = sorted(glob.glob(os.path.join(reference.DANCES_DIR, '*.npz')), key=os.path.getmtime, reverse=True)   # newest first
         return reference.Reference(found[0]) if found else None
     except Exception as e:
         print(f'[dance] could not load the dance {name or ""}: {e!r}', flush=True); return None
