@@ -16,7 +16,6 @@ Files:
 | `web/index.html` | The app: sidebar of characters, call view with transcript and tool calls, meme wall, fan -ities. |
 | `web/about.html` | The lore page: the series arc in real images, timeline, the -ity multiverse, the meme wall. |
 | `web/lore.js` | Every real image both pages use, with its source (Verity Wiki, YouTube, Know Your Meme). Edit lists here. |
-| `web/assets/ours/` | Our characters' 3D renders, made by the same code as the call video: `python -m verity.avatar --export web/assets/ours`. |
 | `scripts/verity_smoke.py` | A headless test caller: plays a clip as the camera, sends the test lines as chat and prints the transcript. |
 
 ## Setup

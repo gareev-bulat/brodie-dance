@@ -3,7 +3,6 @@ published as a camera track. The mouth follows the output audio level (LevelTap 
 blink every few seconds. Each character has its color and a face (FACES); set_variant() swaps both mid-call (Verity -> Cruelty).
 The shaded sphere and the static parts of a face are rendered once per character (base); a frame only adds eyes and mouth.
   python -m verity.avatar                            # data/tmp/verity_faces.png: every character, mouth shut + open
-  python -m verity.avatar --export web/assets/ours   # one transparent PNG per character (and a talking one) for the website
 """
 import asyncio, collections, functools, glob, os, random, sys, time
 import cv2
