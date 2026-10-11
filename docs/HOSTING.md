@@ -52,11 +52,11 @@ curl https://<server>/api/dances     # the lessons with parts, bpm, steps
 
 The landing page is static, so it can go up on Vercel in a minute while the server runs elsewhere:
 
-1. In `web/landing.html` set `<meta name="brodie-api" content="https://<your server>">` to the public https URL of the
+1. In `web/index.html` set `<meta name="brodie-api" content="https://<your server>">` to the public https URL of the
    server (a Cloudflare quick tunnel to this PC works: `cloudflared tunnel --url http://localhost:8099`, or the hosted
    server from section 1). The waitlist posts there across origins; the server allows it (CORS on `/api/waitlist` only).
 2. Deploy the `web/` folder: `cd web && vercel --prod` (or drag the folder onto vercel.com). `web/vercel.json` serves
-   `landing.html` at `/`.
+   the landing page at `/`.
 3. On the Vercel copy, accounts and the call page are hidden (they need the server's own origin for the session cookie);
    visitors join the waitlist. For a quick check without redeploying, open `https://<vercel>/?api=https://<server>`.
 

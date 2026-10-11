@@ -4,6 +4,5 @@
   "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "web",
-  "rewrites": [{ "source": "/", "destination": "/landing.html" }],
   "cleanUrls": true
 }

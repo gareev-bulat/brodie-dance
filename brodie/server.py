@@ -150,7 +150,7 @@ async def waitlist_export(req):
     return web.Response(text=body, content_type='text/csv')
 
 
-async def landing(_req): return web.FileResponse(os.path.join(WEB, 'landing.html'))
+async def landing(_req): return web.FileResponse(os.path.join(WEB, 'index.html'))
 
 
 async def app_page(req):
