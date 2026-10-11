@@ -83,6 +83,10 @@ def clean_transcript(text):
     if not t: return ''
     cuts = list(_GLUE.finditer(t))
     if cuts: t = t[cuts[-1].end():]
+    for m in reversed(list(re.finditer(r'[a-z](?=[A-Z])', t))):        # "...pulling itThat run..." : a draft of the line, then the line
+        tail = t[m.end():]
+        if len(tail) >= 20 and tail[:20] in t[:m.end()]: t = tail; break
+    t = re.sub(r'^(?:the )?(?:final |spoken )?(?:output|response|line|reply)(?: should be)?:\s*', '', t, flags=re.I)   # "The output should be: ..."
     lines = [l for l in t.split('\n') if l.strip() and not _MD_LINE.match(l) and '**' not in l]
     t = ' '.join(' '.join(lines).split())
     if not t or _NOTE.match(t): return ''
