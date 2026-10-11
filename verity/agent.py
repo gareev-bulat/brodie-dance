@@ -34,6 +34,8 @@ CHARACTER = os.environ.get('VERITY_CHARACTER', DEFAULT).strip().lower()
 VOICES = typing.get_args(Voice)
 STRIKES_TO_CRUELTY = 3
 DANCE_FPS = 10
+PRIVATE = '(Private instruction for you, never say it aloud; answer the caller in your own words.) '   # Brodie's fix (facetime/voice.py): stops the model reading prompts out
+DANCE_REACT_S = 12.0                                 # Dancity rates a move at most this often, so it doesn't talk over you
 MAX_CALL_S = int(os.environ.get('VERITY_MAX_CALL_S', '900'))   # hard cap per call: the team has 240 Gemini Live minutes
 LEAVE_GRACE_S = 5.0                                  # a caller who drops and doesn't come back within this ends the call
 
@@ -123,10 +125,10 @@ class Character(Agent):
         if call.avatar: call.avatar.set_variant(self.v)
         call.emit('character', key=self.key, name=self.v['name'], color=self.v['color'], face=self.v['face'])
         if self.opener:
-            self.session.generate_reply(instructions=self.opener); return
+            self.session.generate_reply(instructions=PRIVATE + self.opener); return
         see = ('You can mention one thing you see on their camera.' if call.video else
                "Their camera is off, so don't describe them or their room.")
-        self.session.generate_reply(instructions=f'You just picked up the call. Say hi like a friend would, in your own words, and '
+        self.session.generate_reply(instructions=PRIVATE + f'You just picked up the call. Say hi like a friend would, in your own words, and '
                                                  f'work in your signature line "{self.v["intro"]}" naturally. {see} Keep it to one or '
                                                  'two short sentences.')
 
@@ -214,20 +216,21 @@ async def first_caller(room, need_media):
 
 async def pump(track, tee, session, call):
     """Caller video -> the model (VideoTee, 1 fps) and the dance detector (verity/dance.py, about 10 fps, one frame in flight)."""
-    detector, busy, last = DanceDetector(), None, 0.0
+    detector, busy, last, said = (DanceDetector() if call.key == 'dancity' else None), None, 0.0, 0.0   # Brodie pose + team judge, Dancity only
     async for ev in rtc.VideoStream(track, format=rtc.VideoBufferType.RGBA):
         tee.offer(ev.frame)
         now = asyncio.get_running_loop().time()
-        if busy is None and now - last >= 1 / DANCE_FPS:
+        if detector and busy is None and now - last >= 1 / DANCE_FPS:
             last = now; busy = asyncio.create_task(asyncio.to_thread(detector.feed, ev.frame))
         if busy is not None and busy.done():
             try: move = busy.result()
             except Exception as e: log.warning('dance detector failed: %s', e); move = None   # never stop feeding the model
             busy = None
-            if move:
-                call.emit('dance', **move)
-                session.generate_reply(instructions=f'(Private instruction, never say it aloud.) The dance model saw the caller do: '
-                                                    f'{json.dumps(move)}. React in one short sentence and rate it out of 10.')
+            if move and now - said >= DANCE_REACT_S:
+                said = now; call.emit('dance', **move)
+                tip = f" Their {move['tip']} was the furthest off: give one quick tip about it." if move.get('tip') else ''
+                session.generate_reply(instructions=PRIVATE + f"You just watched them dance ({move['move']}); your rating: {move['score']}/10. "
+                                                    f'React in one short sentence and say the rating.{tip}')
 
 
 def face_frames(key):

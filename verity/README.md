@@ -110,9 +110,14 @@ The agent sends JSON to the room on the data topic `verity`, and the app shows e
 | `transform {to}` | strike 3 hands off to Cruelty; `forgive()` after a real apology hands back to Verity |
 | `dance {move, score}` | the dance model saw a move |
 
-## Dance detection (for the team)
+## Dance detection (Brodie Dance, merged)
 
-`verity/dance.py` `DanceDetector.feed(frame)` gets the caller's camera at about 10 fps, in a worker thread, one frame at a time. Return `None`, or a dict like `{"move": "spin", "score": 7}`. The agent then sends a `dance` event to the app and asks the character to react and rate the move. Brodie's pose pipeline (`facetime/perception.py`, `src/rtcoach/pose.py`) is the natural base for landmarks.
+Dancity watches with Brodie's own pose model (`src/rtcoach/pose.py`, MediaPipe) and the team's dance judge from Bulat's branch (`starter/dance/`), which is where Steven's model plugs in (`model_judge` in `starter/dance/judge.py`). `verity/dance.py` collects about 4 s of the caller's body at 10 fps, then:
+
+- **With a reference dance:** set `VERITY_DANCE=scuba` (or any `data/dances/<name>.npz` made with `python -m starter.dance.reference`). Each window is judged against the next 8-count, and Dancity gets the score plus the body part furthest off, so it gives one tip.
+- **Without one:** it rates how much and how big the arms and legs move (freestyle, 1 to 10). Standing still gives nothing.
+
+Dancity reacts at most every 12 s. Try it on a recording: `python -m verity.dance data/tmp/mac_handoff/crops/live.mp4`.
 
 ## Add a character
 
