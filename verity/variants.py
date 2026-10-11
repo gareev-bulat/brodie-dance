@@ -38,7 +38,10 @@ VARIANTS = {
                  "Taxes? Da-da-dum, let's do a spin instead!"],
         goodbye="Fine, go, but you're dancing with ME next time.",
         brodie_extra='- When the caller keeps getting the moves wrong you get madder each time (sassy, then furious, then yelling); '
-                     'when they finally nail a part you calm down and hype them up. Still PG and funny.',
+                     'when they finally nail a part you calm down and hype them up. Still PG and funny.\n'
+                     "- On this call you are running a dance lesson. The lesson's scores and tips reach you as private instructions: use "
+                     'them, never invent your own ratings or make up what the caller did. Say only your spoken line, never your '
+                     'reasoning, notes or plans.',
     ),
     'gravity': dict(
         name='Gravity', color=(91, 75, 219), voice='Charon', domain='physics', face='sleepy',

@@ -22,6 +22,7 @@ import asyncio, collections, glob, os, random, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path: sys.path.insert(0, ROOT)
 import numpy as np  # noqa: E402
+import cv2  # noqa: E402
 from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E402
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
@@ -61,10 +62,27 @@ REF = _load_reference() or _Practice()
 print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm:g} bpm; pass {PASS:.0%}; '
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
-S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
+S = dict(state='idle', visible=False, vis_full=False, vis_upper=False, upper_run=0, upper_miss=0, chunk=0, tries=0, scores={},
+         full_scores=None, say=None, ask=None, last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
+# A dancer counts as "in view" when Brodie's rule says the whole body is in frame OR the upper body is: nose, both shoulders and
+# both hips inside the frame and confidently seen (MediaPipe indices). The judge needs shoulders and hips (keypoints.normalize,
+# the trained judge's ok mask); the reference clips are often framed waist-up themselves, and a laptop webcam or a hand-held
+# phone rarely shows the ankles. Brodie's own "whole body" rule (facetime/visibility.py) still applies to workouts.
+UPPER_BODY = [0, 11, 12, 23, 24]
+UPPER_VIS = float(os.environ.get('DANCE_UPPER_VIS', '0.5'))
+UPPER_ON_FRAMES, UPPER_OFF_FRAMES = 5, 30                   # 0.5 s in view to count, 3 s lost to drop (like Brodie's partial_s)
+
+
+def _upper_body_in_frame(kp):
+    """kp: the pose event's (33, 4) x, y in 0..1 of the frame, z, visibility -> True when the upper body is inside and seen."""
+    try:
+        a = np.asarray(kp, np.float32)[UPPER_BODY]
+    except Exception:
+        return False
+    inside = bool(((a[:, 0] > 0.02) & (a[:, 0] < 0.98) & (a[:, 1] > 0.02) & (a[:, 1] < 0.98)).all())
+    return inside and bool((a[:, 3] >= UPPER_VIS).all())
 
 
 def _loop():
@@ -78,17 +96,82 @@ def _player():
 
 
 def _ensure_screen():
-    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room)."""
+    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room). With a face track
+    (--avatar, the Verity characters) the creator's clip, the counts and the cards are drawn INTO that track, so the call has one
+    video: the clip with the character in a corner while a part plays, the character with the card between parts. Without a
+    face the Screen publishes its own track as before."""
     if S['screen'] or not SHOW_VIDEO: return
     S['screen'] = True
     try:
-        room = S['say'].__self__.job.room
+        job = S['say'].__self__.job; room = job.room
         from starter.dance.screen import Screen
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
     path = getattr(REF, 'video_path', None) or os.path.join(reference.DANCES_DIR, f'{REF.name}.mp4')
-    task = _loop().create_task(Screen(REF, path).run(room, lambda: S))
+    screen = Screen(REF, path); avatar = getattr(job, 'avatar', None)
+    task = _loop().create_task(_compose_into(avatar, screen) if avatar is not None else screen.run(room, lambda: S))
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
+
+
+async def _compose_into(avatar, screen):
+    """Replace the avatar's draw(): its own face frame, composed with the Screen (clip + counts while a part plays, the card text
+    otherwise). The clip is decoded off the loop first. The mouth sync (verity.avatar.tap) is untouched: it feeds render()."""
+    from livekit import rtc
+    from starter.dance import screen as screen_mod
+    await _loop().run_in_executor(None, screen.load)
+    W, H = screen_mod.W, screen_mod.H
+    orig_render = avatar.render
+    def draw(now):
+        face = orig_render(now)
+        if face.shape[0] != H or face.shape[1] != W: face = cv2.resize(face, (W, H))
+        img = compose(face, screen, S, time.time())
+        rgba = np.dstack([img, np.full((H, W), 255, np.uint8)])
+        return rtc.VideoFrame(W, H, rtc.VideoBufferType.RGBA, np.ascontiguousarray(rgba).tobytes())
+    avatar.draw = draw
+    print('[dance] screen drawn into the face track (clip + counts while a part plays, the card between parts)', flush=True)
+
+
+def _blend(dst, src_rgba, x, y):
+    """Alpha-blend an RGBA image onto an RGB one at (x, y), clipped."""
+    h, w = src_rgba.shape[:2]; H, W = dst.shape[:2]
+    x0, y0 = max(x, 0), max(y, 0); x1, y1 = min(x + w, W), min(y + h, H)
+    if x1 <= x0 or y1 <= y0: return
+    s = src_rgba[y0 - y:y1 - y, x0 - x:x1 - x].astype(np.float32); a = s[..., 3:4] / 255.0
+    dst[y0:y1, x0:x1] = (s[..., :3] * a + dst[y0:y1, x0:x1].astype(np.float32) * (1 - a)).astype(np.uint8)
+
+
+def compose(face, screen, st, now):
+    """face: the character's RGBA frame (W x H, the ball mid-frame); -> RGB W x H for the call."""
+    from starter.dance.screen import W, H, VOLT, WHITE, _text
+    import textwrap
+    if screen.playing(st):                                            # a part is playing: the clip and the count, the face small
+        out = screen.render(st, now)
+        small = cv2.resize(face, (W // 3, H // 3), interpolation=cv2.INTER_AREA)
+        _blend(out, small, W - small.shape[1] - 6, H - small.shape[0] - 6)
+        return out
+    out = np.zeros((H, W, 3), np.uint8)                               # between parts: the face on top, the card below
+    top = face[90:500]                                                # the ball and its gear (verity.avatar: centre 320, radius 151)
+    th = 290; tw = int(top.shape[1] * th / top.shape[0])
+    _blend(out, cv2.resize(top, (tw, th), interpolation=cv2.INTER_AREA), (W - tw) // 2, 6)
+    ref = REF; k = st.get('chunk', 0); n = ref.n_chunks; state = st.get('state'); y = 340
+    if state == 'idle' or not st.get('visible'):
+        for i, line in enumerate(['Step back a little so', 'I can see your head', 'and your hips']):
+            _text(out, line, (0, y + 40 * i), 0.9, WHITE, 2, center=True)
+        return out
+    if state == 'done':
+        _text(out, 'YOU DID IT!', (0, y), 1.4, VOLT, 3, center=True)
+        fs = st.get('full_scores') or st.get('scores') or {}
+        for i, (kk, s) in enumerate(sorted(fs.items())[:6]):
+            _text(out, f'Part {kk + 1}: {s}%', (0, y + 55 + 40 * i), 0.9, WHITE, 2, center=True)
+        return out
+    _text(out, 'FULL DANCE NEXT' if state == 'full' else f'PART {k + 1}/{n}', (0, y), 1.2, VOLT, 3, center=True)
+    last = st.get('last_pct'); y += 50
+    if last is not None: _text(out, f'Last try: {last}%', (0, y), 0.9, WHITE, 2, center=True); y += 44
+    steps = ref.step(k) if state != 'full' else None
+    if steps:
+        for i, line in enumerate(textwrap.wrap(steps, 30)[:7]):
+            _text(out, line, (0, y + 30 * i), 0.62, WHITE, 2, center=True)
+    return out
 
 
 def _ask(prompt):
@@ -292,17 +375,29 @@ def finish():
 
 
 # ---- the events ----
+def _set_visible():
+    """visible = Brodie's whole-body rule OR the upper-body rule; the first time the dancer is in view the lesson starts."""
+    was = S['visible']; S['visible'] = bool(S['vis_full'] or S['vis_upper'])
+    if S['visible'] and not was and S['state'] == 'idle':
+        S['state'] = 'intro'
+        S['say']('Great, I can see you', 'visibility')
+        S['ask'](f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
+                 f'in {REF.n_chunks} parts of eight counts, and that you will count them in.' + _describe(0))
+        when_quiet(teach_part, min_wait=4.0)
+
+
 def on_event(event, say_now, ask_voice):
     S['say'] = say_now; S['ask'] = ask_voice
     _ensure_screen()
     t = event['type']
     if t == 'pose':
-        if event.get('ok'): POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        ok = bool(event.get('ok'))
+        if ok: POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        if ok and _upper_body_in_frame(event['kp']):
+            S['upper_run'] += 1; S['upper_miss'] = 0
+            if S['upper_run'] >= UPPER_ON_FRAMES and not S['vis_upper']: S['vis_upper'] = True; _set_visible()
+        else:
+            S['upper_miss'] += 1; S['upper_run'] = 0
+            if S['upper_miss'] >= UPPER_OFF_FRAMES and S['vis_upper']: S['vis_upper'] = False; _set_visible()
     elif t == 'visibility':
-        was = S['visible']; S['visible'] = event.get('state') == 'full'
-        if S['visible'] and not was and S['state'] == 'idle':
-            S['state'] = 'intro'
-            say_now('Great, I can see you', 'visibility')
-            ask_voice(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
-                      f'in {REF.n_chunks} parts of eight counts, and that you will count them in.' + _describe(0))
-            when_quiet(teach_part, min_wait=4.0)
+        S['vis_full'] = event.get('state') == 'full'; _set_visible()

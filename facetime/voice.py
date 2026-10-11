@@ -461,8 +461,40 @@ class GeminiModel:
                 from google.genai import types                             # the SDK builds the Live websocket URL from base_url (wss) and sends the key as x-goog-api-key
                 kw['http_options'] = types.HttpOptions(base_url=base_url)
                 print(f'[voice] gemini via relay {base_url}', flush=True)
+            kw.update(self.listening_options())
             self.rt = google.beta.realtime.RealtimeModel(**kw)
         return self.rt
+
+    @staticmethod
+    def listening_options():
+        """How the Live API's own voice activity detection treats the caller (2026-10-11 calls: it answered half-sentences and lost
+        the first word after its own line). end-of-speech sensitivity LOW + a longer silence before a turn ends = it waits for the
+        caller to finish; prefix padding keeps the first syllables. Vision frames at the model's high resolution (--vision).
+        Env: GEMINI_END_SENSITIVITY low|high|off (off = the API defaults), GEMINI_SILENCE_MS (default 700), GEMINI_PREFIX_MS (300),
+        GEMINI_MEDIA_RESOLUTION low|medium|high (default: not sent, the API's own; high made a 100 s call with 1 fps vision slow
+        and the model started speaking its reasoning aloud)."""
+        out = {}
+        try:
+            from google.genai import types
+        except Exception:
+            return out
+        end = os.environ.get('GEMINI_END_SENSITIVITY', 'low').strip().lower()
+        if end in ('low', 'high'):
+            try:
+                out['realtime_input_config'] = types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False, start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_HIGH,
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW if end == 'low' else types.EndSensitivity.END_SENSITIVITY_HIGH,
+                    prefix_padding_ms=int(os.environ.get('GEMINI_PREFIX_MS', '300') or 300),
+                    silence_duration_ms=int(os.environ.get('GEMINI_SILENCE_MS', '700') or 700)))
+            except Exception as e:
+                log.warning('activity detection options not applied: %r', e)
+        res = os.environ.get('GEMINI_MEDIA_RESOLUTION', '').strip().lower()
+        if res in ('low', 'medium', 'high'):
+            try: out['media_resolution'] = getattr(types.MediaResolution, f'MEDIA_RESOLUTION_{res.upper()}')
+            except Exception as e: log.warning('media resolution not applied: %r', e)
+        # Not here on purpose: thinking_config(thinking_budget=0). Tried on 10-11: gemini-3.8-live then answered every ask with an
+        # empty turn ("\n\n"), no audio at all. The model needs its thinking; the persona tells it to speak only its line.
+        return out
 
     async def start(self, sink, room=None, participant_identity=None, video=None):
         """video: a VideoTee (or any livekit.agents VideoInput) set as session.input.video before start(): the framework then

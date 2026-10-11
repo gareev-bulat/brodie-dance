@@ -16,10 +16,16 @@ export VERITY_CHARACTER="$CHAR"
 if [ -z "${NO_WEB:-}" ]; then python -m verity.server & trap 'kill $! 2>/dev/null' EXIT; fi
 COMMON=(--plan-file none --voice gemini --voice-name "$VOICE" --persona "starter/verity/$CHAR.md" --avatar "$CHAR" --text --log-caller)
 if [ "$CHAR" = dancity ]; then
-  export DANCE_VIDEO="${DANCE_VIDEO:-0}"   # the call video is Dancity's face (its anger stages), not the creator's clip
-  python -m facetime.worker "${COMMON[@]}" --dance --leave-grace-s -1 "$MODE"
+  # Bulat's lesson on Brodie's pose events. The creator's clip, the counts and the score cards are drawn into Dancity's face track
+  # (one video on the call; DANCE_VIDEO=0 for the face alone). --vision lets Dancity actually see the caller between parts (the
+  # persona promises it) at a frame every 4 s: at 1 fps a 100 s call put ~100 images in the model's context, its replies slowed from
+  # 1 s to 4 s and it started speaking its own reasoning aloud; --video-quality high keeps those frames sharp.
+  # DANCE_PASS: the score that passes a part (the trained judge gave the creator's own clip 59% on a first try, so 70% was too
+  # strict for a learner); DANCE=<name> picks data/dances/<name>.npz (default: the first one there).
+  export DANCE_PASS="${DANCE_PASS:-0.5}"
+  python -m facetime.worker "${COMMON[@]}" --dance --leave-grace-s -1 --vision --vision-fps "${VISION_FPS:-0.25}" --video-quality high "$MODE"
 else
   # a conversation, not a workout: hear the caller over the voice (--barge-in) and see them sharp (--video-quality high; the low
-  # simulcast layer is plenty for Brodie's pose model, not for "nice haircut")
-  python -m facetime.worker "${COMMON[@]}" --perception off --vision --video-quality high --barge-in --handlers starter/verity/handlers.py "$MODE"
+  # simulcast layer is plenty for Brodie's pose model, not for "nice haircut"), one frame every 2 s (1 fps bloats the context, see above)
+  python -m facetime.worker "${COMMON[@]}" --perception off --vision --vision-fps "${VISION_FPS:-0.5}" --video-quality high --barge-in --handlers starter/verity/handlers.py "$MODE"
 fi
