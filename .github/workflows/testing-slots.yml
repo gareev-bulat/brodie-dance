@@ -2,7 +2,7 @@ name: Testing slots
 # Books FaceTime testing slots from "[slot]" issues. First valid issue for a slot wins.
 on:
   issues:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, closed]
 permissions:
   issues: write
   contents: read
@@ -20,6 +20,8 @@ jobs:
             docs/slots
             scripts
       - uses: actions/github-script@v7
+        env:
+          DISCORD_LINE_WEBHOOK: ${{ secrets.DISCORD_LINE_WEBHOOK }}
         with:
           script: |
             const bot = require('./scripts/slot-bot.js');
