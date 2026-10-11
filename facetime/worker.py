@@ -148,7 +148,7 @@ def resolve_mode(a):
         a.plan_text = getattr(a, 'plan_text', None) or a.plan or os.environ.get('PLAN') or read_plan_text(getattr(a, 'plan_file', None))
         a.plan = None; a.exercise = None; a.floor = getattr(a, 'floor', None) or 'open'
     else:
-        a.plan_text = None; a.floor = getattr(a, 'floor', None) or 'gated'
+        a.plan_text = None; a.floor = getattr(a, 'floor', None) or ('open' if getattr(a, 'dance', False) else 'gated')   # dance: no sets, the voice may speak any time
         if a.exercise: a.plan = None
         elif getattr(a, 'auto', False): a.plan = None
         else: a.plan = a.plan or os.environ.get('PLAN') or read_plan_file(getattr(a, 'plan_file', None)) or DEFAULT_PLAN

@@ -31,7 +31,7 @@ from facetime.session import Session
 
 log = logging.getLogger('perception')
 EVENT_SCHEMA_VERSION = "1"
-EVENT_TYPES = ('rep', 'exercise_seen', 'fault', 'cue', 'visibility', 'gesture', 'probe', 'session', 'status')
+EVENT_TYPES = ('rep', 'exercise_seen', 'fault', 'cue', 'visibility', 'gesture', 'probe', 'session', 'status', 'pose')
 MODEL_DEFAULT = os.path.join(DATA, 'models', 'clf_pose.pt')
 
 
@@ -56,6 +56,7 @@ class Config:
     auto_lite: bool = True           # live only: drop the pose model to lite when full cannot hold 10 fps
     status_every_s: float = 5.0
     seen_every_s: float = 1.0        # exercise_seen at most this often while the top class is unchanged
+    dance: bool = False              # dance mode: a `pose` event every frame, no workout script (no counts, no cues; handlers drive the call)
 
     @classmethod
     def from_args(cls, a):
@@ -83,6 +84,7 @@ def add_arguments(ap):
     ap.add_argument('--gesture-next', action='store_true', help='a T-pose held 1.5 s closes the set / skips the rest and emits a gesture event (without it no T-pose detector runs: no gesture events)')
     ap.add_argument('--latency-probe', action='store_true', help='with audio attached: beep the instant both wrists go above the head')
     ap.add_argument('--no-auto-lite', dest='auto_lite', action='store_false')
+    ap.add_argument('--dance', action='store_true', help='dance mode: emit a pose event (33 MediaPipe landmarks) every frame and skip the workout script; starter/handlers.py runs the call')
     return ap
 
 
@@ -201,9 +203,14 @@ class Perception:
         m = dict(frame=self._frame, t_recv=t_recv, t_decision=t_dec, pose_ms=round(r['pose_ms'], 1), clf_ms=round(r['clf_ms'], 1), pose_model=self.pipe.pose_variant)
         if meta: m.update(meta)
         self._perception_events(r, t_mono)
-        r['hold'] = bool(self.hold)
-        self.session.on_frame(r, m)                                   # cue events come out of _say in the demo coach's order
-        self._session_event()
+        if self.cfg.dance:                                            # dance mode: the landmarks to the handlers, no workout script
+            a = self.pipe.last_landmarks
+            self._emit('pose', ok=a is not None, wh=[int(rgb.shape[1]), int(rgb.shape[0])],
+                       kp=(np.round(a[:, :4], 4).tolist() if a is not None else None))   # (33,4) x,y in 0..1 of the frame, z, visibility
+        else:
+            r['hold'] = bool(self.hold)
+            self.session.on_frame(r, m)                               # cue events come out of _say in the demo coach's order
+            self._session_event()
         self._status(r, t_mono)
         return self._frame_events
 
