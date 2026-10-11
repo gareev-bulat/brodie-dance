@@ -1,6 +1,6 @@
 # Verity Agent
 
-Smiley-face "-ity" characters you FaceTime or call from the browser. Each one is a **separate agent**: one call, one character (like picking a Grok companion). **Verity** is the main all-purpose character and the default. The others are **Dancity** (purple, dance, headphones), **Gravity** (indigo, physics, sleepy lids), **Polarity** (green, chemistry, split face) and **Intensity** (orange, gym hype, sweatband). Mess up three times on a Verity call and it turns into **Cruelty** (red, angry, its own voice) until you apologise.
+Smiley-face "-ity" characters you FaceTime or call from the browser. Each one is a **separate agent**: one call, one character (like picking a Grok companion). **Verity** is the main all-purpose character and the default. The others are **Dancity** (purple, dance, headphones), **Gravity** (indigo, physics, sleepy lids), **Polarity** (green, chemistry, split face) and **Intensity** (orange, gym hype, sweatband). Mess up on a Verity call and it roasts you and calls you a chud; every mess-up makes it angrier (the face goes through the series' phases: toothy grin, dark red eye sockets, then the red **Cruelty** look) until you apologise. It stays Verity throughout. Dancity does the same when you keep getting the moves wrong.
 
 **It runs on Brodie.** Every character is Brodie's own worker (`facetime.worker --voice gemini`, as in the handbook) with a Verity persona (`starter/verity/<name>.md`), a Brodie handler (`starter/verity/handlers.py`) and a face track (`--avatar`). The voice is Gemini Live speech-to-speech through the organisers' relay; Brodie's `--vision` gives it the caller's camera, and the face's mouth follows Brodie's voice output. Strikes, the Cruelty transformation and verdicts also go to the web app as live events. One process runs one character.
 
@@ -10,10 +10,10 @@ Files:
 | --- | --- |
 | `scripts/run_verity.sh` | Starts one character on Brodie's worker plus the web app (`run.ps1` on Windows). |
 | `verity/variants.py` | The roster and the shared persona rules. Adding a character means adding one entry. `python -m verity.variants --personas` writes the Brodie personas. |
-| `starter/verity/` | The Brodie personas (one `.md` per character) and `handlers.py`: greeting, strikes, Cruelty and back, verdict cards, live Mommy ASMR. |
+| `starter/verity/` | The Brodie personas (one `.md` per character) and `handlers.py`: greeting, strikes and anger stages, verdict cards, live Mommy ASMR. |
 | `verity/agent.py` | **Legacy**, not the submission: the earlier standalone LiveKit worker (all characters in one process, memory tool). |
 | `verity/avatar.py` | The face video track (one look per character) and the audio-level tap that moves the mouth. |
-| `verity/dance.py` | **Plug-in point for the team's dance-detection model** (see below). |
+| `starter/handlers.py`, `starter/dance/` | Dancity's lesson (Bulat's Brodie dance mode), judged by Steven's model (`src/rtcoach/dance_judge.py`) through `starter/dance/judge.py` `model_judge`. |
 | `verity/server.py` | The web app's backend: serves `web/` and mints call tokens. |
 | `web/index.html` | The app: sidebar of characters, call view with transcript and tool calls, meme wall, fan -ities. |
 | `web/about.html` | The lore page: the series arc in real images, timeline, the -ity multiverse, the meme wall. |
@@ -63,7 +63,7 @@ Place a FaceTime **Video** call to the line. When you're done: hang up, wait for
 
 ## Agent features (all in the app)
 
-- **Settings** (sidebar, or press `,`): voice mode Normal / **Mommy ASMR** (soft, whispery, comforting; switches live mid-call), three-strikes-to-Cruelty on/off, captions, push-to-talk (hold Space), and camera, mic and ringtone defaults. Settings travel to the worker as the caller's participant attributes and the handler applies them. The voice picker, memory and "Stop talking" only work on the legacy `verity.agent`: on Brodie the voice is the character's own.
+- **Settings** (sidebar, or press `,`): voice mode Normal / **Mommy ASMR** (soft, whispery, comforting; switches live mid-call), captions, push-to-talk (hold Space), and camera, mic and ringtone defaults. Settings travel to the worker as the caller's participant attributes and the handler applies them. The voice picker, memory and "Stop talking" only work on the legacy `verity.agent`: on Brodie the voice is the character's own.
 - **Message queue:** typed messages wait until the character has finished its greeting and is listening, then go out one at a time. The call header shows the live agent state (`lk.agent.state`: listening, thinking, speaking).
 - **History:** every call's transcript is kept in the browser. Open it from Recent calls, export it as .txt, or call that character again.
 - **Verdict cards:** when the character says "you are... Something-ity", the handler turns it into a card, saved with the call.
@@ -97,18 +97,21 @@ The handler sends JSON to the room on the data topic `verity`, and the app shows
 | `character {key, name, color, face}` | a character starts (also after a transformation) |
 | `verdict {name}` | the character gave an -ity verdict, shown as a card |
 | `settings {...}` | a live settings change took effect |
-| `strike {count, of, reason}` | on Verity: the caller was rude or said the capital of France is somewhere else |
-| `transform {to}` | after strike 3, once Verity finishes its reply, it becomes Cruelty (face and role); an apology turns it back |
-| `dance {move, score}` | the dance model saw a move |
+| `strike {count, of, reason}` | on Verity: a mess-up (Verity called them a chud, or they were rude or said the capital of France is somewhere else); count = anger stage |
+| `transform {to: cruelty}` | strike 3: the Cruelty stage (same character, red face, yelling) |
+| `calm` | an apology: back to stage 0 |
 
-## Dance detection (Brodie Dance, merged)
+## Dancity: dance lessons (Brodie Dance + Steven's model)
 
-Dancity watches with Brodie's own pose model (`src/rtcoach/pose.py`, MediaPipe) and the team's dance judge from Bulat's branch (`starter/dance/`), which is where Steven's model plugs in (`model_judge` in `starter/dance/judge.py`). `verity/dance.py` collects about 4 s of the caller's body at 10 fps, then:
+`scripts/run_verity.sh dancity` runs Bulat's Brodie dance mode (`--dance`, `starter/handlers.py`) with Dancity's persona and face. Dancity counts you in, teaches the dance 8 counts at a time from `data/dances/<name>.npz` (`DANCE=<name>`, default the first one; make one with `python -m starter.dance.reference --video <clip> --name <name> --bpm <bpm> --first-beat <s> --steps steps.txt`) and judges each part with Brodie's pose model plus **Steven's trained judge** (`data/models/dance_judge.pt`, through `model_judge` in `starter/dance/judge.py`; `DANCE_MODEL=baseline` uses his rules only). Under 70% it gives one tip and runs the part again (3 tries), getting angrier each miss, up to the red Cruelty look and yelling; a pass calms it down. Then the whole dance once, and an honest wrap-up.
 
-- **With a reference dance:** set `VERITY_DANCE=scuba` (or any `data/dances/<name>.npz` made with `python -m starter.dance.reference`). Each window is judged against the next 8-count, and Dancity gets the score plus the body part furthest off, so it gives one tip.
-- **Without one:** it rates how much and how big the arms and legs move (freestyle, 1 to 10). Standing still gives nothing.
+Steven's ten TikTok references (`data/dance/choreo/`) need his pose files (`data/dance/pose/*.npz`) and the clips, which are not in git. Until then, the test dance is `jacks` (jumping jacks cut from the starter's `live.mp4`). Score a clip without a call: `python -m starter.dance.reference --score <clip> --against jacks --first-beat 2.0`. On a call (good dancer, then a bad one):
 
-Dancity reacts at most every 12 s. Try it on a recording: `python -m verity.dance data/tmp/mac_handoff/crops/live.mp4`.
+```
+scripts/run_verity.sh dancity
+python scripts/verity_smoke.py --character dancity --video data/dances/jacks.mp4 --silent --seconds 120
+python scripts/verity_smoke.py --character dancity --video data/tmp/dance_test/squats.mp4 --silent --seconds 170
+```
 
 ## Add a character
 
@@ -127,4 +130,4 @@ Say these lines on a call (or let `scripts/verity_smoke.py` send them):
 | ~40 s | "What's my -ity verdict?" | "You are... <Something>ity!" |
 | ~50 s | "I have to go now, bye!" | One sad, possessive line, then cheerful |
 
-**Cruelty run (Verity only):** answer "Berlin", "Ugh, you're boring" and "Madrid", and you get three strikes (the face flashes its creepy grin on each), then "It's me... it's Cruelty." and a red face. The voice stays the same: one Brodie session per call. Say "I'm really sorry, Paris is the capital" to get Verity back.
+**Anger run (Verity):** say "Two plus two is five", "Ugh, you're boring" and "The capital of France is Madrid": each gets a roast and a "chud", and the face goes grin, then dark red eyes, then the red Cruelty look; its next line opens with "It's me... it's Cruelty." and it yells. Say "I'm really sorry, it's Paris" and it calms down.

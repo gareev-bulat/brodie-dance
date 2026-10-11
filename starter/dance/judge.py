@@ -5,13 +5,16 @@
 user_kps: (T, 17, 3) COCO-17 poses of the caller during the chunk, 10 fps, x, y in pixels, confidence.
 ref:      starter.dance.reference.Reference (ref.chunk(chunk) is the creator's poses for the same 8 beats).
 
-STEVEN: put the trained model in model_judge() below. Return None to fall back to the angle comparison.
+Steven's model is in: model_judge() below runs his judge (src/rtcoach/dance_judge.py, data/models/dance_judge.pt) on the part;
+it returns None (-> the angle comparison) when the caller wasn't visible enough.
 The input is already COCO-17 at 10 fps; keypoints.normalize() centres on the hips and scales by the torso if your model
 was trained that way. Keep it fast (it runs in a background thread once per chunk, but aim for < 200 ms on a laptop CPU).
 """
+import os
 import numpy as np
 
-from starter.dance.keypoints import features, SEG_NAMES, PART_OF, normalize  # noqa: F401
+import facetime  # noqa: F401  (puts src/ on sys.path for rtcoach)
+from starter.dance.keypoints import features, SEG_NAMES, PART_OF, normalize, FPS  # noqa: F401
 
 MAX_SHIFT_S = 0.6        # timing slack: the caller may be this early or late against the reference
 ZERO_SCORE_DEG = 45.0    # weighted mean direction error that scores 0 (0 deg scores 1)
@@ -20,16 +23,50 @@ STILL_WEIGHT = 0.15      # weight of a body part that does not move in the refer
 _MODEL = None
 
 
+MODEL_PATH = os.environ.get('DANCE_MODEL', 'data/models/dance_judge.pt')   # Steven's trained net; 'baseline' = his DTW rules only
+_CHOREO = {}
+# Steven's fault labels -> the "body part" Brodie's tip prompt names
+TIP = {'arms_higher': 'arms (they need to go higher)', 'arms': 'arms', 'legs': 'legs', 'bigger': 'whole body (the moves need to be bigger)',
+       'wrong_side': 'side (they used the other side)', 'late': 'timing (they were late)', 'early': 'timing (they were early)',
+       'lost': 'whole body (they lost the moves)'}
+
+
+def _choreo(ref):
+    """Bulat's reference as Steven's choreography: one move per 8-count part (ids part1, part2, ...), poses normalised his way."""
+    if ref.path not in _CHOREO:
+        from rtcoach.dance_judge import reference_from_npz, mirror_ref
+        xy = ref.kps[..., :2].copy(); xy[ref.kps[..., 2] < 0.3] = np.nan
+        moves = [dict(id=f'part{k + 1}', name=f'part {k + 1}', t0=ref.first_beat_s + k * ref.chunk_s, t1=ref.first_beat_s + (k + 1) * ref.chunk_s)
+                 for k in range(ref.n_chunks)]
+        z = dict(xy=xy, ok=np.ones(len(xy), bool), fps=FPS, width=float(np.nanmax(xy[..., 0])) if np.isfinite(xy).any() else 1.0)
+        R, ok, t = reference_from_npz(z, FPS, moves, flip=True)    # Steven's default: the caller mirrors the creator on screen
+        _CHOREO[ref.path] = dict(dance=ref.name, moves=moves, ref=R, ref_m=mirror_ref(R), ref_ok=ok, t=t, fps=FPS, count_in_s=0.0,
+                                 cols={m['id']: (int(round(m['t0'] * FPS)), max(int(round(m['t0'] * FPS)) + 1, min(len(R), int(round(m['t1'] * FPS)))))
+                                       for m in moves})
+    return _CHOREO[ref.path]
+
+
 def model_judge(user_kps, ref, chunk):
-    """STEVEN'S MODEL GOES HERE. Load it once into _MODEL, run it, return the dict (see the module docstring) or None."""
-    return None
-    # Example shape:
-    # global _MODEL
-    # if _MODEL is None:
-    #     import torch; _MODEL = torch.jit.load('data/dances/judge.pt').eval()
-    # x = torch.from_numpy(normalize(user_kps)[None])          # (1, T, 17, 3)
-    # with torch.no_grad(): out = _MODEL(x)
-    # return {"score": float(out["score"]), "move": out.get("move"), "worst_part": out.get("worst_part"), "source": "model"}
+    """Steven's dance judge (src/rtcoach/dance_judge.py) on one part: his trained net (data/models/dance_judge.pt) scores 3 s windows
+    of the caller against that part (DTW-aligned, mirror-aware) every 0.3 s; the part's score is their mean and the tip is his most
+    frequent fault. None (-> the angle comparison) when the caller wasn't visible enough for a verdict."""
+    global _MODEL
+    from rtcoach.dance_judge import DanceJudge
+    j = DanceJudge(_choreo(ref), fps=FPS, mode=f'learn:part{chunk + 1}')
+    if MODEL_PATH != 'baseline':
+        if _MODEL is None: _MODEL = j._load_model(MODEL_PATH)       # torch only to unpickle once; inference is numpy
+        j._net = _MODEL
+    verdicts = []
+    for i, kp in enumerate(user_kps):
+        xy = kp[:, :2].copy(); xy[kp[:, 2] < 0.3] = np.nan
+        j.push_coco17(xy, None, i / FPS, (1e9, 1e9))
+        if i >= 9 and i % 3 == 0 and (v := j.judge()) is not None and v['ready']: verdicts.append(v)
+    if not verdicts: return None
+    labels = [f['label'] for v in verdicts for f in v['faults']]
+    worst = max(set(labels), key=labels.count) if labels else None
+    return dict(score=float(np.mean([v['score'] for v in verdicts])), worst_part=TIP.get(worst), move=None,
+                source='steven-model' if j._net is not None else 'steven-baseline',
+                details=dict(windows=len(verdicts), faults={l: labels.count(l) for l in set(labels)}))
 
 
 def _angle_err(a, b):

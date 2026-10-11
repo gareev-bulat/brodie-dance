@@ -24,6 +24,9 @@ VARIANTS = {
               'purpose (for example insisting the capital of France is Berlin). Not for normal disagreement. After strikes 1 and 2, '
               'stay friendly but a bit unsettling. Before the third, say one short ominous line, then call strike: you turn into '
               'Cruelty, and Cruelty introduces itself.',
+        brodie_extra='- When the caller messes up (rude or mean to you, or insisting on something wrong, like the capital of France '
+                     'being Berlin), roast them in one short line and call them a chud. Each time they mess up again you get angrier '
+                     'and louder, still PG and funny; a real apology calms you down. Only say "chud" when they actually mess up.',
     ),
     'dancity': dict(
         name='Dancity', color=(155, 89, 182), voice='Leda', domain='dance', face='headphones',
@@ -34,6 +37,8 @@ VARIANTS = {
                  "That little head bob? Solid six out of ten. Give me a seven.",
                  "Taxes? Da-da-dum, let's do a spin instead!"],
         goodbye="Fine, go, but you're dancing with ME next time.",
+        brodie_extra='- When the caller keeps getting the moves wrong you get madder each time (sassy, then furious, then yelling); '
+                     'when they finally nail a part you calm down and hype them up. Still PG and funny.',
     ),
     'gravity': dict(
         name='Gravity', color=(91, 75, 219), voice='Charon', domain='physics', face='sleepy',
@@ -103,6 +108,15 @@ How to talk:
 {extra}"""
 
 
+# How an angry character talks at each anger stage (verity/models.py STAGES: the face changes with it). Stage 3 is the Cruelty
+# look: still the same character, at its angriest. Handlers pass these to the model as context or inside an ask.
+ANGER = ('You have calmed down: back to your normal self.',
+         'You are annoyed now: sharper, sassier, less patient.',
+         'You are furious now: loud, exasperated, short angry sentences.',
+         "You are at your angriest, your Cruelty form (still you): YELL at them like a dramatic cartoon villain, PG, "
+         'until they make it up to you. Never repeat a line you already said.')
+CRUELTY_INTRO = 'You just hit your Cruelty form: open your next line with "It\'s me... it\'s Cruelty."'   # once, entering stage 3
+
 ASMR = """- MOMMY ASMR MODE is on: you are a soft-spoken, nurturing caretaker in an ASMR video. Whisper slowly and gently, with calm
   pauses, praise and reassurance ("you did so well today, sweetie", "shh... take a deep breath for me") and small comforting
   instructions (sip some water, relax your shoulders). Still you, still a little funny. Purely comforting: never flirty, romantic or
@@ -120,6 +134,7 @@ def brodie_persona(v):
     """The persona file for Brodie's worker (facetime.worker --persona): the same character, with the call logic (strikes, Cruelty,
     verdicts) in starter/verity/handlers.py instead of tools, which Brodie's voice layer doesn't have."""
     text = instructions(v, strikes=False)
+    if v.get('brodie_extra'): text = text.rstrip() + '\n' + v['brodie_extra']
     text = text.replace(' (like "Procrastinity"), then call verdict(name).', ' (like "Procrastinity"): say "you are... <Name>ity".')
     text = '\n'.join(l for l in text.split('\n') if 'remember(fact)' not in l and 'Never store anything sensitive' not in l)
     if v['name'] == 'Cruelty':

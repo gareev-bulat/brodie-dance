@@ -7,12 +7,15 @@
 What it does, from Brodie's events (on_event(event, say_now, ask_voice); voice mode: one `session` {state: open}, then `voice`
 events for each turn, caller turns with --log-caller):
   - greets when the call opens;
-  - strikes (Verity only): a caller who is rude, or insists the capital of France is somewhere else, gets a strike and the face flashes
-    its creepy grin. On the third, once Verity has finished answering, it turns into Cruelty (face and role); an apology turns it
-    back the same way. Nothing is injected while the model is mid-reply (Gemini Live would read it out);
+  - strikes (Verity only): messing up gets a strike. Verity's persona roasts the caller and calls them a chud, and either that word in
+    Verity's reply or the caller's own line (rude, or a wrong capital of France) counts, once per mess-up. Each strike is an anger
+    stage, same character throughout: the face goes through the stages (verity/models.py STAGES: the white toothy grin, darker
+    with red eye sockets, then the red Cruelty look) and, once the reply is over, the mood goes into the conversation as context
+    (verity.variants.ANGER: annoyed, furious, yelling). An apology calms it back down. Nothing is injected while the model is
+    mid-reply, and nothing is asked (Gemini Live reads injected prompts out);
   - the -ity verdict the character gives ("you are... Procrastinity") goes to the web app as a verdict card;
   - the web app's settings (Mommy ASMR, strikes) apply live.
-Events for the web app go out on data topic "verity", same as before: character | strike | transform | verdict | settings.
+Events for the web app go out on data topic "verity": character | strike | transform (to cruelty: the last stage) | calm | verdict | settings.
 on_event runs on the worker's event loop: never block.
 """
 import asyncio, json, os, re, sys, time
@@ -20,15 +23,16 @@ import asyncio, json, os, re, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path: sys.path.insert(0, ROOT)
 import facetime.worker as worker  # noqa: E402
-from verity.variants import ASMR, VARIANTS  # noqa: E402
+from verity.variants import ANGER, ASMR, CRUELTY_INTRO, VARIANTS  # noqa: E402
 
-STRIKES_TO_CRUELTY = 3
+MAX_STAGE = len(ANGER) - 1                                # strikes past the Cruelty stage keep it there
 RUDE = re.compile(r"\b(shut up|stupid|idiot|dumb|boring|hate you|you suck|annoying|go away|loser)\b", re.I)
 WRONG_CAPITAL = re.compile(r"\b(berlin|madrid|london|rome|lyon|marseille|brussels|tokyo|new york)\b", re.I)
+CHUD = re.compile(r"\bchuds?\b", re.I)                    # Verity's persona calls them a chud when they mess up
 SORRY = re.compile(r"\b(sorry|apologi[sz]e|my bad|forgive me)\b", re.I)
 VERDICT = re.compile(r"\b(?i:you(?:'re|\u2019re| are))\b[^?!]{0,40}?\b([A-Z][A-Za-z-]*ity)\b")   # "you are... X-ity", "you're definitely X-ity"
 
-S = dict(strikes=0, cruel=False, last_coach='', verdicts=set(), settings={}, wired=False)
+S = dict(strikes=0, last_coach='', pending=False, heard_since_reply=False, late=False, verdicts=set(), settings={}, wired=False)
 
 
 def job():
@@ -62,7 +66,7 @@ def set_face(k):
 def on_event(event, say_now, ask_voice):
     t = event.get('type')
     if t == 'session' and event.get('state') == 'open':
-        S.update(strikes=0, cruel=False, last_coach='', verdicts=set(), settings=caller_settings())
+        S.update(strikes=0, last_coach='', pending=False, heard_since_reply=False, late=False, verdicts=set(), settings=caller_settings())
         set_face(key())
         wire(ask_voice)
         mode = ('\n' + ASMR) if S['settings'].get('asmr') == 'mommy' else ''
@@ -70,6 +74,9 @@ def on_event(event, say_now, ask_voice):
                   f'"{VARIANTS[key()]["intro"]}" naturally. One or two short sentences.{mode}')
     elif t == 'voice' and event.get('role') == 'coach':
         S['last_coach'] = event.get('text', '')
+        if CHUD.search(S['last_coach']): strike('roasted you for messing up', ask_voice, reply=True)
+        else: S['pending'] = False                        # the reply to a struck line is over
+        S['heard_since_reply'] = False
         m = VERDICT.search(S['last_coach'])
         if m and m.group(1) not in S['verdicts']:
             S['verdicts'].add(m.group(1)); emit('verdict', name=m.group(1))
@@ -78,46 +85,50 @@ def on_event(event, say_now, ask_voice):
 
 
 def heard(text, ask_voice):
-    """Strikes (the face flashes and the app counts); the third one, or an apology to Cruelty, switches character once the current
-    reply has finished, so nothing is injected mid-sentence."""
+    """A caller line: a rude line or a wrong capital of France is a strike; an apology calms Verity down."""
+    late, S['late'] = S['late'], False; S['heard_since_reply'] = True
     if key() != 'verity' or S['settings'].get('strikes') is False: return
-    if S['cruel']:
-        if SORRY.search(text): after_reply(lambda: become('verity', ask_voice))
+    if SORRY.search(text) and S['strikes']:                  # a real apology: calm down again
+        S['strikes'] = 0; S['pending'] = False; emit('calm'); mood(0)
         return
     reason = 'was rude to you' if RUDE.search(text) else \
              'said the capital of France is somewhere else' if WRONG_CAPITAL.search(text) and ('france' in (text + S['last_coach']).lower() or 'capital' in text.lower()) else None
-    if not reason: return
-    S['strikes'] += 1
-    emit('strike', count=S['strikes'], of=STRIKES_TO_CRUELTY, reason=reason)
-    j = job()
-    if j is not None and j.avatar is not None: j.avatar.flash()
-    if S['strikes'] >= STRIKES_TO_CRUELTY:
-        S['strikes'] = 0; S['cruel'] = True                  # set now, so a fourth line in the meantime doesn't count twice
-        after_reply(lambda: become('cruelty', ask_voice))
+    if reason and not late: strike(reason, ask_voice)
 
 
-def become(k, ask_voice):
-    set_face(k); emit('transform', to=k, name=VARIANTS[k]['name'])
-    if k == 'cruelty':
-        # the role goes into the conversation as context (Gemini Live reads a long ask aloud); the ask itself stays as short as the apology's
-        async def go():
-            j = job()
-            if j is not None and j.voice is not None:
-                await j.voice.model.add_context('[Verity has turned into Cruelty, its grumpy evil form, until the caller apologizes.]')
-            ask_voice('Say "It\'s me... it\'s Cruelty." and then roast their room or outfit in one short line.')
-        asyncio.ensure_future(go())
+def strike(reason, ask_voice, reply=False):
+    """One mess-up, counted once: a caller line that strikes covers Verity's next reply (its "chud" doesn't count again), and when the
+    "chud" reply came before the caller's line was transcribed, that late line is the same mess-up. Each one is the next anger stage."""
+    if key() != 'verity' or S['settings'].get('strikes') is False: return
+    if reply:
+        if S['pending']: S['pending'] = False; return
+        S['late'] = not S['heard_since_reply']
     else:
-        S['cruel'] = False
-        ask_voice('They apologized. Say "...fine. FINE." and then you are Verity again: warm, friendly, a little too attached. '
-                  'One more short line, then carry on the conversation.')
+        S['pending'] = True
+    if S['strikes'] >= MAX_STAGE: return                     # already at its angriest
+    S['strikes'] += 1
+    emit('strike', count=S['strikes'], of=MAX_STAGE, reason=reason)
+    if S['strikes'] == MAX_STAGE: emit('transform', to='cruelty', name=VARIANTS['cruelty']['name'])
+    mood(S['strikes'], answered=reply)
 
 
-def after_reply(fn, timeout_s=15.0):
-    """Run fn once the character has answered the line just heard and finished speaking it (the face's mouth is idle)."""
+def mood(n, answered=False):
+    """Anger stage n: the face now; the mood (ANGER[n]) into the conversation once the reply to the caller's line is over
+    (answered: it already is, the strike came from the reply)."""
+    j = job()
+    if j is not None and j.avatar is not None: j.avatar.set_stage(n)
+    def tell():
+        text = ANGER[n] + (' ' + CRUELTY_INTRO if n == MAX_STAGE else '')
+        if j is not None and j.voice is not None: asyncio.ensure_future(j.voice.model.add_context(f'[{text}]'))
+    after_reply(tell, wait_answer=not answered)
+
+
+def after_reply(fn, timeout_s=15.0, wait_answer=True):
+    """Run fn once the character has answered the line just heard (wait_answer) and finished speaking (the face's mouth is idle)."""
     j = job(); t0 = time.monotonic(); loop = asyncio.get_running_loop()
     def check():
         model = j.voice.model if j is not None and j.voice is not None else None
-        answered = model is not None and model.last_coach_t > t0
+        answered = not wait_answer or (model is not None and model.last_coach_t > t0)
         quiet = j is None or j.avatar is None or (not j.avatar.levels and j.avatar.level < 0.02)
         if (answered and quiet) or time.monotonic() - t0 > timeout_s: fn()
         else: loop.call_later(0.25, check)

@@ -23,6 +23,19 @@ def sprites(key):
     if not idle: return None
     load = lambda f: cv2.cvtColor(cv2.imread(f, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
     return [load(f) for f in idle], [load(f) for f in kind('talk')] or None, [load(f) for f in kind('creepy')] or None
+
+
+@functools.lru_cache(maxsize=None)
+def stage_sprites(key):
+    """Verity's anger stages after strikes 1 and 2 (verity/models.py STAGES): [(idle, talk), ...] RGBA lists; [] when not rendered."""
+    from verity.models import STAGES
+    out = []
+    for name, _, _ in STAGES:
+        files = {k: sorted(glob.glob(os.path.join(SPRITES, key, f'{name}_{k}_*.png'))) for k in ('idle', 'talk')}
+        if not files['idle']: break
+        load = lambda f: cv2.cvtColor(cv2.imread(f, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+        out.append(([load(f) for f in files['idle']], [load(f) for f in files['talk']] or None))
+    return out
 CX, CY, R = W // 2, H // 2, int(W * 0.42)
 BLACK = (0, 0, 0, 255)
 EYE_Y, EYE_DX = CY - R // 4, R // 3
@@ -158,7 +171,8 @@ class Avatar:
     def set_variant(self, v):
         self.sprites = sprites(v['name'].lower())                    # real 3D model frames when rendered
         self.real = None if self.sprites else real_frames(v['name'].lower())   # else the real Verity images, else the drawn ball
-        self.mood_until = 0.0
+        self.mood_until = 0.0; self.stage = 0
+        self.stages = stage_sprites(v['name'].lower()) if self.sprites else []
         static, self.over = FACES[v.get('face', 'plain')]
         base = sphere(v['color'])
         if static: static(base, v['color'])
@@ -170,6 +184,7 @@ class Avatar:
         while self.levels and self.levels[0][0] <= now: self.level = max(self.level, self.levels.popleft()[1])
         if self.sprites:
             idle, talk, creepy = self.sprites
+            if 0 < self.stage <= len(self.stages): idle, talk = self.stages[self.stage - 1]; talk = talk or idle   # angrier each strike
             frames = creepy if creepy and now < self.mood_until else talk if talk and self.level > 0.04 else idle   # creepy: a strike
             return frames[int(now * 8) % len(frames)].copy()             # 8 fps turn/bob cycle, mouth open while it talks
         if self.real:
@@ -195,6 +210,12 @@ class Avatar:
         else:
             cv2.ellipse(img, (CX, CY + R // 5), (R // 2, R // 3), 0, 20, 160, BLACK, max(4, R // 18), cv2.LINE_AA)
         return img
+
+    def set_stage(self, n):
+        """Anger stage: 0 calm, 1 the white toothy grin, 2 darker with red eye sockets (stays until set_variant or set_stage(0)).
+        Without stage frames (other characters, no 3D renders) it flashes the creepy grin instead."""
+        self.stage = n
+        if n and not self.stages: self.flash()
 
     def flash(self, seconds=4.0):
         """The creepy grin for a few seconds (a strike)."""

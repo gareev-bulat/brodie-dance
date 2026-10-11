@@ -2,6 +2,8 @@
 as chat text (RoomIO text input, topic lk.chat) and prints the agent's transcript (topic lk.transcription). The agent must be running
 (python -m verity.agent dev).
   python scripts/verity_smoke.py [--character dancity] [--video data/tmp/mac_handoff/crops/live.mp4]
+A dancer for Dancity (scripts/run_verity.sh dancity): loop a clip, say nothing, stay a while:
+  python scripts/verity_smoke.py --character dancity --video data/dances/jacks.mp4 --silent --seconds 150
 """
 import argparse, asyncio, os, sys, time
 import cv2
@@ -53,15 +55,16 @@ async def main(a):
             src.capture_frame(rtc.VideoFrame(w, h, rtc.VideoBufferType.RGBA, cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA).tobytes()))
             await asyncio.sleep(0.1)
     task = asyncio.create_task(video())
-    for wait, line in LINES:
+    for wait, line in ([] if a.silent else LINES):
         await asyncio.sleep(wait)
         print(f'[{time.monotonic() - t0:5.1f}s] CALLER: {line}', flush=True)
         await room.local_participant.send_text(line, topic='lk.chat'); sent['t'] = time.monotonic()
-    await asyncio.sleep(10); task.cancel(); await room.disconnect()
+    await asyncio.sleep(a.seconds if a.silent else 10); task.cancel(); await room.disconnect()
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('--character', default='verity')
     ap.add_argument('--room', help='default: a fresh web-<character>-<id> room (the room name picks the character)')
     ap.add_argument('--video', default='data/tmp/mac_handoff/crops/live.mp4')
+    ap.add_argument('--silent', action='store_true', help='send no chat lines (a dancer)'); ap.add_argument('--seconds', type=float, default=120)
     asyncio.run(main(ap.parse_args()))

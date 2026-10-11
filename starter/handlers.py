@@ -11,7 +11,8 @@ The call:
      recorded while it plays.
   3. The poses go to starter/dance/judge.py (Steven's model, or the angle comparison against the creator's video).
   4. Pass -> praise and the next part's moves. Miss -> one tip about the worst body part, and the part repeats
-     (at most MAX_TRIES times, then it moves on anyway).
+     (at most MAX_TRIES times, then it moves on anyway). Every miss makes the teacher angrier (verity.variants.ANGER, and with
+     --avatar the face's anger stage, up to the red Cruelty look); a pass calms it down.
   5. Then the whole dance once with the music, judged part by part, and a wrap-up with the scores.
 
 on_event runs on the worker's event loop: never block. The judge runs in a thread; timers use loop.call_later.
@@ -24,6 +25,7 @@ import numpy as np  # noqa: E402
 from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E402
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
+from verity.variants import ANGER, CRUELTY_INTRO  # noqa: E402
 
 PASS = float(os.environ.get('DANCE_PASS', '0.7'))           # score needed to move on
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
@@ -60,7 +62,7 @@ print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
 S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False)
+         last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
 
@@ -91,6 +93,16 @@ def _ensure_screen():
 
 def _ask(prompt):
     if S['ask']: S['ask'](prompt)
+
+
+def _anger(n):
+    """Anger stage n (0 calm .. len(ANGER)-1): the face (--avatar) now; the returned mood goes into the next ask."""
+    was, S['anger'] = S['anger'], max(0, min(n, len(ANGER) - 1)); n = S['anger']
+    try: avatar = S['say'].__self__.job.avatar
+    except Exception: avatar = None
+    if avatar is not None: avatar.set_stage(n)
+    print(f'[dance] anger {n}', flush=True)
+    return (ANGER[n] + (' ' + CRUELTY_INTRO if n == len(ANGER) - 1 and was < n else '')) if n else ''
 
 
 # ---- audio: one clip per part = the song + the counts ----
@@ -224,20 +236,22 @@ def on_result(res):
     score = float(res.get('score') or 0.0); pct = int(round(score * 100)); S['last_pct'] = pct
     S['scores'][k] = max(S['scores'].get(k, 0), pct)
     print(f'[dance] part {k + 1} try {S["tries"]}: {pct}% ({res.get("source")}) worst {res.get("worst_part")} {res.get("details", "")}', flush=True)
+    mood = _anger(0 if score >= PASS else S['anger'] + 1)
     if score >= PASS or S['tries'] >= MAX_TRIES:
         if score >= PASS: S['say'](random.choice(PRAISE))
         if k + 1 >= REF.n_chunks:
             return start_full_run()
         S['chunk'] += 1; S['tries'] = 0; S['last_pct'] = None
         what = f'passed part {k + 1} with {pct}%' if score >= PASS else f'got {pct}% on part {k + 1}, close enough to move on'
-        _ask(f'The caller {what} of the {REF.name} dance. In ONE short sentence react, then introduce part {k + 2}.' + _describe(k + 1))
+        _ask(f'The caller {what} of the {REF.name} dance. {mood} In ONE short sentence react, then introduce part {k + 2}.' + _describe(k + 1))
     else:
         part = res.get('worst_part'); move = res.get('move')
         tip = f'The body part furthest from the creator was the {part}.' if part else 'Their timing was off.'
         steps = f' The moves are: "{REF.step(k)}".' if REF.step(k) else ''
         _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
              + (f' The move was "{move}".' if move else '') + steps
-             + ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.')
+             + (f' {mood} In ONE or two short sentences: one concrete tip about that body part, said that way, then say we will run it again.'
+                if mood else ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.'))
     S['state'] = 'waiting'
     when_quiet(teach_part)
 
@@ -246,8 +260,10 @@ def start_full_run():
     if not FULL_RUN or REF.n_chunks < 2:
         return finish()
     S['state'] = 'full'
-    _ask(f'The caller has learned all {REF.n_chunks} parts of the {REF.name} dance. In ONE short sentence, hype them up: '
-         f'now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
+    mood = ANGER[S['anger']] if S['anger'] else ''
+    _ask(f'The caller has been through all {REF.n_chunks} parts of the {REF.name} dance. {mood} In ONE short sentence, '
+         + ('hype them up' if not mood else 'say it like that') + ': now the whole dance from the top'
+         + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
     def go():
         print('[dance] full run', flush=True)
         play_parts(0, REF.n_chunks, False, lambda wins: judge_async(sorted(wins.items()), on_full_result))
@@ -267,8 +283,12 @@ def finish():
     if S['full_scores']:
         avg = int(round(sum(S['full_scores'].values()) / len(S['full_scores'])))
         full = f' In the full run they scored {avg}% overall (' + ', '.join(f'part {i + 1} {s}%' for i, s in sorted(S['full_scores'].items())) + ').'
-    _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} In two short sentences, '
-         f'celebrate, name their strongest part, and tell them they are ready to post it.')
+    scores = list(S['full_scores'].values()) if S['full_scores'] else list(S['scores'].values())
+    good = bool(scores) and sum(scores) / len(scores) >= PASS * 100
+    mood = _anger(0 if good else S['anger'])
+    _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} {mood} In two short sentences, '
+         + ('celebrate, name their strongest part, and tell them they are ready to post it.' if good else
+            'be honest that it was not there yet, name their best part, and tell them to practise before they post it.'))
 
 
 # ---- the events ----

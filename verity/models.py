@@ -146,5 +146,55 @@ def frames():
         print('frames', key, FACE_SETS.get(key, DEFAULT_SET))
 
 
+# Anger stages on a call (the series' "every phase" evolution), the same character getting madder: (name, idle face, talk face)
+STAGES = (('mad', 'mouth_closed_sus', 'mouth_open_sus'),       # 1: the white toothy grin
+          ('fury', 'mouth_closed_sus', 'mouth_open_sus'),      # 2: darker, redder, with shadowed red eye sockets
+          ('cruelty', 'mouth_closed_sus', 'mouth_open_sus'))   # 3: the Cruelty look (red), still the same character and gear
+ANGRY = ('verity', 'dancity')                                  # the characters that get angry (Verity's strikes, Dancity's lesson)
+
+
+def fury(frame):
+    """Stage 2's look: the ball darker and redder, a dark red glow around each eye (the eyes are the two big black blobs above
+    the ball's centre)."""
+    import cv2
+    from verity.avatar import CY
+    out = frame.astype(np.float32); ball = frame[..., 3] > 0
+    hsv = cv2.cvtColor(np.ascontiguousarray(frame[..., :3]), cv2.COLOR_RGB2HSV)
+    skin = ball & (hsv[..., 1] > 80) & (hsv[..., 2] > 60)                # the ball's colour, not the teeth or the eyes
+    out[skin, :3] *= (0.95, 0.82, 0.7)
+    dark = ((frame[..., :3].max(axis=2) < 60) & ball).astype(np.uint8); dark[CY:] = 0
+    n, _, stats, cents = cv2.connectedComponentsWithStats(dark)
+    glow = np.zeros(frame.shape[:2], np.float32); yy, xx = np.ogrid[:frame.shape[0], :frame.shape[1]]
+    for i in sorted(range(1, n), key=lambda i: -stats[i, cv2.CC_STAT_AREA])[:2]:
+        cx, cy = cents[i]; s = 0.75 * max(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT])
+        glow = np.maximum(glow, 0.9 * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * s * s)))
+    glow *= skin
+    out[..., :3] = out[..., :3] * (1 - glow[..., None]) + np.array([110, 8, 0], np.float32) * glow[..., None]
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def stages():
+    """data/tmp/model_frames -> web/assets/3d/<character>/{mad,fury,cruelty}_{idle,talk}_NN.png for the ANGRY characters
+    (verity/avatar.py set_stage). Each is recoloured with the character's colour (Cruelty red for the last stage) and its gear."""
+    import cv2
+    from verity.avatar import FACES
+    from verity.variants import VARIANTS
+    load = lambda face: [cv2.cvtColor(cv2.imread(f, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+                         for f in sorted(glob.glob(os.path.join(FRAMES, f'{face}_*.png')))]
+    for key in ANGRY:
+        v = VARIANTS[key]; static, _ = FACES[v.get('face', 'plain')]; d = os.path.join(OUT, key)
+        for name, idle, talk in STAGES:
+            color = VARIANTS['cruelty']['color'] if name == 'cruelty' else v['color']
+            for kind, face in (('idle', idle), ('talk', talk)):
+                raw = load(face)
+                if not raw: raise SystemExit(f'no frames for {face}: run node scripts/render_model.js first')
+                for i, f in enumerate(raw):
+                    img = f if color == VARIANTS['verity']['color'] else recolor(f, color)
+                    if name != 'mad': img = fury(img)
+                    if static: img = img.copy(); static(img, v['color'])
+                    cv2.imwrite(os.path.join(d, f'{name}_{kind}_{i:02d}.png'), cv2.cvtColor(img, cv2.COLOR_RGBA2BGRA), [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        print('stages', key, [s[0] for s in STAGES])
+
+
 if __name__ == '__main__':
-    {'fetch': fetch, 'render': render, 'frames': frames}[sys.argv[1] if len(sys.argv) > 1 else 'render']()
+    {'fetch': fetch, 'render': render, 'frames': frames, 'stages': stages}[sys.argv[1] if len(sys.argv) > 1 else 'render']()

@@ -99,8 +99,6 @@ try {
   .char img { width: 32px; height: 32px; object-fit: contain; }
   .char b { display: block; font-weight: 600; line-height: 1.2; }
   .char small { color: var(--muted); font-size: .75rem; }
-  .char .lock { font-size: .7rem; color: var(--muted); }
-  .char.locked { cursor: default; opacity: .7; }
   .recent { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 5px 10px; border: 0; border-radius: 8px; background: none; cursor: pointer; text-align: left; font-size: .85rem; }
   .recent:hover { background: rgba(31, 26, 8, .06); }
   .recent span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -455,7 +453,6 @@ try {
     <div class="row"><span><b>Voice</b><small>Pick the voice closest to how you hear it. Applies from the next call.</small></span>
       <select name="voice" id="voice-select" aria-label="Voice"><option value="">Character default</option></select></div>
     <h3>Personality</h3>
-    <div class="row"><span><b>Three strikes → Cruelty</b><small>Mess up three times on a Verity call and it turns.</small></span><input class="switch" type="checkbox" name="strikes" aria-label="Three strikes to Cruelty"></div>
     <div class="row"><span><b>Memory</b><small>It remembers what you tell it, across calls.</small></span><input class="switch" type="checkbox" name="memory" aria-label="Memory"></div>
     <div class="mem" id="mem-box"></div>
     <h3>On a call</h3>
@@ -495,11 +492,11 @@ let uid = store.get('verity-uid', '');
 if (!/^[a-f0-9]{16}$/.test(uid)) { uid = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join(''); store.set('verity-uid', uid); }
 const DEFAULTS = { asmr: 'off', voice: '', strikes: true, memory: true, captions: true, ptt: false, cam: true, mic: true, ring: true };
 let settings = { ...DEFAULTS, ...store.get('verity-settings', {}) };
-const agentSettings = () => ({ asmr: settings.asmr, voice: settings.voice, strikes: settings.strikes, memory: settings.memory });
+const agentSettings = () => ({ asmr: settings.asmr, voice: settings.voice, strikes: true, memory: settings.memory });   // Cruelty isn't optional
 
 function applySettings() {
   document.body.classList.toggle('no-captions', !settings.captions);
-  $('#badges').innerHTML = [settings.asmr === 'mommy' && 'Mommy ASMR', settings.voice && `Voice: ${settings.voice}`, !settings.strikes && 'No strikes']
+  $('#badges').innerHTML = [settings.asmr === 'mommy' && 'Mommy ASMR', settings.voice && `Voice: ${settings.voice}`]
     .filter(Boolean).map((b) => `<span class="badge">${esc(b)}</span>`).join('');
   $('#asmr-badge').hidden = settings.asmr !== 'mommy';
   $('#ptt-hint').hidden = !settings.ptt;
@@ -507,11 +504,11 @@ function applySettings() {
 function fillSettingsForm() {
   const f = $('#settings-form');
   f.asmr.value = settings.asmr; f.voice.value = settings.voice;
-  for (const k of ['strikes', 'memory', 'captions', 'ptt', 'cam', 'mic', 'ring']) f[k].checked = settings[k];
+  for (const k of ['memory', 'captions', 'ptt', 'cam', 'mic', 'ring']) f[k].checked = settings[k];
 }
 $('#settings-form').addEventListener('change', async () => {
   const f = $('#settings-form'), before = JSON.stringify(agentSettings());
-  settings = { asmr: f.asmr.value, voice: f.voice.value, ...Object.fromEntries(['strikes', 'memory', 'captions', 'ptt', 'cam', 'mic', 'ring'].map((k) => [k, f[k].checked])) };
+  settings = { asmr: f.asmr.value, voice: f.voice.value, ...Object.fromEntries(['memory', 'captions', 'ptt', 'cam', 'mic', 'ring'].map((k) => [k, f[k].checked])) };
   store.set('verity-settings', settings); applySettings();
   if (room && JSON.stringify(agentSettings()) !== before) {      // live: the agent updates its instructions mid-call
     try { await room.localParticipant.setAttributes({ 'verity.settings': JSON.stringify(agentSettings()) }); }
@@ -576,9 +573,7 @@ document.querySelectorAll('.tabs button').forEach((t) => t.addEventListener('cli
 
 let CHARS = [], current = 'verity';
 function renderChars() {
-  $('#chars').innerHTML = CHARS.map((c) => c.secret
-    ? `<div class="char locked" title="Mess up three times on a Verity call"><img src="${ours(c.key)}" alt=""><span><b>${c.name}</b><small>${esc(c.domain)}</small></span><span class="lock">3 strikes</span></div>`
-    : `<button class="char" data-key="${c.key}" aria-pressed="${c.key === current}"><img src="${ours(c.key)}" alt=""><span><b>${c.name}</b><small>${esc(c.domain)}</small></span></button>`).join('');
+  $('#chars').innerHTML = CHARS.filter((c) => !c.secret).map((c) => `<button class="char" data-key="${c.key}" aria-pressed="${c.key === current}"><img src="${ours(c.key)}" alt=""><span><b>${c.name}</b><small>${esc(c.domain)}</small></span></button>`).join('');
   document.querySelectorAll('.char[data-key]').forEach((b) => b.addEventListener('click', () => pickChar(b.dataset.key)));
   $('#pick').innerHTML = CHARS.filter((c) => !c.secret).map((c) => `<option value="${c.key}" ${c.key === current ? 'selected' : ''}>${c.name}</option>`).join('');
   $('#home-chars').innerHTML = CHARS.filter((c) => !c.secret).map((c) => `<button type="button" class="pick" data-key="${c.key}" aria-pressed="${c.key === current}" style="--c:${rgb(c.color)}">
@@ -777,10 +772,12 @@ function onEvent(e) {
     setTimeout(() => { if (room && !greeted) { greeted = true; flush(); } }, 12000);   // no greeting heard: don't hold messages forever
   } else if (e.type === 'strike') {
     meter('strikes', e.count); ev(`<code>strike("${esc(e.reason)}")</code> → ${e.count}/${e.of}`, 'bad');
+  } else if (e.type === 'calm') {
+    meter('strikes', 0); document.body.classList.remove('cruel'); ev(`<code>sorry</code> → ${esc(callChar.name)} calms down`);
   } else if (e.type === 'transform') {
     const cruel = e.to === 'cruelty';
-    document.body.classList.toggle('cruel', cruel); if (cruel) entry.cruel = true; meter('strikes', 0);
-    ev(cruel ? 'VERITY HAS BECOME CRUELTY' : '<code>forgive()</code> → Verity is back', cruel ? 'big' : '');
+    document.body.classList.toggle('cruel', cruel); if (cruel) entry.cruel = true; meter('strikes', cruel ? 3 : 0);
+    ev(cruel ? `${esc(callChar.name).toUpperCase()} WENT FULL CRUELTY` : '<code>forgive()</code> → Verity is back', cruel ? 'big' : '');
     toast(cruel ? 'You made it angry.' : 'Forgiven. Verity is back.');
   } else if (e.type === 'verdict') {
     if (entry.verdict !== e.name) { entry.verdict = e.name; add({ verdict: e.name }); }

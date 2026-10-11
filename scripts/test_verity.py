@@ -2,7 +2,7 @@
   python scripts/test_verity.py
 Covers: settings from the browser (verity.agent.parse_settings), room name -> character, token attributes (verity.server.mint_call),
 the memory store (path safety, prompt framing), persona switches (ASMR, strikes, memory), the server's routes (one live character)
-and the Brodie handler's strike, apology and verdict matching.
+and the Brodie handler's strikes, anger stages, apology and verdict matching.
 """
 import asyncio, base64, json, os, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -90,5 +90,18 @@ check(h.WRONG_CAPITAL.search('It is Madrid') and not h.WRONG_CAPITAL.search('It 
 check(h.SORRY.search("I'm really sorry") and not h.SORRY.search('whatever'), 'an apology is heard')
 check(h.VERDICT.search("You are... Procrastinity!").group(1) == 'Procrastinity', 'verdict card from "You are... X-ity"')
 check(h.VERDICT.search("you're definitely Groove-ity") is not None and h.VERDICT.search('That is a big city') is None, 'verdict needs "you are"')
+import types
+stages, events = [], []
+h.worker.CURRENT_JOB = types.SimpleNamespace(avatar=types.SimpleNamespace(set_stage=stages.append), room=None, voice=None, bound=None,
+                                             a=types.SimpleNamespace(avatar='verity'))
+h.after_reply = lambda fn, timeout_s=15.0, wait_answer=True: None
+h.emit = lambda t, **f: events.append(t)
+say = lambda role, text: h.on_event({'type': 'voice', 'role': role, 'text': text}, None, lambda p: None)
+say('caller', 'Two plus two is five'); say('coach', 'Back to school, chud.')
+say('caller', "Ugh, you're so boring."); say('coach', 'Rude, chud.')
+check(stages == [1, 2], 'a mess-up is one strike, judged by the caller line or by Verity\'s "chud", not both')
+say('coach', 'Madrid?? Chud.'); say('caller', 'nope Madrid is the capital of France')
+check(stages == [1, 2, 3] and 'transform' in events, 'the third: the Cruelty stage, same character (a late transcript is not a fourth)')
+say('caller', "I'm sorry"); check(stages[-1] == 0 and events[-1] == 'calm', 'an apology calms it down')
 
 print(f'\n{passed}/{passed} checks passed')
