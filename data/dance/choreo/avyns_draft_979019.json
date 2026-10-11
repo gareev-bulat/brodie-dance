@@ -1,0 +1,36 @@
+{
+  "dance": "avyns_draft_979019",
+  "description": "Reference choreography from the @avyns.draft TikTok (22.4 s of dance before the end card). Solo dancer framed waist up: hand and arm gestures only. Move boundaries from the wrist/elbow trajectories and motion energy of data/dance/pose/avyns_draft_979019.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/avyns_draft_979019.npz",
+  "video": "data/dance/raw/avyns_draft_979019.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": null,
+  "count_in_s": 1.5,
+  "moves": [
+    {"id": "ready",              "name": "Ready: step back from the phone and stand with arms down",                                                          "t0": 0.0,  "t1": 1.5},
+    {"id": "cheek_clasp",        "name": "Hands clasp together and press to the screen-right cheek, then to the screen-left cheek",                          "t0": 1.5,  "t1": 3.3},
+    {"id": "waist_roll_chest",   "name": "Hands drop to the waist and roll from screen-right to screen-left, then small gestures in front of the chest: open palm lifts, hands tap and fold", "t0": 3.3,  "t1": 7.0},
+    {"id": "lean_in_beckon",     "name": "Lean in close to the camera with a fist at the chin, then both open palms beckon beside the face while stepping back", "t0": 7.0,  "t1": 9.0},
+    {"id": "fist_pump_fold",     "name": "Screen-left fist pumps beside the head while the other arm hangs, then the hands fold together at the chest",       "t0": 9.0,  "t1": 11.5},
+    {"id": "pumps_alt_raise",    "name": "Both hands pump up to the shoulders and down to the hips twice, then the arms raise alternately beside the head",   "t0": 11.5, "t1": 14.2},
+    {"id": "camera_reach",       "name": "A hand sweeps forward to cover the camera, twice, returning to the shoulders in between",                            "t0": 14.2, "t1": 16.0},
+    {"id": "pumps_arm_wave",     "name": "Fists pump up beside the shoulders and down with a bounce, then the screen-right arm rises high and waves",         "t0": 16.0, "t1": 19.2},
+    {"id": "reach_overhead_wave", "name": "A hand covers the camera, both hands lift beside the face, a hand covers it again, then both arms wave overhead",  "t0": 19.2, "t1": 22.4}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Knees are visible in under 10% of frames and ankles never: the 'legs' fault never fires on this dance.",
+    "'ready' is the count-in: the dancer steps back from the phone during 0-0.8 s and then stands with arms down; the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "Short tracking gaps (ok=False) at 15.63-15.67 s, 19.27 s and 19.33 s are the hand covering the lens; the end card starts at 22.77 s. Hips are NaN from about 22.4 s as the dancer lunges at the phone to stop recording, so the last move ends at 22.4 s.",
+    "Hand pumps repeat every ~0.6-0.65 s (11.5-12.6 s and 16.4-17.9 s) but the periodicity is weak and short; bpm left null.",
+    "Several moves are hand-shape gestures (clasped hands, open palm, thumbs-up fist) that COCO-17 wrists only partially capture; the judge mainly sees wrist height and side."
+  ]
+}

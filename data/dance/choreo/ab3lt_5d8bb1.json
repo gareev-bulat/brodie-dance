@@ -1,0 +1,38 @@
+{
+  "dance": "ab3lt_5d8bb1",
+  "description": "Reference choreography from the @ab3l.t TikTok (13.7 s of content; the 17.7 s clip ends with a TikTok end card). Group of four at night, waist-up framing; main dancer = tracker id 1 (centre, black hoodie), ids 2 and 4 dance the same choreography. Move boundaries from the wrist/elbow trajectories and motion energy of data/dance/pose/ab3lt_5d8bb1.npz plus frame strips of the annotated video (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/ab3lt_5d8bb1.npz",
+  "video": "data/dance/raw/ab3lt_5d8bb1.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 82,
+  "bpm_estimate_note": "Estimated from the intro bounce (0.8-5.5 s): shoulder-bounce autocorrelation peaks at 0.73 s (r=0.89) and the hip side-to-side sway at 1.47 s (r=0.94), i.e. one bounce per beat at ~82 BPM. The track could equally be 164 BPM with the bounce every two beats; the arm moves from 6.6 s onward fall roughly on the 0.73 s grid.",
+  "count_in_s": 1.0,
+  "moves": [
+    {"id": "ready",                "name": "Ready: fists come up to the chest, elbows bent, standing close to the camera",                                                                      "t0": 0.0,  "t1": 1.0},
+    {"id": "step_back_fists",      "name": "Fists held at the chest, elbows bent, bouncing on the beat while stepping backwards away from the camera",                                           "t0": 1.0,  "t1": 4.1},
+    {"id": "fist_bounce_in_place", "name": "In place: fists stay at the chest, bouncing on the beat with a side-to-side weight shift",                                                           "t0": 4.1,  "t1": 5.7},
+    {"id": "cross_and_open",       "name": "Forearms cross in front of the chest, then both arms swing down and open out to the sides",                                                          "t0": 5.7,  "t1": 6.6},
+    {"id": "hands_to_head",        "name": "Right hand rises to the side of the head, then the left hand joins so both hands are up by the head with elbows out",                                "t0": 6.6,  "t1": 8.0},
+    {"id": "sweep_reach_up",       "name": "Arms drop; the right arm sweeps across the chest and back, then reaches straight up overhead, then both arms drop to the sides",                     "t0": 8.0,  "t1": 9.4},
+    {"id": "shoulder_taps_a",      "name": "Both hands come together at the left shoulder (left hand drops to the hip), then both hands come together at the right shoulder",                   "t0": 9.4,  "t1": 11.0},
+    {"id": "fist_bounce_waist",    "name": "Fists drop to the waist, elbows bent, bouncing in place",                                                                                            "t0": 11.0, "t1": 11.9},
+    {"id": "shoulder_taps_fold",   "name": "Both hands to the left shoulder, then both hands to the right shoulder, finishing with the right arm folded across the chest to the left shoulder", "t0": 11.9, "t1": 13.7}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Waist-up framing: reference ankles are NaN in 100% and knees in ~70% of ok frames, so the 'legs' fault never fires on this dance.",
+    "'ready' is the count-in: the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used. The dancer is already walking backwards during it.",
+    "Content ends at 13.7 s (last ok frame 411); frames 412-531 are the TikTok end card with no dancer.",
+    "Left/right in move names are screen sides, which the learner mirrors; because the clip is mirrored these are also the dancer's real sides, but the npz COCO labels are swapped (npz left_wrist = screen right = blue skeleton).",
+    "The whole group walks backwards away from the camera during 0-4 s, so the reference skeleton shrinks by about 40% over the intro; torso-normalised features handle this but absolute pixel distances do not.",
+    "Four dancers in frame; tracker ids 1, 2 and 4 perform the same choreography and the track-2/track-4 npz files exist as alternates."
+  ]
+}

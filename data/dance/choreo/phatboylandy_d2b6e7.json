@@ -1,0 +1,34 @@
+{
+  "dance": "phatboylandy_d2b6e7",
+  "description": "Reference choreography from the @phatboylandy TikTok (15.5 s clip; dancer on screen 0.2-11.5 s, then a ~4 s TikTok end card). Solo full-body dancer outdoors who walks in from the left (tracker id 3). Move boundaries from the wrist/elbow/ankle trajectories and motion energy of data/dance/pose/phatboylandy_d2b6e7.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/phatboylandy_d2b6e7.npz",
+  "video": "data/dance/raw/phatboylandy_d2b6e7.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 82,
+  "bpm_estimate_note": "Estimated from the alternating knee lifts, which peak at 3.10, 3.87, 4.63, 5.33, 6.10, 6.80, 7.50 and 8.23 s (mean period 0.733 s = 81.8 bpm, one lift per beat). Arm positions change every ~1.47 s (two lifts). If each lift is a half-note the track is 164 bpm; unverified until the track is identified.",
+  "count_in_s": 2.75,
+  "moves": [
+    {"id": "ready",            "name": "Ready: walks in from the left, turns to face the camera and stands still with arms down",      "t0": 0.2,  "t1": 2.75},
+    {"id": "prayer_march",     "name": "Hands pressed together at the chest while alternating knee lifts",                          "t0": 2.75, "t1": 4.35},
+    {"id": "arms_up_march",    "name": "Both arms thrown straight up overhead in a V, knee lifts continue",                          "t0": 4.35, "t1": 5.8},
+    {"id": "arms_cross_march", "name": "Arms fold across the chest with hands on opposite shoulders, knee lifts continue",          "t0": 5.8,  "t1": 7.2},
+    {"id": "fist_pumps",       "name": "Fists pump up beside the face and drop to the waist twice, one knee lift per pump",         "t0": 7.2,  "t1": 8.45},
+    {"id": "wide_step_down",   "name": "Arms drop, feet step out wide and the hips sink into a squat with hands on the hips",       "t0": 8.45, "t1": 9.3},
+    {"id": "squat_hold",       "name": "Wide bent-knee stance with hands on hips, held with a slight bounce",                       "t0": 9.3,  "t1": 11.45}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Dancer is absent (ok=False) for frames 0-5 (0.00-0.17 s) and from frame 345 (11.50 s) to the end: the clip closes with a ~4 s TikTok end card. Last ok frame is 344 (11.47 s), so the final move ends at 11.45 s.",
+    "'ready' is the count-in and starts at the first ok frame (6, 0.20 s): it covers the walk-in from the left edge (0.2-1.5 s, side-on, hip x goes from 0 to 0.55 of the frame width) and the still stand facing the camera (1.5-2.75 s). The judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "All 17 joints are visible in >=96% of ok frames (ankles 99-100%), so the 'legs' fault can fire on this dance. The knee lifts alternate between the npz 'left' and 'right' leg every 0.733 s, two lifts per arm position; the lifted foot comes up to roughly knee height.",
+    "Upper-body changes used as boundaries: wrists rise to the chest 2.80-2.90 s, overhead (height > 1.4 torso) 4.47-5.83 s, arms crossed (L wrist x < R wrist x) 5.87-7.27 s, fist-pump peaks 7.5 and 8.2 s, wrists below 0.4 torso from 8.57 s, hip drop into the squat at 8.97 s, stance settles by ~9.2 s."
+  ]
+}
