@@ -89,7 +89,8 @@ FISH_VOICES = {'verity': os.environ.get('VERITY_FISH_VOICE', '894f0267a5194c3081
 def fish_tts(key):
     if not os.environ.get('FISH_API_KEY') or not FISH_VOICES.get(key): return None
     from livekit.plugins import fishaudio
-    return fishaudio.TTS(voice_id=FISH_VOICES[key], sample_rate=24000, latency_mode='balanced')   # 24 kHz like voice_out
+    return fishaudio.TTS(model=os.environ.get('FISH_MODEL', 's2.1-pro-free'), voice_id=FISH_VOICES[key], sample_rate=24000,
+                         latency_mode='balanced')   # 24 kHz like voice_out
 
 
 def realtime(voice, text_only=False):

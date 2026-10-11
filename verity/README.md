@@ -73,7 +73,7 @@ Place a FaceTime **Video** call to the line. When you're done: hang up, wait for
 - **History:** every call's transcript is kept in the browser. Open it from Recent calls, export it as .txt, or call that character again.
 - **Verdict cards:** the `verdict(name)` tool turns the -ity verdict into a card and saves it with the call.
 
-**Voice:** set `FISH_API_KEY` (fish.audio, API keys) in `.env.local` and Verity speaks in the Fish Audio voice `894f0267a5194c30814e6b15c07da862` (change it with `VERITY_FISH_VOICE`). Gemini Live then answers in text and Fish Audio reads it out, so expect a little more delay than Gemini's own voices. The other characters, and Verity with a voice picked in Settings, keep their Gemini voices. Without the key, nothing changes. The original Verity voice belongs to its voice actor (JustWhispy); a voice cloned from it needs their permission before it's used in public.
+**Voice:** set `FISH_API_KEY` (fish.audio, API keys) in `.env.local` and Verity speaks in the Fish Audio voice `894f0267a5194c30814e6b15c07da862` (change it with `VERITY_FISH_VOICE`), using Fish's `s2.1-pro-free` model (change it with `FISH_MODEL`). Gemini Live then answers in text and Fish Audio reads it out, so expect a little more delay than Gemini's own voices. The other characters, and Verity with a voice picked in Settings, keep their Gemini voices. Without the key, nothing changes. The original Verity voice belongs to its voice actor (JustWhispy); a voice cloned from it needs their permission before it's used in public.
 
 ## Real 3D models on the call
 
