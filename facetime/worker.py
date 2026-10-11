@@ -65,10 +65,9 @@ from facetime.coach_agent import frame_to_rgb              # the same frame conv
 
 # livekit-agents lets a plugin register (on import) only on the main thread. On Windows the jobs run in threads, so importing the
 # Gemini plugin lazily when a caller binds fails with "Plugins must be registered on the main thread" and the voice never starts.
-# Import the plugins the voice can use here, at module load, which is on the main thread (also in forkserver job processes).
-for _plugin in ('google', 'fishaudio'):
-    try: __import__(f'livekit.plugins.{_plugin}')
-    except ImportError: pass
+# Import it here, at module load, which is on the main thread (also in forkserver job processes).
+try: import livekit.plugins.google  # noqa: F401
+except ImportError: pass
 
 log = logging.getLogger('worker')
 ARGS_ENV = 'RTCOACH_WORKER_ARGS'      # main() hands the parsed flags to the job processes as JSON (forkserver children re-import this module)
@@ -668,9 +667,8 @@ def main(argv=None):
     os.environ[ARGS_ENV] = json.dumps({k: v for k, v in vars(a).items() if k != 'help'})
     if a.vision and a.voice != 'gemini':
         print('[worker] --vision only does something with --voice gemini (the video goes to the model session); nothing is forwarded', flush=True)
-    from facetime.voice import describe_voice
     print(f'[worker] agent {a.agent_name!r}; mode {describe_mode(a)}; '
-          f'audio {"OFF (events only)" if a.events_only else "cue player"}; voice {a.voice}{" (" + (a.voice_model or "default model") + ", " + describe_voice(a.voice_name) + ")" if a.voice != "off" else ""}; '
+          f'audio {"OFF (events only)" if a.events_only else "cue player"}; voice {a.voice}{" (" + (a.voice_model or "default model") + ", " + a.voice_name + ")" if a.voice != "off" else ""}; '
           f'handlers {a.handlers or "none"}; data channel {"on" if a.publish_data else "off"}; events -> {a.event_log}', flush=True)
     sys.argv = [sys.argv[0]] + rest                           # the LiveKit Agents CLI parses the rest (dev | start | connect | download-files)
     cli.run_app(worker_options(a))

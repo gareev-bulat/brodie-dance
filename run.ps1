@@ -1,7 +1,7 @@
 # Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
 # windows and open the browser. The app can call the running character only.
 #   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity] [-Agent]
-# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Fish voice, Cruelty; no Dancity lesson).
+# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Cruelty; no Dancity lesson).
 param([string]$Character = 'verity', [switch]$Agent)
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
@@ -40,13 +40,11 @@ if (-not (Test-Path .env.local)) {
         'AGENT_NAME=team-verity-agent'
         'GEMINI_API_KEY=<team token>'
         'GEMINI_BASE_URL=https://james-72765--rtcoach-gemini.modal.run'
-        'FISH_API_KEY='
     ) | Set-Content -Encoding ascii .env.local
     Write-Host 'Created .env.local.'
 }
-if (-not (Select-String -Path .env.local -Pattern '^\s*FISH_API_KEY' -Quiet)) { Add-Content .env.local 'FISH_API_KEY=' }   # the Fish voice: paste the key after =
 Get-Content .env.local | ForEach-Object {
-    # an empty line (like the FISH_API_KEY= placeholder) never overrides a value set on another line; quotes around a value are dropped
+    # an empty line never overrides a value set on another line; quotes around a value are dropped
     if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$' -and $matches[2]) {
         $name, $v = $matches[1], $matches[2].Trim('"', "'")
         $placeholder = $v -in '<key>', '<secret>', '<team token>' -or $v -match '<your-project>'
@@ -57,7 +55,6 @@ Get-Content .env.local | ForEach-Object {
 if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
 $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
     Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue).Value -or (Get-Item "env:$_").Value -match '<' }
-if (-not $env:FISH_API_KEY) { Write-Host "No FISH_API_KEY in $((Resolve-Path .env.local).Path): the characters use Gemini voices until you add it there (and save)." -ForegroundColor Yellow }
 if ($missing) {
     Write-Host "Fill in these lines in .env.local, save, then run this again: $($missing -join ', ')" -ForegroundColor Red
     notepad .env.local

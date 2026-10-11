@@ -11,7 +11,7 @@ Files:
 | `scripts/run_verity.sh` | Starts one character on Brodie's worker plus the web app (`run.ps1` on Windows). |
 | `verity/variants.py` | The roster and the shared persona rules. Adding a character means adding one entry. `python -m verity.variants --personas` writes the Brodie personas. |
 | `starter/verity/` | The Brodie personas (one `.md` per character) and `handlers.py`: greeting, strikes, Cruelty and back, verdict cards, live Mommy ASMR. |
-| `verity/agent.py` | **Legacy**, not the submission: the earlier standalone LiveKit worker (all characters in one process, memory tool, Fish Audio voice). |
+| `verity/agent.py` | **Legacy**, not the submission: the earlier standalone LiveKit worker (all characters in one process, memory tool). |
 | `verity/avatar.py` | The face video track (one look per character) and the audio-level tap that moves the mouth. |
 | `verity/dance.py` | **Plug-in point for the team's dance-detection model** (see below). |
 | `verity/server.py` | The web app's backend: serves `web/` and mints call tokens. |
@@ -68,7 +68,6 @@ Place a FaceTime **Video** call to the line. When you're done: hang up, wait for
 - **History:** every call's transcript is kept in the browser. Open it from Recent calls, export it as .txt, or call that character again.
 - **Verdict cards:** when the character says "you are... Something-ity", the handler turns it into a card, saved with the call.
 
-**Fish Audio voice (legacy `verity.agent` only):** set `FISH_API_KEY` (fish.audio, API keys) in `.env.local` and every character speaks in the Fish Audio voice `894f0267a5194c30814e6b15c07da862` (change it with `VERITY_FISH_VOICE`), using Fish's `s2.1-pro-free` model (change it with `FISH_MODEL`). Gemini Live then answers in text and Fish Audio reads it out, so expect a little more delay than Gemini's own voices. A voice picked in Settings still uses Gemini. Without the key, nothing changes. The original Verity voice belongs to its voice actor (JustWhispy); a voice cloned from it needs their permission before it's used in public.
 
 ## Real 3D models on the call
 
