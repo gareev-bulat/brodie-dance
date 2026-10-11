@@ -82,24 +82,9 @@ class Call:
         self.tasks.add(t); t.add_done_callback(self.tasks.discard)
 
 
-# Fish Audio voices (fish.audio/m/<id>): with FISH_API_KEY set, these characters think in Gemini (text out) and speak in Fish.
-FISH_VOICE = os.environ.get('VERITY_FISH_VOICE', '894f0267a5194c30814e6b15c07da862')   # every character speaks with it
-FISH_VOICES = {}                                                     # per-character overrides, e.g. {'cruelty': '<fish voice id>'}
-
-
-def fish_tts(key):
-    if not os.environ.get('FISH_API_KEY'): return None
-    from livekit.plugins import fishaudio
-    return fishaudio.TTS(model=os.environ.get('FISH_MODEL', 's2.1-pro-free'), voice_id=FISH_VOICES.get(key, FISH_VOICE), sample_rate=24000,
-                         latency_mode='balanced')   # 24 kHz like voice_out
-
-
-def realtime(voice, text_only=False):
+def realtime(voice):
     kw = dict(model=os.environ.get('GEMINI_LIVE_MODEL', 'gemini-3.8-live'), voice=voice, language='en-US',
               api_key=os.environ['GEMINI_API_KEY'])
-    if text_only:
-        from google.genai import types
-        kw['modalities'] = [types.Modality.TEXT]
     base = os.environ.get('GEMINI_BASE_URL', '').strip().rstrip('/')
     if base:                                             # hackathon relay: GEMINI_API_KEY is the team token (as facetime/voice.py)
         from google.genai import types
@@ -126,11 +111,8 @@ class Character(Agent):
     def __init__(self, key, call, opener=None, history=''):
         """opener: what to say on entering instead of the greeting (a live settings change hands off to a fresh session)."""
         self.key, self.v, self.opener = key, VARIANTS[key], opener
-        picked = key == call.key and call.settings['voice']   # a Gemini voice picked in Settings wins over the Fish voice
-        voice = picked or self.v['voice']                     # Cruelty keeps its own
-        tts = None if picked else fish_tts(key)
-        super().__init__(instructions=build_instructions(key, call, history), llm=realtime(voice, text_only=tts is not None),
-                         **({'tts': tts} if tts else {}))
+        voice = call.settings['voice'] if key == call.key and call.settings['voice'] else self.v['voice']   # Cruelty keeps its own
+        super().__init__(instructions=build_instructions(key, call, history), llm=realtime(voice))
 
     async def on_enter(self):
         call: Call = self.session.userdata
@@ -349,8 +331,6 @@ async def entrypoint(ctx: JobContext):
 if __name__ == '__main__':
     if CHARACTER not in VARIANTS: raise SystemExit(f'VERITY_CHARACTER={CHARACTER!r}: pick one of {", ".join(VARIANTS)}')
     print(f'[verity] default character {VARIANTS[CHARACTER]["name"]}, agent name {os.environ.get("AGENT_NAME", "")!r}', flush=True)
-    print(f'[verity] voice: Fish Audio {os.environ.get("FISH_MODEL", "s2.1-pro-free")}, voice {FISH_VOICE}' if os.environ.get('FISH_API_KEY') else
-          '[verity] voice: Gemini Live (add FISH_API_KEY to .env.local for the Fish voice)', flush=True)
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.environ.get('AGENT_NAME', ''),
                               num_idle_processes=1,                                   # a preloaded process: no 7 s cold start on the call
                               initialize_process_timeout=60, shutdown_process_timeout=30))   # slow Windows/OneDrive disks: 10 s defaults time out

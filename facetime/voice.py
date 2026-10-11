@@ -644,13 +644,17 @@ class VoiceLayer:
             else: print(f'[voice] hold: session clock held {now - self._hold_t0:.1f} s for the conversation (state {self.floor.state})', flush=True)
 
     async def run(self):
-        """The consumer task: events from job.events, a tick every 0.25 s for the gesture window and the conversation hold."""
+        """The consumer task: events from job.events, a tick every 0.25 s for the gesture window and the conversation hold. The tick
+        also runs while events keep coming (dance mode: a pose event every 0.1 s), else queued asks would never fire."""
+        last_tick = 0.0
         while True:
             try: ev = await asyncio.wait_for(self.job.events.get(), 0.25)
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError: ev = None
+            if ev is not None: self.on_event(ev)
+            if time.monotonic() - last_tick >= 0.25:
+                last_tick = time.monotonic()
                 if self.floor is not None: self.floor.tick()
-                self.update_hold(); continue
-            self.on_event(ev); self.update_hold()
+            self.update_hold()
 
     async def aclose(self):
         if self.vision is not None:                                          # the layer owns the tee: end the forward loop whatever the model does

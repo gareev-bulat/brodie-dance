@@ -1,9 +1,11 @@
 # Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
 # windows and open the browser. The app can call the running character only.
-#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity]
-param([string]$Character = 'verity')
+#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity] [-Agent]
+# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Cruelty; no Dancity lesson).
+param([string]$Character = 'verity', [switch]$Agent)
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'   # PowerShell 5's download progress bar makes Invoke-WebRequest many times slower
 Set-Location $PSScriptRoot
 
 # 1. uv (installs Python 3.12 and the packages)
@@ -22,6 +24,7 @@ if (-not (Test-Path $py)) {
     uv pip install --python $py -r requirements.txt aiohttp pillow
     if ($LASTEXITCODE -ne 0) { Remove-Item -Recurse -Force .venv; throw 'Package install failed. Fix the error above and run again.' }
 }
+uv pip install -q --python $py -r requirements.txt aiohttp pillow   # an environment made by an older run.ps1 lacks Brodie's packages; a no-op once installed
 New-Item -ItemType Directory -Force models | Out-Null
 foreach ($m in 'lite', 'full', 'heavy') {   # MediaPipe pose (Dancity), as in the README's install step
     $f = "models\pose_landmarker_$m.task"
@@ -41,7 +44,13 @@ if (-not (Test-Path .env.local)) {
     Write-Host 'Created .env.local.'
 }
 Get-Content .env.local | ForEach-Object {
-    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$') { Set-Item "env:$($matches[1])" $matches[2] }
+    # an empty line never overrides a value set on another line; quotes around a value are dropped
+    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$' -and $matches[2]) {
+        $name, $v = $matches[1], $matches[2].Trim('"', "'")
+        $placeholder = $v -in '<key>', '<secret>', '<team token>' -or $v -match '<your-project>'
+        if (-not $placeholder -and $v -match '^<(.+)>$') { $v = $matches[1] }   # a pasted key left inside its <angle brackets>
+        Set-Item "env:$name" $v
+    }
 }
 if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
 $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
@@ -61,7 +70,13 @@ if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
 $env:VERITY_CHARACTER = $Character
 $args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
 $args_ += if ($Character -eq 'dancity') { ' --dance --leave-grace-s -1' } else { ' --perception off --vision --handlers starter/verity/handlers.py' }
-Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ dev"
+# start --log-level info, not dev: dev logs every debug line, and a Windows console is slow enough to stall the audio
+if ($Agent) {
+    Remove-Item env:VERITY_CHARACTER -ErrorAction SilentlyContinue   # the web app may call any character; the agent picks it from the room name
+    Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent start --log-level info"
+} else {
+    Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ start --log-level info"
+}
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
 Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
 foreach ($i in 1..60) {   # the first start on Windows can take a while
