@@ -1,0 +1,37 @@
+{
+  "dance": "sbbyj_a80421",
+  "description": "Reference choreography from the @sbbyj TikTok (solo, full body, kitchen; dance content 0-15.0 s, then a ~4 s end card with no dancer). Move boundaries from the wrist/elbow trajectories, hip x, shoulder width (body twists) and upper/lower-body motion energy of data/dance/pose/sbbyj_a80421.npz, checked against frame strips of data/dance/pose/sbbyj_a80421.pose.mp4 (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema). Sides are given as seen on screen; the learner mirrors the screen.",
+  "npz": "data/dance/pose/sbbyj_a80421.npz",
+  "video": "data/dance/raw/sbbyj_a80421.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 88,
+  "bpm_estimate_note": "Estimated, not from a track id: the chest sweeps in 4.4-8.3 s repeat every ~0.67 s (autocorrelation peak of both wrists' x at 0.667 s, about 90 bpm), and an onset-autocorrelation of the clip audio over 0-15 s peaks at ~87.6 bpm (double-time 175 bpm is the runner-up). Treat as 88 +/- 2 bpm.",
+  "count_in_s": 3.4,
+  "moves": [
+    {"id": "ready",          "name": "Ready: steps back from the camera, then stands still with arms at the sides",                                                              "t0": 0.0,  "t1": 3.4},
+    {"id": "arm_raise",      "name": "Screen-right arm swings out and up until the hand is beside the head, then drops back to the side",                                      "t0": 3.4,  "t1": 4.4},
+    {"id": "chest_sweeps_a", "name": "Both hands rise to the chest and sweep side to side together; at each screen-right end the screen-right hand flicks up beside the head (3 sweeps)", "t0": 4.4,  "t1": 6.4},
+    {"id": "chest_sweeps_b", "name": "Chest sweeps continue: forearms cross over the chest to the screen-left and back, screen-right hand flicking up beside the head (3 more sweeps)", "t0": 6.4,  "t1": 8.3},
+    {"id": "hands_hold",     "name": "Both hands held in front of the chest, forearms level and close together, nearly still",                                                "t0": 8.3,  "t1": 9.4},
+    {"id": "twist_point_1",  "name": "Twist to the screen-left with forearms stacked at the chest, screen-left hand points out to the side, then the screen-right hand flicks up beside the head and points out to the screen-right with a twist", "t0": 9.4,  "t1": 11.1},
+    {"id": "twist_point_2",  "name": "Repeat: twist left with forearms stacked at the chest, point out to the screen-left, flick the screen-right hand up beside the head, point out to the screen-right, hands back to the chest", "t0": 11.1, "t1": 13.1},
+    {"id": "twist_point_3",  "name": "Repeat: twist left with forearms stacked at the chest, point out to the screen-left, flick the screen-right hand up beside the head, point out to the screen-right, ending with arms crossed at the chest", "t0": 13.1, "t1": 15.0}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Dancer is present (ok=True) in frames 0-450 only (0.0-15.0 s); frames 451-570 are the TikTok end card, so the last move ends at 15.0 s.",
+    "'ready' is the count-in: the dancer starts close to the camera, walks backward during 0-1.4 s and stands with arms down until 3.4 s, when the first real move begins.",
+    "All 17 COCO joints are visible in >=95% of ok frames (ears 78-85%), so leg/ankle faults can fire on this dance; footwork is small (hip x shifts of ~4% of frame width during the twist_point moves).",
+    "Chest sweeps (4.4-8.3 s) repeat every ~0.67 s with both wrists moving in phase; split into two moves at a motion-energy valley (6.4 s) to keep moves near 2 s.",
+    "twist_point_1..3 are three repetitions of one ~2 s phrase (hip x and wrist x autocorrelate at 2.07 s); cycle starts are placed at the arms-crossed twist (shoulder-width minima at 9.77, 11.13, 13.17 s).",
+    "Screen-left/right in move names are image sides of the mirrored clip; with learner_mirrors_screen the learner's own right hand follows the screen-right side."
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "dance": "lina_summee_435de6",
+  "description": "Reference choreography from the @lina.summee TikTok (9.67 s, solo, full body, static camera). The dancer walks in from the left edge during the first 0.8 s and is tracked in every frame to the end (no absent end card). Move boundaries from the wrist/elbow/knee/ankle trajectories and motion energy of data/dance/pose/lina_summee_435de6.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/lina_summee_435de6.npz",
+  "video": "data/dance/raw/lina_summee_435de6.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": null,
+  "count_in_s": 0.8,
+  "moves": [
+    {"id": "ready",             "name": "Walk in from the left edge turning to face the camera, hands lifting to the shoulders",          "t0": 0.0, "t1": 0.8},
+    {"id": "hands_by_head",     "name": "Hands held up beside the head with fingers spread and a small bounce, then pulled in beside the cheeks with elbows out wide", "t0": 0.8, "t1": 2.9},
+    {"id": "arms_down_sway",    "name": "Arms drop and hang low by the hips while the body sways side to side",                         "t0": 2.9, "t1": 4.0},
+    {"id": "throw_up_step",     "name": "Both arms swing out and up overhead as one foot crosses in, then one arm lowers",               "t0": 4.0, "t1": 4.8},
+    {"id": "one_arm_salute",    "name": "One hand held up beside the head with the other hand at the hip, then both hands rise to the face", "t0": 4.8, "t1": 6.0},
+    {"id": "kick_combo",        "name": "Arms swing down with a knee lift and side kick, then hands go to the head with a high kick to the other side", "t0": 6.0, "t1": 7.2},
+    {"id": "arms_hang",         "name": "Arms hang loose at the sides, feet apart, small sway",                                          "t0": 7.2, "t1": 8.0},
+    {"id": "swing_kick",        "name": "One arm swings up overhead with a low kick out to the side, then both hands come to the head",   "t0": 8.0, "t1": 8.8},
+    {"id": "lower_turn_finish", "name": "Hands lower from the head to the chest with a cross step and a small turn of the body to finish", "t0": 8.8, "t1": 9.633}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "All 17 COCO joints are visible in >=93% of frames (ankles 100%), so the 'legs' fault can fire on this dance.",
+    "The dancer is never absent: ok=True for all 290 frames; the last move ends at the last ok frame (289, 9.633 s).",
+    "'ready' is the count-in: the dancer enters from the left edge side-on and turns to face the camera, so it is not a still pose; the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "Kicks: at 6.1-6.4 s the npz-left knee lifts with the foot out to image right; at 6.8-6.9 s the npz-right leg kicks high to image left; at 8.2-8.3 s the npz-right foot extends low to image left. Move names avoid left/right because the clip is mirrored.",
+    "No clearly periodic move (autocorrelation of hip/shoulder height and motion energy shows no beat-rate peak), so bpm is left null."
+  ]
+}

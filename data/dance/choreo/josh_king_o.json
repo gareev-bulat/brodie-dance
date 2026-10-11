@@ -1,0 +1,32 @@
+{
+  "dance": "josh_king_o",
+  "description": "Reference choreography from the @josh_king_o TikTok (9.5 s). Front dancer (tracker id 2). Move boundaries from the wrist/elbow trajectories and motion energy of data/dance/pose/josh_king_o_1791679083441.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/josh_king_o_1791679083441.npz",
+  "video": "data/dance/raw/josh_king_o_1791679083441.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": null,
+  "count_in_s": 1.4,
+  "moves": [
+    {"id": "ready",      "name": "Ready pose: arms down, still",                               "t0": 0.0, "t1": 1.4},
+    {"id": "arm_pump",   "name": "Hands rise to chest with alternating pumps",                 "t0": 1.4, "t1": 2.5},
+    {"id": "cross_hold", "name": "Arms crossed at the chest, hold",                            "t0": 2.5, "t1": 4.6},
+    {"id": "swing_down", "name": "Alternating arm swings down to the hips and back up",        "t0": 4.6, "t1": 6.3},
+    {"id": "point_up",   "name": "Hands rise to the face and point at the camera",             "t0": 6.3, "t1": 7.2},
+    {"id": "sway_point", "name": "Pointing at the camera while the body sways side to side",   "t0": 7.2, "t1": 9.466}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Reference ankles are NaN in 98-100% of frames: the 'legs' fault never fires on this dance.",
+    "'ready' is the count-in: the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "Alternating swing period in swing_down is about 0.37 s per swing; bpm left null until the track is identified.",
+    "The clip is 285 frames (9.5 s) and the dancer is tracked in all of them; the final move ends at the last ok frame (284, t=9.466 s)."
+  ]
+}
