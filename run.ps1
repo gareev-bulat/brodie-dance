@@ -1,7 +1,8 @@
 # Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
 # windows and open the browser. The app can call the running character only.
-#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity]
-param([string]$Character = 'verity')
+#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity] [-Agent]
+# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Fish voice, Cruelty; no Dancity lesson).
+param([string]$Character = 'verity', [switch]$Agent)
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # PowerShell 5's download progress bar makes Invoke-WebRequest many times slower
@@ -72,7 +73,13 @@ if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
 $env:VERITY_CHARACTER = $Character
 $args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
 $args_ += if ($Character -eq 'dancity') { ' --dance --leave-grace-s -1' } else { ' --perception off --vision --handlers starter/verity/handlers.py' }
-Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ start --log-level info"   # dev logs every debug line, and a Windows console is slow enough to stall the audio
+# start --log-level info, not dev: dev logs every debug line, and a Windows console is slow enough to stall the audio
+if ($Agent) {
+    Remove-Item env:VERITY_CHARACTER -ErrorAction SilentlyContinue   # the web app may call any character; the agent picks it from the room name
+    Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent start --log-level info"
+} else {
+    Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ start --log-level info"
+}
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
 Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
 foreach ($i in 1..60) {   # the first start on Windows can take a while
