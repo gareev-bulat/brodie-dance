@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dancity-web",
+      "runtimeExecutable": "wsl.exe",
+      "runtimeArgs": ["-d", "Ubuntu-24.04", "--", "bash", "/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter/scripts/demo_web.sh"],
+      "port": 8765
+    }
+  ]
+}

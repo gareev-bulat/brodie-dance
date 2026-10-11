@@ -27,7 +27,7 @@ from starter.dance import reference  # noqa: E402
 
 PASS = float(os.environ.get('DANCE_PASS', '0.7'))           # score needed to move on
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
-COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '1') != '0'   # count "One" .. "Eight" over the music while teaching
+COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'   # count "One" .. "Eight" over the music while teaching (off: no counting at all)
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
 MUSIC_DB = float(os.environ.get('DANCE_MUSIC_DB', '-24'))   # music loudness (RMS dBFS) under the counts
 HEAR_LAG_S = 0.15                                           # clip pushed -> heard on the phone, roughly (queue + network)
@@ -124,7 +124,7 @@ def build_clip(k0, k1, count_dance):
             seg = src[lo:hi] * _db_gain(src, MUSIC_DB)
             f = min(len(seg), int(0.03 * RATE)); seg[:f] *= np.linspace(0, 1, f); seg[-f:] *= np.linspace(1, 0, f)
             out[lo - a:lo - a + len(seg)] += seg
-    words = [(i * beat, w) for i, w in enumerate(COUNT_IN)]
+    words = []                                                      # no spoken count-in: the lead-in is 4 beats of the song (or silence)
     if count_dance:
         words += [(4 * beat + j * beat, COUNT_WORDS[j % 8]) for j in range(8 * (k1 - k0))]
     for t, w in words:

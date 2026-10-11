@@ -19,6 +19,10 @@ MIRROR_SELF = os.environ.get('DANCE_MIRROR_SELF', '1') != '0'    # the caller's 
 BODY_LINES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27), (24, 26), (26, 28)]
 LEFT_MP = {11, 13, 15, 23, 25, 27}
 COL_L, COL_R, COL_MID = (255, 200, 0), (0, 170, 255), (240, 240, 240)   # RGB: the caller's left limbs amber, right limbs blue
+LEAD_BEATS = 4                                                     # beats of song before ONE (starter/handlers.py build_clip), no numbers shown
+SHOW_COUNTS = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'      # the 1..8 numbers only when the counts are spoken too
+PIP_W, PIP_H, PIP_PAD, BAR_H = 120, 213, 12, 36                    # the caller's camera bottom-right, the accuracy bar along the bottom
+PASS_MARK = float(os.environ.get('DANCE_PASS', '0.7'))
 
 
 def _fit(img, pw, ph, cx=None):
@@ -122,49 +126,63 @@ class Screen:
         t_push = rec.get('t_push') if isinstance(rec, dict) else None
         if play and t_push and not rec.get('t_done'):
             el = now - t_push - 0.1                                    # seconds into the clip, as heard
-            t_vid = ref.first_beat_s + 8 * play['k0'] * ref.beat_s - 4 * ref.beat_s + el
-            creator = self.frame_at(t_vid)
-            if cam is not None:
-                left, _, _ = _fit(creator, W // 2, H)
-                img = np.concatenate([left, cam_panel(cam, W - W // 2, H)], axis=1)
-                _text(img, 'YOU', (W // 2 + 12, 40), 0.9, WHITE, 2)
-            else:
-                img = creator
+            t_vid = ref.first_beat_s + 8 * play['k0'] * ref.beat_s - LEAD_BEATS * ref.beat_s + el
+            img = self.frame_at(t_vid)                                 # the creator full screen, you bottom-right
             beat = int(np.floor(el / ref.beat_s))
-            if 0 <= beat < 4:
-                _text(img, str(5 + beat), (0, 360), 5.0, VOLT, 8, center=True)
-            elif beat >= 4:
-                b = beat - 4
+            if beat < LEAD_BEATS:
+                _text(img, 'GET READY', (0, 330), 1.5, VOLT, 4, center=True)
+            elif SHOW_COUNTS:
+                b = beat - LEAD_BEATS
                 if b < 8 * (play['k1'] - play['k0']):
                     _text(img, str(b % 8 + 1), (W - 80, 90), 2.6, VOLT, 5)
             label = 'FULL DANCE' if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
             _text(img, label, (14, 40), 0.9, WHITE, 2)
-            return img
-        # between parts: a card over the caller's camera (dimmed, skeleton on), else over the creator's first pose of the next part
-        if cam is not None:
-            img = cam_panel(cam, W, H, dim=0.45)
-        else:
-            img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
+            return self._finish(img, st, cam)
+        # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
+        img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
         state = st.get('state')
         if state == 'idle' or not st.get('visible'):
             _text(img, 'BRODIE DANCE', (0, 120), 1.3, VOLT, 3, center=True)
             for i, line in enumerate(['Step back so I can see', 'your whole body']):
                 _text(img, line, (0, 300 + 40 * i), 0.9, WHITE, 2, center=True)
-            return img
+            return self._finish(img, st, cam)
         if state == 'done':
             _text(img, 'YOU DID IT!', (0, 200), 1.5, VOLT, 3, center=True)
             fs = st.get('full_scores') or st.get('scores') or {}
             for i, (kk, s) in enumerate(sorted(fs.items())):
                 _text(img, f'Part {kk + 1}: {s}%', (0, 290 + 45 * i), 1.0, WHITE, 2, center=True)
-            return img
+            return self._finish(img, st, cam)
         title = 'FULL DANCE NEXT' if state == 'full' else f'PART {k + 1}/{n}'
         _text(img, title, (0, 110), 1.4, VOLT, 3, center=True)
         last = st.get('last_pct')
         if last is not None: _text(img, f'Last try: {last}%', (0, 170), 1.0, WHITE, 2, center=True)
         steps = ref.step(k) if state != 'full' else None
         if steps:
-            for i, line in enumerate(textwrap.wrap(steps, 26)[:9]):
+            first = steps.split('. ')[0].rstrip('.') + '.'              # the card shows the first move only; the voice explains the rest
+            for i, line in enumerate(textwrap.wrap(first, 26)[:3]):
                 _text(img, line, (0, 260 + 36 * i), 0.75, WHITE, 2, center=True)
+        return self._finish(img, st, cam)
+
+    def _finish(self, img, st, cam):
+        """Every frame ends with you bottom-right (camera + skeleton) and the accuracy bar along the bottom."""
+        import cv2
+        if cam is not None:
+            y0, x0 = H - BAR_H - PIP_PAD - PIP_H, W - PIP_PAD - PIP_W
+            img[y0:y0 + PIP_H, x0:x0 + PIP_W] = cam_panel(cam, PIP_W, PIP_H)
+            cv2.rectangle(img, (x0, y0), (x0 + PIP_W - 1, y0 + PIP_H - 1), WHITE, 2)
+        y0 = H - BAR_H
+        cv2.rectangle(img, (0, y0), (W, H), (18, 18, 18), -1)
+        _text(img, 'ACCURACY', (12, y0 + 24), 0.6, WHITE, 1)
+        bx0, bx1, by0, by1 = 124, W - 62, y0 + 10, H - 10
+        cv2.rectangle(img, (bx0, by0), (bx1, by1), (70, 70, 70), -1)
+        pct = st.get('last_pct')
+        if pct is not None:
+            f = max(0, min(100, int(pct))) / 100
+            col = (int(255 * (1 - f)), int(215 * f), 60)                # red -> green
+            cv2.rectangle(img, (bx0, by0), (bx0 + int((bx1 - bx0) * f), by1), col, -1)
+        xm = bx0 + int((bx1 - bx0) * PASS_MARK)
+        cv2.line(img, (xm, by0 - 2), (xm, by1 + 2), VOLT, 2)            # the pass mark
+        _text(img, f'{pct}%' if pct is not None else '--', (bx1 + 8, y0 + 25), 0.6, WHITE, 1)
         return img
 
     async def run(self, room, get_state, get_cam=lambda: None):
