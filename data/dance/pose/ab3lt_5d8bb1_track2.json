@@ -1,0 +1,220 @@
+{
+  "video": "data/dance/raw/ab3lt_5d8bb1.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 532,
+  "frames_probed": 532,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 2,
+  "member_ids": [
+    2
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    1,
+    2,
+    4,
+    29,
+    3,
+    15,
+    23,
+    14,
+    24,
+    37,
+    18,
+    12,
+    7,
+    5,
+    6,
+    13
+  ],
+  "frames_with_dancer": 412,
+  "coverage": 0.7744,
+  "first_frame": 0,
+  "last_frame": 411,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {
+    "1": {
+      "frames": 412,
+      "first_frame": 0,
+      "last_frame": 411,
+      "mean_box_area": 173919.4,
+      "frames_overlapping_main": 412,
+      "mean_iou_with_main": 0.001,
+      "used_to_fill_gaps": 0
+    },
+    "3": {
+      "frames": 90,
+      "first_frame": 0,
+      "last_frame": 89,
+      "mean_box_area": 22232.6,
+      "frames_overlapping_main": 90,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "4": {
+      "frames": 408,
+      "first_frame": 0,
+      "last_frame": 411,
+      "mean_box_area": 75785.8,
+      "frames_overlapping_main": 408,
+      "mean_iou_with_main": 0.152,
+      "used_to_fill_gaps": 0
+    },
+    "5": {
+      "frames": 10,
+      "first_frame": 2,
+      "last_frame": 20,
+      "mean_box_area": 36923.6,
+      "frames_overlapping_main": 10,
+      "mean_iou_with_main": 0.101,
+      "used_to_fill_gaps": 0
+    },
+    "6": {
+      "frames": 8,
+      "first_frame": 40,
+      "last_frame": 48,
+      "mean_box_area": 24636.4,
+      "frames_overlapping_main": 8,
+      "mean_iou_with_main": 0.072,
+      "used_to_fill_gaps": 0
+    },
+    "7": {
+      "frames": 17,
+      "first_frame": 43,
+      "last_frame": 59,
+      "mean_box_area": 73993.8,
+      "frames_overlapping_main": 17,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "12": {
+      "frames": 17,
+      "first_frame": 88,
+      "last_frame": 104,
+      "mean_box_area": 80348.1,
+      "frames_overlapping_main": 17,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "13": {
+      "frames": 2,
+      "first_frame": 88,
+      "last_frame": 89,
+      "mean_box_area": 17491.5,
+      "frames_overlapping_main": 2,
+      "mean_iou_with_main": 0.061,
+      "used_to_fill_gaps": 0
+    },
+    "14": {
+      "frames": 38,
+      "first_frame": 96,
+      "last_frame": 133,
+      "mean_box_area": 26268.1,
+      "frames_overlapping_main": 38,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "15": {
+      "frames": 60,
+      "first_frame": 123,
+      "last_frame": 184,
+      "mean_box_area": 60237.1,
+      "frames_overlapping_main": 60,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "18": {
+      "frames": 21,
+      "first_frame": 184,
+      "last_frame": 204,
+      "mean_box_area": 63665.0,
+      "frames_overlapping_main": 21,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "23": {
+      "frames": 43,
+      "first_frame": 206,
+      "last_frame": 282,
+      "mean_box_area": 78225.0,
+      "frames_overlapping_main": 43,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "24": {
+      "frames": 35,
+      "first_frame": 211,
+      "last_frame": 262,
+      "mean_box_area": 13862.9,
+      "frames_overlapping_main": 35,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "29": {
+      "frames": 102,
+      "first_frame": 272,
+      "last_frame": 382,
+      "mean_box_area": 78294.9,
+      "frames_overlapping_main": 102,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    },
+    "37": {
+      "frames": 26,
+      "first_frame": 383,
+      "last_frame": 411,
+      "mean_box_area": 40844.8,
+      "frames_overlapping_main": 26,
+      "mean_iou_with_main": 0.0,
+      "used_to_fill_gaps": 0
+    }
+  },
+  "mean_keypoint_conf": {
+    "nose": 0.998,
+    "left_eye": 0.994,
+    "right_eye": 0.986,
+    "left_ear": 0.804,
+    "right_ear": 0.679,
+    "left_shoulder": 0.996,
+    "right_shoulder": 0.818,
+    "left_elbow": 0.978,
+    "right_elbow": 0.488,
+    "left_wrist": 0.966,
+    "right_wrist": 0.547,
+    "left_hip": 0.972,
+    "right_hip": 0.863,
+    "left_knee": 0.441,
+    "right_knee": 0.24,
+    "left_ankle": 0.028,
+    "right_ankle": 0.013
+  },
+  "weak_joints_frac_below_0.5": {
+    "right_elbow": 0.517,
+    "right_wrist": 0.439,
+    "left_knee": 0.58,
+    "right_knee": 0.954,
+    "left_ankle": 1.0,
+    "right_ankle": 1.0
+  },
+  "video_frames_written": 532,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/ab3lt_5d8bb1_track2.npz",
+    "csv": "data/dance/pose/ab3lt_5d8bb1_track2.csv",
+    "video": "data/dance/pose/ab3lt_5d8bb1_track2.pose.mp4"
+  }
+}
