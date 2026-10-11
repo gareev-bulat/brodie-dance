@@ -718,7 +718,8 @@ async function startCall(firstText) {
   ringtone(true);
   let info;
   try { info = await (await fetch(`/api/token?character=${c.key}&uid=${uid}&settings=${encodeURIComponent(JSON.stringify(agentSettings()))}`)).json(); }
-  catch { ringtone(false); show('home'); return toast("Can't reach the app server. Start it: python -m verity.server"); }
+  catch { ringtone(false); show('home'); return toast("Can't reach the app server. Start it: scripts/run_verity.sh verity"); }
+  if (info.error) { ringtone(false); show('home'); return toast(info.error); }
   room = new LK.Room({ adaptiveStream: true, dynacast: true });
   $('#room').textContent = info.room;
 
@@ -744,6 +745,7 @@ async function startCall(firstText) {
       bubbles[id].text = text; bubbles[id].el.querySelector('p').textContent = text; log.scrollTop = log.scrollHeight;
       if (!mine) { caption(text); greeted = true; }
     }
+    if (!mine) flush();   // its line is over: Brodie's worker can stay 'listening' throughout, so don't wait for a state change
   });
 
   try { await room.connect(info.url, info.token); await room.startAudio(); }

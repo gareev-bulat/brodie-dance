@@ -1,5 +1,7 @@
-# Windows: install (first run only), then start the Verity agent and web app in two windows and open the browser.
-#   powershell -ExecutionPolicy Bypass -File .\run.ps1
+# Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
+# windows and open the browser. The app can call the running character only.
+#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity]
+param([string]$Character = 'verity')
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -11,15 +13,20 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 }
 
-# 2. Python environment with just what the Verity agent and web app need
+# 2. Python environment: Brodie's requirements (CPU torch, no 3 GB of CUDA wheels) plus the web app's, and the pose models
 $py = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $py)) {
-    Write-Host 'Creating the Python environment (first run only)...'
+    Write-Host 'Creating the Python environment (first run only, several minutes)...'
     uv venv --python 3.12 .venv
-    uv pip install --python $py livekit livekit-api 'livekit-agents==1.8.5' 'livekit-plugins-google==1.8.5' 'livekit-plugins-fishaudio==1.8.5' aiohttp numpy opencv-python-headless pillow
+    uv pip install --python $py torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    uv pip install --python $py -r requirements.txt aiohttp pillow
     if ($LASTEXITCODE -ne 0) { Remove-Item -Recurse -Force .venv; throw 'Package install failed. Fix the error above and run again.' }
 }
-uv pip install -q --python $py 'livekit-plugins-fishaudio==1.8.5' pillow   # added later (Fish voice; Pillow lets Gemini see the camera); a no-op once installed
+New-Item -ItemType Directory -Force models | Out-Null
+foreach ($m in 'lite', 'full', 'heavy') {   # MediaPipe pose (Dancity), as in the README's install step
+    $f = "models\pose_landmarker_$m.task"
+    if (-not (Test-Path $f)) { Invoke-WebRequest -UseBasicParsing -OutFile $f "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_$m/float16/latest/pose_landmarker_$m.task" }
+}
 
 # 3. Keys live in .env.local, which git ignores
 if (-not (Test-Path .env.local)) {
@@ -30,18 +37,15 @@ if (-not (Test-Path .env.local)) {
         'AGENT_NAME=team-verity-agent'
         'GEMINI_API_KEY=<team token>'
         'GEMINI_BASE_URL=https://james-72765--rtcoach-gemini.modal.run'
-        'FISH_API_KEY='
     ) | Set-Content -Encoding ascii .env.local
     Write-Host 'Created .env.local.'
 }
-if (-not (Select-String -Path .env.local -Pattern '^\s*FISH_API_KEY' -Quiet)) { Add-Content .env.local 'FISH_API_KEY=' }   # the Fish voice: paste the key after =
 Get-Content .env.local | ForEach-Object {
     if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$') { Set-Item "env:$($matches[1])" $matches[2] }
 }
 if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
 $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
     Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue).Value -or (Get-Item "env:$_").Value -match '<' }
-if (-not $env:FISH_API_KEY) { Write-Host 'No FISH_API_KEY in .env.local: the characters use Gemini voices until you add it.' -ForegroundColor Yellow }
 if ($missing) {
     Write-Host "Fill in these lines in .env.local, save, then run this again: $($missing -join ', ')" -ForegroundColor Red
     notepad .env.local
@@ -52,7 +56,12 @@ if ($missing) {
 # A web app left over from an earlier run would keep port 8765 and serve the old page, so stop it first.
 Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue |
     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent start --log-level info"   # dev prints every debug line, and a Windows console is slow enough to stall the audio
+$voice = & $py -c "from verity.variants import VARIANTS as V; k='$Character'; assert k in V and not V[k].get('secret'), 'unknown character: ' + k; print(V[k]['voice'])"
+if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
+$env:VERITY_CHARACTER = $Character
+$args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
+$args_ += if ($Character -eq 'dancity') { ' --dance --leave-grace-s -1' } else { ' --perception off --vision --handlers starter/verity/handlers.py' }
+Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ dev"
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
 Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
 foreach ($i in 1..60) {   # the first start on Windows can take a while

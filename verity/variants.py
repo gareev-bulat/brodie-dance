@@ -115,7 +115,29 @@ def instructions(v, asmr=False, strikes=True, memory=''):
     return '\n'.join(t for t in (text, ASMR if asmr else '', memory) if t)
 
 
-if __name__ == '__main__':   # python -m verity.variants: registry self-check (run after adding a character)
+
+def brodie_persona(v):
+    """The persona file for Brodie's worker (facetime.worker --persona): the same character, with the call logic (strikes, Cruelty,
+    verdicts) in starter/verity/handlers.py instead of tools, which Brodie's voice layer doesn't have."""
+    text = instructions(v, strikes=False)
+    text = text.replace(' (like "Procrastinity"), then call verdict(name).', ' (like "Procrastinity"): say "you are... <Name>ity".')
+    text = '\n'.join(l for l in text.split('\n') if 'remember(fact)' not in l and 'Never store anything sensitive' not in l)
+    if v['name'] == 'Cruelty':
+        text = text.replace('then call forgive(): you turn back into Verity, who introduces itself again', 'and calm down')
+    return text
+
+
+def write_personas(out='starter/verity'):
+    """starter/verity/<key>.md for every character (python -m verity.variants --personas)."""
+    import os
+    os.makedirs(out, exist_ok=True)
+    for k, v in VARIANTS.items():
+        with open(os.path.join(out, f'{k}.md'), 'w') as f: f.write(brodie_persona(v) + '\n')
+    print('wrote', len(VARIANTS), 'personas to', out)
+
+if __name__ == '__main__':   # python -m verity.variants: registry self-check (run after adding a character); --personas writes the Brodie persona files
+    import sys
+    if '--personas' in sys.argv: write_personas()
     from verity.avatar import FACES
     for k, v in VARIANTS.items():
         assert k == v['name'].lower(), f'{k}: key must be the lowercase name'

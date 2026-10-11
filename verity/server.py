@@ -1,6 +1,7 @@
-"""The web app's backend: serves web/ and mints LiveKit tokens for a fresh room per call ("web-<character>-<id>", which tells
-verity/agent.py who to be). Run next to the agent:
-  python -m verity.server [--port 8765] [--host 127.0.0.1]        # LIVEKIT_URL/API_KEY/API_SECRET in env, AGENT_NAME optional
+"""The web app's backend: serves web/ and mints LiveKit tokens for a fresh room per call ("web-<character>-<id>").
+scripts/run_verity.sh <character> starts it next to Brodie's worker, which runs one character, named in VERITY_CHARACTER:
+the app can only call that one. By hand:
+  VERITY_CHARACTER=verity python -m verity.server [--port 8765] [--host 127.0.0.1]   # LIVEKIT_URL/API_KEY/API_SECRET, AGENT_NAME in env
 Keep the default localhost bind: /api/token has no auth, so anyone who can reach the server can start calls (Gemini minutes).
 With AGENT_NAME set the token also dispatches that agent into the room (so the same worker serves Chert and the web).
 """
@@ -15,6 +16,7 @@ from verity.variants import VARIANTS
 
 WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web')
 CALLABLE = [k for k, v in VARIANTS.items() if not v.get('secret')]
+LIVE = os.environ.get('VERITY_CHARACTER', '')           # the character the worker is running ('' = any, e.g. the legacy verity.agent)
 
 
 def mint_call(key, room=None, settings=None, uid=''):
@@ -35,6 +37,9 @@ def mint_call(key, room=None, settings=None, uid=''):
 async def token(req):
     key = req.query.get('character', 'verity')
     if key not in CALLABLE: raise web.HTTPBadRequest(text=f'character must be one of {", ".join(CALLABLE)}')
+    if LIVE and key != LIVE:
+        return web.json_response({'error': f'Only {VARIANTS[LIVE]["name"]} is running right now: scripts/run_verity.sh {key} runs {VARIANTS[key]["name"]}.'},
+                                 status=409)
     try: settings = json.loads(req.query.get('settings', '{}')[:1000])
     except ValueError: settings = {}
     return web.json_response(mint_call(key, settings=settings, uid=req.query.get('uid', '')))
@@ -53,7 +58,7 @@ async def health(_req):
     """Also the app's character list, straight from verity/variants.py (secret ones included, flagged)."""
     chars = [dict(key=k, secret=bool(v.get('secret')), **{f: v[f] for f in ('name', 'color', 'face', 'domain', 'intro', 'goodbye')},
                   sample=v['samples'][0]) for k, v in VARIANTS.items()]
-    return web.json_response({'ok': True, 'characters': chars, 'voices': VOICES, 'agent_name': os.environ.get('AGENT_NAME', '')})
+    return web.json_response({'ok': True, 'characters': chars, 'voices': VOICES, 'agent_name': os.environ.get('AGENT_NAME', ''), 'live': LIVE})
 
 
 async def index(_req):

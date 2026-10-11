@@ -71,6 +71,7 @@ AGENT_KIND = rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
 BRIDGE_PREFIX = 'chert-bridge-'
 LK_COMMANDS = ('dev', 'start', 'connect', 'download-files', 'console')
 CONSUMERS = []                        # coroutines consumer(job) started per job; they read job.events (see docs/STARTER_EVENTS.md)
+CURRENT_JOB = None                    # the job running in this process (one per process), for handlers that need the room or the avatar
 
 
 def consumer(fn):
@@ -121,6 +122,8 @@ def build_parser():
                                                                                                            'joins, binds to the caller, starts the voice and emits one synthetic session {state: open} event; the floor is then always open')
     ap.add_argument('--floor', default=os.environ.get('FLOOR') or None, choices=['gated', 'open'], help='gated = the voice speaks between sets only (the default with perception on); '
                                                                                                         'open = always allowed to speak, nothing is ever cut (the default with --perception off; env FLOOR)')
+    ap.add_argument('--avatar', default=os.environ.get('AVATAR') or None, help='publish a face video track for this Verity character (verity/variants.py key; env AVATAR): Chert expects audio + video from the agent')
+    ap.add_argument('--text', action='store_true', default=truthy(os.environ.get('VOICE_TEXT')), help='with --voice gemini: typed chat in (lk.chat) and transcripts out (lk.transcription), for the web app (env VOICE_TEXT=1)')
     ap.add_argument('--vision', action='store_true', default=truthy(os.environ.get('VISION')), help='with --voice gemini: tee the caller\'s video into the model session at --vision-fps (env VISION=1)')
     ap.add_argument('--vision-fps', type=float, default=float(os.environ.get('VISION_FPS', '1') or 1), help='frames per second handed to the model with --vision (default 1, at most 2; JPEG per frame)')
     ap.add_argument('-h', '--help', action='store_true', help='show this help and exit')
@@ -252,6 +255,8 @@ class CoachJob:
     # ---- lifecycle ----
     async def run(self):
         self.loop = asyncio.get_running_loop(); ctx = self.ctx; a = self.a
+        global CURRENT_JOB; CURRENT_JOB = self; self.avatar = None; self.avatar_task = None
+        import facetime.worker as _module; _module.CURRENT_JOB = self      # run as `python -m facetime.worker` this module is __main__; handlers import the package one
         ctx.add_shutdown_callback(self.aclose)
         if not a.events_only:
             from facetime.audio_out import CuePlayer
@@ -278,6 +283,12 @@ class CoachJob:
             await self.room.local_participant.publish_track(self.player.track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
             self.player_task = asyncio.create_task(self.player.run())
             print(f'[worker] published audio track {AUDIO_TRACK_NAME}', flush=True)
+        if getattr(a, 'avatar', None):                         # the face: published with the audio, before any caller (Chert binds on both)
+            from verity.avatar import Avatar, tap
+            from verity.variants import VARIANTS
+            self.avatar = Avatar(VARIANTS[a.avatar]); self.avatar_task = await self.avatar.publish(self.room)
+            if self.voice is not None and self.voice.sink is not None: tap(self.avatar, self.voice.sink)   # the mouth follows the model's voice
+            print(f'[worker] published video track verity-face ({a.avatar})', flush=True)
         if self.voice_mode:                                       # no Perception: the worker's own session/status events, logged the same way
             from facetime.perception import JsonlWriter
             self.event_writer = JsonlWriter(a.event_log, extra=dict(room=self.room.name, call_id=self.call_id, job=ctx.job.id))
@@ -290,6 +301,11 @@ class CoachJob:
         print(f'[worker] events (schema v{EVENT_SCHEMA_VERSION}) -> {a.event_log}' + (f' and data topic {a.data_topic!r}' if a.publish_data else ''), flush=True)
         if self.warm:
             print('[worker] warm job (chert_warm): no caller; staying joined, nothing is said until a participant publishes video' + (' or audio' if self.voice_mode else ''), flush=True)
+        if self.voice_mode and getattr(a, 'text', False) and self.room.name.startswith('web-'):   # web app: a caller may only type (mic and camera off)
+            def web_caller(p):
+                if self.bound is None and not self.closed and p.kind != AGENT_KIND: self.bind(p, 'web caller (typed chat; mic/camera optional)')
+            self.room.on('participant_connected', web_caller)
+            for p in list(self.room.remote_participants.values()): web_caller(p)
         if self.voice_mode:
             self.consumer_tasks = [asyncio.create_task(self._status_loop(), name='status-loop')]
         else:
@@ -335,6 +351,7 @@ class CoachJob:
         self.closed = True; self.stop.set(); self.done.set(); t0 = time.monotonic()
         if self.t_end is None: self.t_end = t0
         if self.leave_task is not None: self.leave_task.cancel()
+        if getattr(self, 'avatar_task', None) is not None: self.avatar_task.cancel()
         if self.open_task is not None and not self.open_task.done(): self.open_task.cancel()
         for t in getattr(self, 'consumer_tasks', []): t.cancel()
         if self.video_task is not None and not self.video_task.done():                 # closes the VideoStream (read_video's finally)
@@ -578,7 +595,7 @@ class CoachJob:
                 if a.plan: plan_line = f'\n\nFor your own reference only, never to be read aloud: the session plan, in order, is {a.plan}.'
                 elif getattr(a, 'plan_text', None): plan_line = '\n\nThe plan you are coaching, step by step (follow it in order, one step at a time; never read it aloud):\n' + a.plan_text
                 else: plan_line = ''
-                model = GeminiModel(persona + plan_line, model=a.voice_model, voice=a.voice_name, on_turn=self.emit_voice)
+                model = GeminiModel(persona + plan_line, model=a.voice_model, voice=a.voice_name, on_turn=self.emit_voice, text=getattr(a, 'text', False))
         if getattr(a, 'vision', False):
             if model is None: print('[vision] --vision needs --voice gemini with a model session: no video is forwarded', flush=True)
             else: self.vision = VideoTee(fps=a.vision_fps)

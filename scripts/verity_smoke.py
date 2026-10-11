@@ -27,7 +27,19 @@ async def main(a):
             if n % 7 == 0:
                 f = ev.frame; img = np.frombuffer(f.data, np.uint8).reshape(f.height, f.width, 4)
                 cv2.imwrite(f'data/tmp/smoke_face_{n // 7:03d}.png', cv2.cvtColor(img, cv2.COLOR_RGBA2BGR))
-    room.on('track_subscribed', lambda t, *_: t.kind == rtc.TrackKind.KIND_VIDEO and asyncio.create_task(grab(t)))
+    sent = {'t': None}
+    async def hear(track):                                   # time from each caller line to the first sound of the reply
+        talking = False
+        async for ev in rtc.AudioStream(track):
+            pcm = np.frombuffer(ev.frame.data, np.int16)
+            loud = pcm.size and np.sqrt(np.mean((pcm.astype(np.float32) / 32768) ** 2)) > 0.02
+            if loud and not talking and sent['t'] is not None:
+                print(f'[{time.monotonic() - t0:5.1f}s] (reply audio started {time.monotonic() - sent["t"]:.1f}s after the line)', flush=True); sent['t'] = None
+            talking = bool(loud) or (talking and pcm.size and np.abs(pcm).max() > 300)
+    def on_track(t, *_):
+        if t.kind == rtc.TrackKind.KIND_VIDEO: asyncio.create_task(grab(t))
+        elif t.kind == rtc.TrackKind.KIND_AUDIO: asyncio.create_task(hear(t))
+    room.on('track_subscribed', on_track)
     info = mint_call(a.character, a.room)
     await room.connect(info['url'], info['token'])
     cap = cv2.VideoCapture(a.video); ok, img = cap.read(); h, w = img.shape[:2]
@@ -44,7 +56,7 @@ async def main(a):
     for wait, line in LINES:
         await asyncio.sleep(wait)
         print(f'[{time.monotonic() - t0:5.1f}s] CALLER: {line}', flush=True)
-        await room.local_participant.send_text(line, topic='lk.chat')
+        await room.local_participant.send_text(line, topic='lk.chat'); sent['t'] = time.monotonic()
     await asyncio.sleep(10); task.cancel(); await room.disconnect()
 
 

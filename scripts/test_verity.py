@@ -1,7 +1,8 @@
 """Checks for Verity Agent's trust boundaries and wiring, no network or LiveKit room needed:
   python scripts/test_verity.py
 Covers: settings from the browser (verity.agent.parse_settings), room name -> character, token attributes (verity.server.mint_call),
-the memory store (path safety, prompt framing), persona switches (ASMR, strikes, memory) and the server's routes.
+the memory store (path safety, prompt framing), persona switches (ASMR, strikes, memory), the server's routes (one live character)
+and the Brodie handler's strike, apology and verdict matching.
 """
 import asyncio, base64, json, os, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -72,6 +73,22 @@ async def routes():
         check((await c.get('/api/token?character=dancity&settings=%7Bbad')).status == 200, '/api/token survives bad settings JSON')
         check((await (await c.get('/api/memory?uid=../../etc')).json()) == {'facts': [], 'calls': []}, '/api/memory refuses bad uid')
         check((await c.get('/')).status == 200, 'serves the app')
+        import verity.server as server
+        server.LIVE = 'verity'                           # run_verity.sh verity: the app can call Verity only
+        check((await c.get('/api/token?character=verity')).status == 200, '/api/token: the running character')
+        r = await c.get('/api/token?character=gravity')
+        check(r.status == 409 and 'run_verity.sh gravity' in (await r.json())['error'], '/api/token: another character says how to start it')
+        server.LIVE = ''
 asyncio.run(routes())
+
+print('[7] Brodie handler (starter/verity/handlers.py)')
+import importlib.util
+spec = importlib.util.spec_from_file_location('verity_handlers', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'starter', 'verity', 'handlers.py'))
+h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+check(h.RUDE.search("Ugh, you're so boring") and not h.RUDE.search('I love dancing'), 'rude lines strike, friendly ones do not')
+check(h.WRONG_CAPITAL.search('It is Madrid') and not h.WRONG_CAPITAL.search('It is Paris'), 'a wrong capital strikes, Paris does not')
+check(h.SORRY.search("I'm really sorry") and not h.SORRY.search('whatever'), 'an apology is heard')
+check(h.VERDICT.search("You are... Procrastinity!").group(1) == 'Procrastinity', 'verdict card from "You are... X-ity"')
+check(h.VERDICT.search("you're definitely Groove-ity") is not None and h.VERDICT.search('That is a big city') is None, 'verdict needs "you are"')
 
 print(f'\n{passed}/{passed} checks passed')

@@ -215,6 +215,20 @@ class Avatar:
             await asyncio.sleep(1 / FPS)
 
 
+def tap(avatar, sink):
+    """Make an existing audio sink (Brodie's MixerAudioOutput) feed the avatar's mouth, the way LevelTap does for our own sink."""
+    state = {'t_end': 0.0}
+    orig_capture, orig_clear = sink.capture_frame, sink.clear_buffer
+    async def capture_frame(frame):
+        pcm = np.frombuffer(frame.data, np.int16).astype(np.float32) / 32768
+        t = max(time.monotonic(), state['t_end']); state['t_end'] = t + frame.duration
+        avatar.levels.append((t, float(np.sqrt(np.mean(pcm * pcm))) if pcm.size else 0.0))
+        await orig_capture(frame)
+    def clear_buffer():
+        avatar.levels.clear(); state['t_end'] = 0.0; orig_clear()
+    sink.capture_frame, sink.clear_buffer = capture_frame, clear_buffer
+
+
 class LevelTap(voice.io.AudioOutput):
     """Pass-through audio output that feeds the avatar's mouth with the RMS of every frame the agent speaks. The model's audio arrives
     in bursts faster than real time, so each level is queued at the time its frame will actually play (the sink plays back to back)."""
