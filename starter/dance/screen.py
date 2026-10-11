@@ -135,8 +135,8 @@ class Screen:
                 b = beat - LEAD_BEATS
                 if b < 8 * (play['k1'] - play['k0']):
                     _text(img, str(b % 8 + 1), (W - 80, 90), 2.6, VOLT, 5)
-            label = 'FULL DANCE' if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
-            _text(img, label, (14, 40), 0.9, WHITE, 2)
+            label = ('WATCH THE WHOLE DANCE' if play.get('preview') else 'FULL DANCE') if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
+            _text(img, label, (14, 40), 0.75 if play.get('preview') else 0.9, WHITE, 2)
             return self._finish(img, st, cam)
         # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
         img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
@@ -158,9 +158,11 @@ class Screen:
         if last is not None: _text(img, f'Last try: {last}%', (0, 170), 1.0, WHITE, 2, center=True)
         steps = ref.step(k) if state != 'full' else None
         if steps:
-            first = steps.split('. ')[0].rstrip('.') + '.'              # the card shows the first move only; the voice explains the rest
-            for i, line in enumerate(textwrap.wrap(first, 26)[:3]):
-                _text(img, line, (0, 260 + 36 * i), 0.75, WHITE, 2, center=True)
+            y = 250
+            for bullet in [b.strip() for b in steps.split('|') if b.strip()][:3]:   # 2-3 short bullets, not a paragraph
+                for j, line in enumerate(textwrap.wrap(bullet, 24)[:2]):
+                    _text(img, ('- ' if j == 0 else '  ') + line, (28, y), 0.72, WHITE, 2); y += 32
+                y += 8
         return self._finish(img, st, cam)
 
     def _finish(self, img, st, cam):

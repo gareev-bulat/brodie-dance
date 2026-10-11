@@ -137,8 +137,9 @@ def build_clip(k0, k1, count_dance):
     return pcm, 4 * beat
 
 
-def play_parts(k0, k1, count_dance, then):
-    """Play parts k0 .. k1-1 (one clip), then call then(windows): windows[k] = (t0, t1) wall times of part k as heard."""
+def play_parts(k0, k1, count_dance, then, preview=False):
+    """Play parts k0 .. k1-1 (one clip), then call then(windows): windows[k] = (t0, t1) wall times of part k as heard.
+    preview: the caller only watches (the screen says so; nothing is judged by the caller of then)."""
     player = _player()
     if player is None:
         print('[dance] no cue player (events-only mode): cannot play the clip', flush=True); return
@@ -146,7 +147,7 @@ def play_parts(k0, k1, count_dance, then):
     key = f'[dance {k0}-{k1} {"counts" if count_dance else "quiet"}]'
     player.bank.cache[key] = pcm                                    # the bank serves cached clips by key: say() plays it
     rec = S['say'](key, 'announce')
-    S['play'] = dict(rec=rec, k0=k0, k1=k1, dance_off=dance_off, then=then, dur=len(pcm) / RATE, t_said=time.time())
+    S['play'] = dict(rec=rec, k0=k0, k1=k1, dance_off=dance_off, then=then, dur=len(pcm) / RATE, t_said=time.time(), preview=preview)
     print(f'[dance] playing parts {k0 + 1}..{k1} ({len(pcm) / RATE:.1f} s, music {"on" if REF.audio is not None else "off"}): '
           f'{rec.get("status") if isinstance(rec, dict) else rec}', flush=True)
     _loop().call_later(0.2, _watch_play)
@@ -215,7 +216,23 @@ def judge_async(items, then):
 # ---- the lesson ----
 def _describe(k):
     s = REF.step(k)
-    return f' The moves for part {k + 1}: "{s}". Explain them simply in one sentence.' if s else ''
+    return f' The moves for part {k + 1}: "{s.replace(" | ", ", ")}". Explain them simply in one sentence.' if s else ''
+
+
+PREVIEW = os.environ.get('DANCE_PREVIEW', '1') != '0'      # play the whole dance once (video + song) before teaching part 1
+
+
+def start_preview():
+    """Show the entire dance once, then teach part 1."""
+    if not PREVIEW or isinstance(REF, _Practice):
+        return teach_part()
+    S['state'] = 'preview'
+    print('[dance] preview: the whole dance', flush=True)
+    def done(_wins):
+        S['state'] = 'waiting'
+        _ask(f'They just watched the whole {REF.name} dance. In ONE short sentence say now we learn it part by part, starting with part 1.' + _describe(0))
+        when_quiet(teach_part, min_wait=REST_S)
+    play_parts(0, REF.n_chunks, False, done, preview=True)
 
 
 def teach_part():
@@ -296,5 +313,5 @@ def on_event(event, say_now, ask_voice):
             S['state'] = 'intro'
             say_now('Great, I can see you', 'visibility')
             _ask(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
-                 f'in {REF.n_chunks} parts of eight counts, and that the count-in starts right after you speak.' + _describe(0))
-            when_quiet(teach_part, min_wait=max(4.0, REST_S))
+                 f'in {REF.n_chunks} parts of eight counts, and that first they just watch the whole dance once.')
+            when_quiet(start_preview, min_wait=max(4.0, REST_S))

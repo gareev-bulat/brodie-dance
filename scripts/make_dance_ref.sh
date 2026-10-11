@@ -28,10 +28,21 @@ p = f"data/dance/choreo/{stem}.json"
 if os.path.exists(p):
     moves = [m for m in json.load(open(p))["moves"] if m["id"] != "ready"]
     k = 0
+    import re
+    def short(name):   # one short phrase per move: the first clause, at most 30 characters, for the on-screen bullets
+        s = name.split(":")[-1].strip()
+        s = re.split(r",|;| then | until | with | and | while | \(", s)[0].strip()
+        if len(s) > 24: s = s[:24].rsplit(" ", 1)[0]
+        return s[0].upper() + s[1:]
     while fb + k * chunk + 0.5 * chunk <= moves[-1]["t1"]:
         t0, t1 = fb + k * chunk, fb + (k + 1) * chunk
-        names = [m["name"].split(":")[-1].strip() for m in moves if min(m["t1"], t1) - max(m["t0"], t0) >= 0.4 * (m["t1"] - m["t0"])]
-        lines.append(". ".join(n[0].upper() + n[1:] for n in names) + "."); k += 1
+        inside = sorted((((min(m["t1"], t1) - max(m["t0"], t0)) / (m["t1"] - m["t0"]), m) for m in moves), key=lambda x: x[0])
+        picked = sorted((m for frac, m in inside if frac >= 0.4), key=lambda m: m["t0"])
+        bullets = []
+        for m in picked:                                                              # in time order, no repeats, at most 3
+            b = short(m["name"])
+            if b not in bullets: bullets.append(b)
+        lines.append(" | ".join(bullets[:3])); k += 1
     open(f"data/dances/{name}_steps.txt", "w").write("\n".join(lines) + "\n")
 print(f"kps {kps.shape} at {float(z['fps'])} fps; {len(lines)} chunks of steps; slowed kp-fps {float(z['fps']) * speed:g}, bpm {bpm * speed:g}, first beat {fb / speed:.3f}")
 PY
