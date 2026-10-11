@@ -44,7 +44,10 @@ if ($missing) {
     exit 1
 }
 
-# 4. Two windows (they inherit the keys loaded above), then the browser
+# 4. Two windows (they inherit the keys loaded above), then the browser.
+# A web app left over from an earlier run would keep port 8765 and serve the old page, so stop it first.
+Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent dev"
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
 Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
