@@ -1,0 +1,62 @@
+{
+  "video": "data/dance/raw/lina_summee_435de6.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 290,
+  "frames_probed": 290,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 1,
+  "member_ids": [
+    1
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    1
+  ],
+  "frames_with_dancer": 290,
+  "coverage": 1.0,
+  "first_frame": 0,
+  "last_frame": 289,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {},
+  "mean_keypoint_conf": {
+    "nose": 0.99,
+    "left_eye": 0.933,
+    "right_eye": 0.961,
+    "left_ear": 0.644,
+    "right_ear": 0.752,
+    "left_shoulder": 0.992,
+    "right_shoulder": 0.995,
+    "left_elbow": 0.966,
+    "right_elbow": 0.974,
+    "left_wrist": 0.959,
+    "right_wrist": 0.965,
+    "left_hip": 0.998,
+    "right_hip": 0.998,
+    "left_knee": 0.999,
+    "right_knee": 0.999,
+    "left_ankle": 0.987,
+    "right_ankle": 0.987
+  },
+  "weak_joints_frac_below_0.5": {},
+  "video_frames_written": 290,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/lina_summee_435de6.npz",
+    "csv": "data/dance/pose/lina_summee_435de6.csv",
+    "video": "data/dance/pose/lina_summee_435de6.pose.mp4"
+  }
+}

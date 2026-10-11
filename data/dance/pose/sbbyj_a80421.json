@@ -1,0 +1,65 @@
+{
+  "video": "data/dance/raw/sbbyj_a80421.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 571,
+  "frames_probed": 571,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 1,
+  "member_ids": [
+    1
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    1
+  ],
+  "frames_with_dancer": 451,
+  "coverage": 0.7898,
+  "first_frame": 0,
+  "last_frame": 450,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {},
+  "mean_keypoint_conf": {
+    "nose": 0.887,
+    "left_eye": 0.639,
+    "right_eye": 0.674,
+    "left_ear": 0.412,
+    "right_ear": 0.466,
+    "left_shoulder": 0.985,
+    "right_shoulder": 0.987,
+    "left_elbow": 0.975,
+    "right_elbow": 0.979,
+    "left_wrist": 0.956,
+    "right_wrist": 0.953,
+    "left_hip": 0.998,
+    "right_hip": 0.999,
+    "left_knee": 0.992,
+    "right_knee": 0.993,
+    "left_ankle": 0.886,
+    "right_ankle": 0.891
+  },
+  "weak_joints_frac_below_0.5": {
+    "left_ear": 0.745,
+    "right_ear": 0.574
+  },
+  "video_frames_written": 571,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/sbbyj_a80421.npz",
+    "csv": "data/dance/pose/sbbyj_a80421.csv",
+    "video": "data/dance/pose/sbbyj_a80421.pose.mp4"
+  }
+}
