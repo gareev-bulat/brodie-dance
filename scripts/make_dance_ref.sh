@@ -32,7 +32,10 @@ if os.path.exists(p):
     def short(name):   # one short phrase per move: the first clause, at most 30 characters, for the on-screen bullets
         s = name.split(":")[-1].strip()
         s = re.split(r",|;| then | until | with | and | while | \(", s)[0].strip()
-        if len(s) > 24: s = s[:24].rsplit(" ", 1)[0]
+        if len(s) > 30: s = s[:30].rsplit(" ", 1)[0]
+        w = s.split()
+        while len(w) > 2 and w[-1].lower() in ("of", "the", "to", "in", "at", "a", "an", "on", "and", "or", "by", "for"): w.pop()
+        s = " ".join(w)
         return s[0].upper() + s[1:]
     while fb + k * chunk + 0.5 * chunk <= moves[-1]["t1"]:
         t0, t1 = fb + k * chunk, fb + (k + 1) * chunk
