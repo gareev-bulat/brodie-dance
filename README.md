@@ -1,6 +1,6 @@
 # Brodie starter
 
-> **Verity Agent** (our hackathon build on this starter) runs on this worker: `scripts/run_verity.sh verity` starts `facetime.worker --voice gemini` with a Verity persona, handlers and face. Setup, the FaceTime path, adding a character and the 60-second test script: [`verity/README.md`](verity/README.md).
+> **Verity Agent** (our IvyHacks build on this starter): smiley "-ity" meme characters you FaceTime, each one Brodie's own worker (`facetime.worker --voice gemini`) with a persona, handlers and a face track. **Dancity** teaches a real TikTok dance 8 counts at a time, judges your moves with Brodie's pose model plus a trained dance judge and gets angrier with every miss up to the red Cruelty form; **Verity** sees you on camera, roasts your outfit, gives your "-ity" verdict and turns into Cruelty after three strikes until you apologise. Setup, the FaceTime path and the test scripts: [`verity/README.md`](verity/README.md) (`scripts/run_verity.sh dancity`, or `run.ps1` on Windows).
 
 A real-time video coach in one Python process. Your phone joins a LiveKit room, the coach watches through the camera, counts reps, corrects form out loud, and talks between sets.
 
