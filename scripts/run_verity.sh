@@ -19,5 +19,7 @@ if [ "$CHAR" = dancity ]; then
   export DANCE_VIDEO="${DANCE_VIDEO:-0}"   # the call video is Dancity's face (its anger stages), not the creator's clip
   python -m facetime.worker "${COMMON[@]}" --dance --leave-grace-s -1 "$MODE"
 else
-  python -m facetime.worker "${COMMON[@]}" --perception off --vision --handlers starter/verity/handlers.py "$MODE"
+  # a conversation, not a workout: hear the caller over the voice (--barge-in) and see them sharp (--video-quality high; the low
+  # simulcast layer is plenty for Brodie's pose model, not for "nice haircut")
+  python -m facetime.worker "${COMMON[@]}" --perception off --vision --video-quality high --barge-in --handlers starter/verity/handlers.py "$MODE"
 fi

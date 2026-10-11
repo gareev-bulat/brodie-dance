@@ -103,6 +103,8 @@ class Floor:
         self.sink = None; self.t_ask = None; self.n_asked = 0; self.n_dropped_asks = 0; self.n_ignored = 0
         self.player = None; self.input_on = False; self.quiet_since = None; self.n_gated = 0   # echo guard: ears off while any Brodie audio plays (2026-10-10)
         self.guard_s = 0.3
+        self.echo_guard = True    # False (the worker's --barge-in): the caller's audio keeps flowing while the voice talks; the phone's
+                                  # own echo cancellation (FaceTime, browsers) keeps the model from hearing itself
 
     def on_event(self, ev):
         """Returns 'open' / 'close' when the floor changed on this event, else None (always None with always_open)."""
@@ -138,7 +140,7 @@ class Floor:
         if not self.open or self.player is None: return
         if self._audio_busy():
             self.quiet_since = None
-            if self.input_on: self.input_on = False; self.n_gated += 1; self.model.set_input_enabled(False)
+            if self.input_on and self.echo_guard: self.input_on = False; self.n_gated += 1; self.model.set_input_enabled(False)
             return
         if self.quiet_since is None: self.quiet_since = self.now()
         if not self.input_on and self.now() - self.quiet_since >= self.guard_s:
@@ -151,7 +153,7 @@ class Floor:
         self.open = want
         if want:
             self.n_open += 1; self.opened_by = why if why != 'session' else self.state
-            if self.player is None or not self._audio_busy(): self.input_on = True; self.model.set_input_enabled(True)
+            if self.player is None or not self._audio_busy() or not self.echo_guard: self.input_on = True; self.model.set_input_enabled(True)
             else: self.input_on = False; self.quiet_since = None                   # ears open once Brodie's audio is done (gate_input)
             self._fire_queue(); return 'open'
         self.n_close += 1
