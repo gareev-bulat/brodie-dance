@@ -25,6 +25,7 @@ MIN_DIFF_DEG = 8.0                                                       # targe
 ERR_FULL_DEG = 40.0                                                      # weighted mean angle error that scores 0
 PAUSE_S = 1.2                                                            # praise, then the next pose
 PRAISE = ['Nice work', 'Great rhythm', 'Looking strong', "That's it", 'Keep it up']
+PRAISE_EVERY_S = 4.0                                                     # at most one bank praise line per 4 s (the test clip matched 4 poses in 6 s)
 SEG_W = np.array([1.0, 1.0, 1.0, 1.0, 0.8, 0.6, 0.8, 0.6, 1.2], np.float32)   # SEG_NAMES order: arms, legs, torso
 LEG_SEGS = [SEG_NAMES.index(n) for n in ('left thigh', 'left shin', 'right thigh', 'right shin')]
 LIMBS = [(5, 7), (7, 9), (6, 8), (8, 10), (11, 13), (13, 15), (12, 14), (14, 16), (5, 6), (11, 12), (5, 11), (6, 12)]
@@ -190,8 +191,18 @@ def _matched():
     print(f'[pose] target {i + 1}/{len(G["targets"])} (part {tgt.part + 1}) matched: score {G["score"]:.2f}, '
           f'{"mirrored" if G["mirror"] else "as-is"}, {now - G["t_target"]:.1f} s, tips {G["tips"]}', flush=True)
     _h('anger')(0)
-    _say(random.choice(PRAISE))
+    if _voice_quiet() and now - G.get('t_praise', 0) >= PRAISE_EVERY_S:   # a bank line never over Brodie's own voice, and not on every quick match
+        _say(random.choice(PRAISE)); G['t_praise'] = now
     G['phase'] = 'pause'; _later(PAUSE_S, _next)
+
+
+def _voice_quiet():
+    """True when no voice audio (the character's reply) is buffered in the cue player's mixer."""
+    try:
+        player = _h('S')['say'].__self__.job.player; mix = getattr(player, 'mix', None)
+        return mix is None or not mix.active
+    except Exception:
+        return True
 
 
 def _next():

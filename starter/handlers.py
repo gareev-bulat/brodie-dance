@@ -525,7 +525,7 @@ def on_event(event, say_now, ask_voice):
         else:
             S['upper_miss'] += 1; S['upper_run'] = 0
             if S['upper_miss'] >= UPPER_OFF_FRAMES and S['vis_upper']: S['vis_upper'] = False; _set_visible()
-        if S['state'] == 'idle': start_call()                       # the caller's video arrived: watch first, then set up
+        if S['state'] == 'idle' and not POSES_MODE: start_call()    # counts: the caller's video arrived: watch first, then set up (poses: wait to see them)
     elif t == 'visibility':
         S['vis_full'] = event.get('state') == 'full'; _set_visible()
 

@@ -1063,13 +1063,14 @@ function meter(id, n) { document.querySelectorAll(`#${id} i`).forEach((p, i) => 
 // recording it); this keeps the captions clean too. Same rules as facetime/voice.py clean_transcript().
 const clean = (t) => {
   let s = (t || '').replace(/<[^>]*>?/g, '');
+  if (s.includes('---')) { const parts = s.split('---').filter((x) => x.trim()); s = parts.length ? parts[parts.length - 1] : ''; }   // 'plan --- the line'
   const glue = [...s.matchAll(/[.!?]["”)\]]?(?=[A-Z])/g)];
   if (glue.length) { const g = glue[glue.length - 1]; s = s.slice(g.index + g[0].length); }
   for (const m of [...s.matchAll(/[a-z](?=[A-Z])/g)].reverse()) {   // "...pulling itThat run...": a draft of the line, then the line
     const tail = s.slice(m.index + 1); if (tail.length >= 20 && s.slice(0, m.index + 1).includes(tail.slice(0, 20))) { s = tail; break; }
   }
-  s = s.replace(/^(?:the )?(?:final |spoken )?(?:output|response|line|reply)(?: should be)?:\s*/i, '');
-  s = s.split('\n').filter((l) => l.trim() && !/^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)/.test(l) && !l.includes('**')).join(' ');
+  s = s.replace(/^(?:the )?(?:final |spoken )?(?:output|response|line|reply|plan|notes?|draft)(?: should be)?:\s*/i, '');
+  s = s.split('\n').filter((l) => l.trim() && !/^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)/.test(l) && !l.includes('**') && !/^\s*-{2,}\s*$/.test(l)).map((l) => l.replace(/^\s*-{2,}\s*/, '')).join(' ');
   s = s.replace(/\*/g, '').replace(/\s+/g, ' ').trim();
   if (/^(?:follow (?:the |specific |these )?(?:talk |style |tone |persona )*(?:guidelines|rules|instructions)|my persona|persona:|goal:|current goal|analysis of|required response|drafting|the (?:user|caller) (?:successfully|scored|has|is|wants|asked)|i need to|i should|i will|okay,? (?:so )?the (?:user|caller)|\(private)/i.test(s)) return '';
   if (s.includes('"') && s.split(' ').length < 4) return '';   // 'Again".': the tail of an instruction echoed, not a line
