@@ -1020,7 +1020,20 @@ function setChar(c) {
 }
 function meter(id, n) { document.querySelectorAll(`#${id} i`).forEach((p, i) => p.classList.toggle('on', i < n)); }
 
-const clean = (t) => t.replace(/<[^>]*>?/g, '').replace(/\*/g, '').replace(/\s+/g, ' ');   // stage directions the model writes, e.g. <whispering>, *sighs*
+// What the model actually said. Besides stage directions (<whispering>, *sighs*), the transcript channel through the hackathon's
+// Gemini relay sometimes carries the model's private planning glued in front of the spoken line with no space ("Let's go
+// again.Your left arm..."), markdown notes, or "Follow specific talk style guidelines: ...". The audio is clean (checked by
+// recording it); this keeps the captions clean too. Same rules as facetime/voice.py clean_transcript().
+const clean = (t) => {
+  let s = (t || '').replace(/<[^>]*>?/g, '');
+  const glue = [...s.matchAll(/[.!?]["”)\]]?(?=[A-Z])/g)];
+  if (glue.length) { const g = glue[glue.length - 1]; s = s.slice(g.index + g[0].length); }
+  s = s.split('\n').filter((l) => l.trim() && !/^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)/.test(l) && !l.includes('**')).join(' ');
+  s = s.replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+  if (/^(?:follow (?:the |specific |these )?(?:talk |style |tone |persona )*(?:guidelines|rules|instructions)|my persona|persona:|goal:|current goal|analysis of|required response|drafting|the (?:user|caller) (?:successfully|scored|has|is|wants|asked)|i need to|i should|i will|okay,? (?:so )?the (?:user|caller)|\(private)/i.test(s)) return '';
+  if (s.includes('"') && s.split(' ').length < 4) return '';   // 'Again".': the tail of an instruction echoed, not a line
+  return s;
+};
 let capT;
 function caption(text) {
   const el = $('#captions'); el.textContent = text.trim().split(/\s+/).slice(-12).join(' ');

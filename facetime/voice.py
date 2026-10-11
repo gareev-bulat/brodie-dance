@@ -37,7 +37,7 @@ set_input_enabled / generate / interrupt / add_context (the tests use a fake). E
 GEMINI_LIVE_MODEL (default DEFAULT_MODEL), GEMINI_VOICE (default Puck), GEMINI_LANGUAGE (default en-US: the model answered in
 German once on the 10-09 call; the persona says English too).
 """
-import asyncio, importlib.util, logging, os, time
+import asyncio, importlib.util, logging, os, re, time
 import numpy as np
 from facetime import ROOT, SAMPLE_RATE
 
@@ -64,6 +64,30 @@ def read_text(path, default=''):
         with open(path) as f: return f.read().strip() or default
     except OSError:
         return default
+
+
+_GLUE = re.compile(r'[.!?]["\u201d)\]]?(?=[A-Z])')          # a sentence end glued to a capital with no space: planning | spoken line
+_MD_LINE = re.compile(r'^\s*(?:[*#]+\s|-\s|\d+\.\s|\*\*)')     # markdown bullets, headers, numbered lists, bold
+_NOTE = re.compile(r'^(?:follow (?:the |specific |these )?(?:talk |style |tone |persona )*(?:guidelines|rules|instructions)|my persona|persona:|goal:|current goal|analysis of|'
+                   r'required response|drafting|the (?:user|caller) (?:successfully|scored|has|is|wants|asked)|i need to|i should|i will|'
+                   r'okay,? (?:so )?the (?:user|caller)|\(private)', re.I)
+
+
+def clean_transcript(text):
+    """What the model actually said, out of the transcript channel. Through the hackathon relay that channel also carried the model's
+    private planning (markdown bullets, "My persona: ...", a restated instruction), glued in front of the spoken line with no space
+    ("Let's go again.Your left arm was..."); a speech transcription always has a space between sentences. So: keep the tail after
+    the last glue point, drop markdown and note-like lines, collapse whitespace. '' when nothing spoken is left. The audio itself
+    was clean in every recorded call (verity/README.md, relay quirk); this only keeps captions and the event log honest."""
+    t = (text or '').strip()
+    if not t: return ''
+    cuts = list(_GLUE.finditer(t))
+    if cuts: t = t[cuts[-1].end():]
+    lines = [l for l in t.split('\n') if l.strip() and not _MD_LINE.match(l) and '**' not in l]
+    t = ' '.join(' '.join(lines).split())
+    if not t or _NOTE.match(t): return ''
+    if '"' in t and len(t.split()) < 4: return ''                   # ' Again".': the tail of an instruction echoed, not a line
+    return t
 
 
 def load_handlers(path=HANDLERS_PATH):
@@ -523,7 +547,9 @@ class GeminiModel:
         item = getattr(ev, 'item', None)
         if getattr(item, 'role', None) == 'assistant': self.last_coach_t = time.monotonic()
         if getattr(item, 'role', None) == 'assistant' and self.on_turn:
-            text = (getattr(item, 'text_content', None) or '').strip()
+            raw = (getattr(item, 'text_content', None) or '').strip(); text = clean_transcript(raw)
+            if raw and not text: print(f'[voice] transcript dropped (planning notes, nothing spoken): {raw[:90]!r}', flush=True)
+            elif text != raw: print(f'[voice] transcript trimmed: {len(raw) - len(text)} chars of notes before the line', flush=True)
             if text: self.on_turn('coach', text)
         if getattr(item, 'role', None) == 'user' and self.on_turn and self.text:          # typed chat (--text): a caller turn too
             text = (getattr(item, 'text_content', None) or '').strip()

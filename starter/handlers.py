@@ -28,7 +28,7 @@ from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
 from verity.variants import ANGER, CRUELTY_INTRO  # noqa: E402
 
-PASS = float(os.environ.get('DANCE_PASS', '0.7'))           # score needed to move on
+PASS = float(os.environ.get('DANCE_PASS', '0.5'))           # score needed to move on (the judge gives the creator's own clip 96-99%, jumping jacks 15-33%)
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
 COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '1') != '0'   # count "One" .. "Eight" over the music while teaching
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
@@ -176,7 +176,21 @@ def compose(face, screen, st, now):
 
 
 def _ask(prompt):
+    """Ask the character (through Brodie's ask_voice); returns the prompt so when_quiet(..., retry=prompt) can ask it again if lost."""
     if S['ask']: S['ask'](prompt)
+    return prompt
+
+
+# The comedy: how each situation is played. The persona has the character; these say what kind of bit the moment is. One bit per
+# line, the joke lands at the end, specific beats generic. All PG (the persona's own rules still apply).
+def _flavour(pct, passed):
+    """A one-line stage direction for the reaction to a score."""
+    if passed and pct >= 90: return 'They nailed it: react like a stunned proud coach who did not expect this, one over-the-top compliment.'
+    if passed: return 'They passed: one hype line like a dance teacher who secretly had money on them.'
+    if pct < 15: return 'They barely moved: tease that the video must have frozen, or that this was a statue impression, then the tip.'
+    if pct < 35: return 'They did a confident different dance: say what it looked like instead (one funny guess), then the tip.'
+    if pct >= PASS * 100 - 10: return 'So close: play the dramatic almost ("I felt that in my headphones"), then the tip.'
+    return 'Mid: a backhanded compliment first ("the energy was there, the arms were somewhere else"), then the tip.'
 
 
 def _anger(n):
@@ -250,18 +264,25 @@ def _watch_play():
     _loop().call_later(0.1, _watch_play)
 
 
-def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0):
+RETRY_AFTER_S = 3.5                                         # a reply that has not started by then was lost (relay: "no active generation")
+
+
+def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0, retry=None):
     """Run fn once Gemini has finished talking: at least min_wait (its reply takes ~1 s to start), then quiet_s with no voice
-    audio buffered, at most max_wait (then the leftover voice audio is dropped so it does not play over the dance)."""
-    player = _player(); t0 = time.monotonic(); last = [time.monotonic()]
+    audio buffered, at most max_wait (then the leftover voice audio is dropped so it does not play over the dance).
+    retry: the prompt that was just asked; if no voice audio at all has played RETRY_AFTER_S after the ask, the reply was lost
+    (seen through the relay: "received server content but no active generation") and the prompt is asked once more."""
+    player = _player(); t0 = [time.monotonic()]; last = [time.monotonic()]; heard = [False]; retried = [False]
     def tick():
         mix = getattr(player, 'mix', None) if player is not None else None
         now = time.monotonic()
-        if mix is not None and mix.active: last[0] = now
-        if now - t0 >= max_wait:
+        if mix is not None and mix.active: last[0] = now; heard[0] = True
+        if retry and not heard[0] and not retried[0] and now - t0[0] >= RETRY_AFTER_S:
+            retried[0] = True; t0[0] = now; print('[dance] no reply heard: asking again', flush=True); _ask(retry)
+        if now - t0[0] >= max_wait:
             if mix is not None: mix.clear()
             fn(); return
-        if now - t0 >= min_wait and now - last[0] >= quiet_s:
+        if now - t0[0] >= min_wait and now - last[0] >= quiet_s:
             fn(); return
         _loop().call_later(0.1, tick)
     _loop().call_later(0.1, tick)
@@ -326,18 +347,23 @@ def on_result(res):
         if k + 1 >= REF.n_chunks:
             return start_full_run()
         S['chunk'] += 1; S['tries'] = 0; S['last_pct'] = None
-        what = f'passed part {k + 1} with {pct}%' if score >= PASS else f'got {pct}% on part {k + 1}, close enough to move on'
-        _ask(f'The caller {what} of the {REF.name} dance. {mood} In ONE short sentence react, then introduce part {k + 2}.' + _describe(k + 1))
+        if score >= PASS:
+            what = f'passed part {k + 1} with {pct}%. {_flavour(pct, True)}'
+        else:
+            what = (f'got {pct}% on part {k + 1} after {MAX_TRIES} tries, so you are moving on anyway: one line of theatrical defeat '
+                    f'("we will pretend that was on purpose"), no tip')
+        p = _ask(f'The caller {what} {mood} In ONE short sentence, then introduce part {k + 2}.' + _describe(k + 1))
     else:
         part = res.get('worst_part'); move = res.get('move')
         tip = f'The body part furthest from the creator was the {part}.' if part else 'Their timing was off.'
         steps = f' The moves are: "{REF.step(k)}".' if REF.step(k) else ''
-        _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
-             + (f' The move was "{move}".' if move else '') + steps
-             + (f' {mood} In ONE or two short sentences: one concrete tip about that body part, said that way, then say we will run it again.'
-                if mood else ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.'))
+        again = f' Try {S["tries"] + 1} of {MAX_TRIES} is next.'
+        p = _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
+                 + (f' The move was "{move}".' if move else '') + steps + ' ' + _flavour(pct, False) + again
+                 + (f' {mood} Two short sentences at most: the bit, then one concrete tip about that body part said in that mood, then "again".'
+                    if mood else ' Two short sentences at most: the bit, then one concrete tip about that body part, then "again".'))
     S['state'] = 'waiting'
-    when_quiet(teach_part)
+    when_quiet(teach_part, retry=p)
 
 
 def start_full_run():
@@ -345,13 +371,13 @@ def start_full_run():
         return finish()
     S['state'] = 'full'
     mood = ANGER[S['anger']] if S['anger'] else ''
-    _ask(f'The caller has been through all {REF.n_chunks} parts of the {REF.name} dance. {mood} In ONE short sentence, '
-         + ('hype them up' if not mood else 'say it like that') + ': now the whole dance from the top'
-         + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
+    p = _ask(f'The caller has been through all {REF.n_chunks} parts of the {REF.name} dance. {mood} In ONE short sentence, like a game '
+             + ('show host announcing the final round' if not mood else 'furious game show host who still has to announce the final round')
+             + ': now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
     def go():
         print('[dance] full run', flush=True)
         play_parts(0, REF.n_chunks, False, lambda wins: judge_async(sorted(wins.items()), on_full_result))
-    when_quiet(go)
+    when_quiet(go, retry=p)
 
 
 def on_full_result(res):
@@ -371,8 +397,9 @@ def finish():
     good = bool(scores) and sum(scores) / len(scores) >= PASS * 100
     mood = _anger(0 if good else S['anger'])
     _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} {mood} In two short sentences, '
-         + ('celebrate, name their strongest part, and tell them they are ready to post it.' if good else
-            'be honest that it was not there yet, name their best part, and tell them to practise before they post it.'))
+         + ('celebrate like they just won a dance show, name their strongest part, and tell them to post it and tag you (you will know if they do not).' if good else
+            'be honest that it was not there yet, like a loving but disappointed coach, name their best part, and tell them to practise '
+            'before they post it, because you will be watching. Lovingly.'))
 
 
 # ---- the events ----
@@ -382,9 +409,10 @@ def _set_visible():
     if S['visible'] and not was and S['state'] == 'idle':
         S['state'] = 'intro'
         S['say']('Great, I can see you', 'visibility')
-        S['ask'](f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
-                 f'in {REF.n_chunks} parts of eight counts, and that you will count them in.' + _describe(0))
-        when_quiet(teach_part, min_wait=4.0)
+        p = _ask(f'The caller just stepped into frame, ready. In two short sentences: say hi with your intro line, then sell today\'s '
+                 f'lesson like a dance teacher who has had too much caffeine: the {REF.name} dance, {REF.n_chunks} parts of eight counts'
+                 + (', with the music' if REF.audio is not None else '') + ', and you count them in.' + _describe(0))
+        when_quiet(teach_part, min_wait=4.0, retry=p)
 
 
 def on_event(event, say_now, ask_voice):

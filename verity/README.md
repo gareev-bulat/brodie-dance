@@ -48,18 +48,32 @@ That is Brodie's worker with the character's persona, voice, face and handlers (
 
 ## How a call reaches the agent
 
+Three ways to call a character. All three reach the **same worker** (`scripts/run_verity.sh <character>`), so test on the first two and keep the FaceTime line for the real thing.
+
+| Path | What it is | FaceTime? |
+| --- | --- | --- |
+| **Web app** http://127.0.0.1:8765 | Our page: picks the running character, mints a token for a fresh room `web-<character>-<id>` that dispatches `AGENT_NAME`, mic + camera in the browser, transcript, verdict cards. | No (LiveKit in the browser). Not part of the submission form; judges see the repo and the post. |
+| **Phone page** (Brodie's `python -m facetime.mint_token --room <name> --url`) | The starter's own test page: the third printed line is an https link; open it in Safari on a Mac or on a phone, tap to enable audio, and the worker joins that room. The token now carries the `AGENT_NAME` dispatch (default from `.env.local`; `--agent-name ""` for a worker on automatic dispatch), so it works with our named worker. This is the "Safari link" a teammate used: a LiveKit room, **not FaceTime**, but the same audio/video path, a fresh room name per attempt. | No |
+| **FaceTime via Chert** | The organisers' shared FaceTime line, bridged into our LiveKit project by the Chert CLI during a booked 15-minute slot (3 teams per slot). | **Yes**, this is the real thing. |
+
+**FaceTime, step by step** (handbook + docs.trychert.com/facetime-cli):
+
+1. Once per laptop: `nvm use 22.23.2 && chert login` (browser sign-in; pick the shared hackathon Chert project), then `chert whoami`.
+2. Book a slot: https://getbrodie.com/ivyhacks/slots (a GitHub issue form; a bot confirms within a minute). Slots run every 15 minutes until 5:45 PM today.
+3. At your time, from the repo root (Chert reads the LiveKit keys from `.env.local` here):
+   ```
+   scripts/run_verity.sh dancity                     # terminal 1, start it first; wait for "registered worker"
+   chert doctor && chert dev --agent team-verity-agent   # terminal 2: must equal AGENT_NAME in .env.local
+   ```
+   Wait for Chert to say it is connected and the agent joined the waiting room. Nobody else on the team may run a worker on this LiveKit project at the same time (same or empty `AGENT_NAME`): LiveKit splits the calls.
+4. On an iPhone/Mac, place a **FaceTime Video** call to the shared address the organisers gave the team (it is not in the repo). Prop the phone up so your head, shoulders and hips are in frame; Dancity starts the lesson when it sees you.
+5. Release the line: hang up, wait for `Call ended`, Ctrl+C in the Chert terminal, wait for `Stopped`, tell the next team.
+
+Record the FaceTime call on the phone (screen recording) or film the laptop + phone: that is the demo video for the post.
+
 - **Web app:** `/api/token?character=verity` makes a fresh room `web-verity-<id>` and a token that dispatches `AGENT_NAME` into it.
 - **FaceTime (Chert):** `chert dev --agent "$AGENT_NAME"` dispatches the same worker into Chert's rooms. Brodie's worker publishes its voice and the face as soon as it joins and starts Gemini only when the caller's media arrives.
 - **Before your slot:** Chert rooms have exactly two seats. Nobody on the team should run another worker on this LiveKit project with an empty `AGENT_NAME` or the same name (the old `python -m verity.agent`, a plain Brodie coach): LiveKit splits the calls between them.
-
-For your test slot, put the organisers' dispatch name in `AGENT_NAME`, then:
-
-```
-scripts/run_verity.sh verity                     # terminal 1 (start it first)
-chert doctor && chert dev --agent "$AGENT_NAME"  # terminal 2 (Node 22.23.2, chert login done)
-```
-
-Place a FaceTime **Video** call to the line. When you're done: hang up, wait for `Call ended`, press Ctrl+C in Chert, wait for `Stopped`, then tell the next team.
 
 ## Agent features (all in the app)
 
