@@ -12,7 +12,7 @@ soon as the caller joins (camera optional, text chat works).
 The web caller's token carries attributes: verity.uid (memory key, verity/memory.py) and verity.settings (JSON: asmr "off" |
 "mommy", voice (a Gemini voice name or ""), strikes, memory). Settings changed mid-call (attributes) update the instructions live;
 a voice change applies from the next call. Mid-call the only character change is Verity -> Cruelty (three strike() calls) and back
-(forgive()). The app gets JSON events on data topic "verity" ({type: character|bestie|strike|transform|verdict|remember|settings|
+(forgive()). The app gets JSON events on data topic "verity" ({type: character|strike|transform|verdict|remember|settings|
 memory|dance}) and sends {type: "interrupt"} on topic "verity.control".
 """
 import asyncio, json, logging, os, typing
@@ -25,14 +25,13 @@ from livekit.plugins import google
 from livekit.plugins.google.realtime.api_proto import Voice
 from facetime.voice import VideoTee
 from verity import memory
-from verity.avatar import Avatar, LevelTap, sprites
+from verity.avatar import Avatar, LevelTap, real_frames, sprites
 from verity.dance import DanceDetector
 from verity.variants import DEFAULT, VARIANTS, instructions
 
 log = logging.getLogger('verity')
 CHARACTER = os.environ.get('VERITY_CHARACTER', DEFAULT).strip().lower()
 VOICES = typing.get_args(Voice)
-CLINGY = ['', 'a bit sweet', 'extra friendly', 'clingy', 'very clingy and possessive', 'maximum clingy, calls them "my bestie" every turn']
 STRIKES_TO_CRUELTY = 3
 DANCE_FPS = 10
 MAX_CALL_S = int(os.environ.get('VERITY_MAX_CALL_S', '900'))   # hard cap per call: the team has 240 Gemini Live minutes
@@ -54,7 +53,6 @@ class Call:
     key: str = DEFAULT
     room: rtc.Room | None = None
     avatar: Avatar | None = None
-    bestie: int = 0
     strikes: int = 0
     settings: dict = field(default_factory=lambda: parse_settings(''))
     uid: str = ''
@@ -97,7 +95,7 @@ def realtime(voice, text_only=False):
 
 def build_instructions(key, call, recap=''):
     s = call.settings
-    text = instructions(VARIANTS[key], call.bestie, asmr=s['asmr'] == 'mommy', strikes=s['strikes'], memory=call.mem if s['memory'] else '')
+    text = instructions(VARIANTS[key], asmr=s['asmr'] == 'mommy', strikes=s['strikes'], memory=call.mem if s['memory'] else '')
     return text + (f'\n- This call so far:\n{recap}' if recap else '')
 
 
@@ -126,19 +124,11 @@ class Character(Agent):
         call.emit('character', key=self.key, name=self.v['name'], color=self.v['color'], face=self.v['face'])
         if self.opener:
             self.session.generate_reply(instructions=self.opener); return
-        see = ('then ONE specific thing you can see on their camera, in one short sentence.' if call.video else
-               'then ask about their day. Their camera is off, so do not describe them or their room.')
-        self.session.generate_reply(instructions=f'(Private instruction, never say it aloud.) Greet the caller now: say exactly '
-                                                 f'"{self.v["intro"]}" {see}')
-
-    @function_tool
-    async def bestie_level_up(self, ctx: RunContext[Call]):
-        """Raise the bestie meter when the caller engages: laughs, plays along, dances, answers your questions."""
-        call = ctx.userdata
-        if call.bestie >= 5: return 'Bestie meter is already maxed at 5/5. Stay maximum clingy.'
-        call.bestie += 1
-        call.emit('bestie', level=call.bestie)
-        return f'Bestie meter is now {call.bestie}/5. Announce the level-up out loud in a few words, then be {CLINGY[call.bestie]}.'
+        see = ('You can mention one thing you see on their camera.' if call.video else
+               "Their camera is off, so don't describe them or their room.")
+        self.session.generate_reply(instructions=f'You just picked up the call. Say hi like a friend would, in your own words, and '
+                                                 f'work in your signature line "{self.v["intro"]}" naturally. {see} Keep it to one or '
+                                                 'two short sentences.')
 
     @function_tool
     async def verdict(self, ctx: RunContext[Call], name: str):
@@ -179,6 +169,7 @@ class Verity(Character):
         if not call.settings['strikes']: return 'Strikes are off. Let it go, sweetly.'
         call.strikes += 1
         call.emit('strike', count=call.strikes, of=STRIKES_TO_CRUELTY, reason=reason)
+        if call.avatar: call.avatar.flash()
         if call.strikes < STRIKES_TO_CRUELTY:
             return f'Strike {call.strikes}/{STRIKES_TO_CRUELTY}. Warn them sweetly, smile a little creepier. Do not explain the rules.'
         call.strikes = 0; call.cruelty = True
@@ -240,7 +231,7 @@ async def pump(track, tee, session, call):
 
 
 def prewarm(proc: JobProcess):
-    for key in VARIANTS: sprites(key)                    # 3D model frames off the event loop, before any call (no-op without renders)
+    for key in VARIANTS: sprites(key) or real_frames(key)   # face frames off the event loop, before any call
 
 
 async def entrypoint(ctx: JobContext):
@@ -312,7 +303,7 @@ async def entrypoint(ctx: JobContext):
     def on_close(_ev):
         try:
             if call.uid and call.settings['memory']:
-                memory.log_call(call.uid, character=VARIANTS[key]['name'], verdict=call.verdict, cruelty=call.cruelty, bestie=call.bestie)
+                memory.log_call(call.uid, character=VARIANTS[key]['name'], verdict=call.verdict, cruelty=call.cruelty)
         except Exception as e: log.warning('memory not saved: %s', e)
         finally: ctx.shutdown()
     session.on('close', on_close)

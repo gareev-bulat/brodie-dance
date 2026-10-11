@@ -30,20 +30,20 @@
 
   /* the music video's subtitle: glowing yellow, dark outline */
   .sub { font: 800 clamp(1.5rem, 3.6vw, 2.8rem)/1.15 var(--round); color: #ffe46b;
-         text-shadow: 0 2px 0 #5a3d00, 0 -1px 0 #5a3d00, 2px 0 0 #5a3d00, -2px 0 0 #5a3d00, 0 0 14px rgba(255, 210, 31, .85), 0 0 34px rgba(255, 170, 0, .55), 0 3px 0 #3a2600; }
+         -webkit-text-stroke: 5px #3a2600; paint-order: stroke fill; }
   /* the -ity chart's label: white, black outline */
   .tag { font: 800 1.05rem/1 var(--round); color: #fff; -webkit-text-stroke: 5px #000; paint-order: stroke fill; }
 
 
   .bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 22px;
          width: min(calc(100% - 20px), 980px); padding: 8px 20px 8px 10px; border-radius: 999px; color: #fff;
-         background: rgba(14, 12, 20, .82); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+         background: rgba(14, 12, 20, .82); }
   .bar a { text-decoration: none; font: 700 .95rem var(--round); }
   .bar .brand { display: flex; align-items: center; gap: 8px; font-size: 1.2rem; margin-right: auto; }
   .bar .brand img { width: 30px; }
   .call-btn { position: fixed; right: var(--gutter); bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 21; display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 10px;
               border-radius: 999px; background: var(--verity); color: var(--ink); text-decoration: none; font: 800 1.1rem var(--round);
-              box-shadow: 0 6px 0 var(--ink), 0 14px 30px rgba(0, 0, 0, .25); border: 3px solid var(--ink); transition: transform .15s; }
+               border: 3px solid var(--ink); transition: transform .15s; }
   .call-btn img { width: 40px; height: 40px; }
   .call-btn:hover { transform: translateY(-3px) rotate(-2deg); }
   @media (max-width: 720px) { .bar a:not(.brand) { display: none; } }
@@ -52,14 +52,13 @@
   /* the backdrop: every real Verity post we have, fixed while the panels slide over it */
   .bg { position: fixed; inset: -10vh -10vw; z-index: -1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; padding: 14px;
         transform: rotate(-5deg); background: var(--paper); }
-  .bg img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 10px rgba(60, 40, 0, .25); }
+  .bg img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; }
   .bg::after { content: ""; position: fixed; inset: 0; background: rgba(255, 249, 220, .38); }
-  main > section:not(.hero) { margin: 0 clamp(8px, 3vw, 40px) clamp(40px, 8vh, 90px); border-radius: clamp(22px, 3vw, 40px);
-        box-shadow: 0 -10px 40px rgba(40, 28, 0, .25), 0 30px 60px rgba(40, 28, 0, .25); background: var(--panel, var(--paper)); overflow: hidden; }
+  main > section:not(.hero) { margin: 0 clamp(8px, 3vw, 40px) clamp(40px, 8vh, 90px); border-radius: clamp(22px, 3vw, 40px); background: var(--panel, var(--paper)); overflow: hidden; }
   .dark, .ours { --panel: var(--night); } .faces, .multi { --panel: var(--paper-2); }
   .hero { min-height: 100svh; display: grid; place-items: center; text-align: center; color: #fff; padding-top: 90px; }
   .hero .inner { position: relative; display: grid; justify-items: center; gap: 18px; }
-  .hero .ball { width: min(62vw, 420px); filter: drop-shadow(0 0 40px rgba(255, 200, 0, .55)) drop-shadow(0 20px 30px rgba(0, 0, 0, .6)); }
+  .hero .ball { width: min(62vw, 420px); }
   .hero .sub { min-height: 2.4em; max-width: 24ch; padding: 10px 22px; border-radius: 18px; background: rgba(14, 12, 20, .82); }
   .hero .small { font: 700 .9rem var(--round); color: var(--ink); background: var(--verity); padding: 4px 14px; border-radius: 999px; border: 2px solid var(--ink); }
 
@@ -71,8 +70,8 @@
   .line { display: flex; gap: 12px; align-items: flex-end; opacity: 0; transform: translateY(18px); transition: opacity .5s, transform .5s; }
   .line.in { opacity: 1; transform: none; }
   .line.you { justify-content: flex-end; }
-  .line img { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; flex: none; background: #fff; box-shadow: 0 3px 0 var(--ink); }
-  .line p { padding: 12px 18px; border-radius: 22px 22px 22px 6px; background: #fff; border: 2px solid var(--ink); font: 700 1.15rem/1.3 var(--round); box-shadow: 0 4px 0 var(--ink); }
+  .line img { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; flex: none; background: #fff;  }
+  .line p { padding: 12px 18px; border-radius: 22px 22px 22px 6px; background: #fff; border: 2px solid var(--ink); font: 700 1.15rem/1.3 var(--round);  }
   .line.you p { border-radius: 22px 22px 6px 22px; background: var(--ink); color: var(--paper); }
   .line.big img { width: 180px; height: auto; border-radius: 14px; background: #000; }
   @media (max-width: 860px) { .ask { grid-template-columns: 1fr; } }
@@ -81,7 +80,7 @@
   .faces { background: var(--paper-2); overflow: hidden; }
   .faces .strip { display: flex; gap: 22px; margin: 40px calc(-1 * var(--gutter)) 0; padding: 10px var(--gutter) 30px; overflow-x: auto; scroll-snap-type: x mandatory; }
   .face { flex: none; width: 220px; scroll-snap-align: start; display: grid; justify-items: center; gap: 4px; }
-  .face img { width: 200px; height: 200px; object-fit: contain; filter: drop-shadow(0 12px 14px rgba(70, 50, 0, .25)); transition: transform .2s ease-out; }
+  .face img { width: 200px; height: 200px; object-fit: contain; transition: transform .2s ease-out; }
   .face:nth-child(odd) img { transform: rotate(-4deg); } .face:nth-child(even) img { transform: rotate(3deg); }
   .face:hover img { transform: scale(1.1) rotate(0); }
 
@@ -90,7 +89,7 @@
   .dark h2 { position: relative; }
   .dark .lede { position: relative; max-width: 46ch; margin-top: 18px; }
   .collage { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 26px; margin-top: 46px; }
-  .shot { margin: 0; background: #f6f3ea; padding: 10px 10px 40px; transform: rotate(var(--r, 0deg)); box-shadow: 0 20px 40px rgba(0, 0, 0, .6); transition: transform .3s; position: relative; }
+  .shot { margin: 0; background: #f6f3ea; padding: 10px 10px 40px; transform: rotate(var(--r, 0deg)); transition: transform .3s; position: relative; }
   .shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; filter: contrast(1.08) saturate(.9); }
   .shot figcaption { position: absolute; left: 12px; right: 12px; bottom: 9px; color: #1a1505; font: 700 .9rem/1.2 var(--round); }
   .shot:hover { transform: rotate(0) scale(1.04); z-index: 2; }
@@ -107,7 +106,7 @@
   .tl li:nth-child(even) .txt { justify-self: start; text-align: left; }
   .tl time { font: 800 .9rem var(--round); text-transform: uppercase; font-variant-numeric: tabular-nums; }
   .tl h3 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin: 4px 0 8px; }
-  .tl .pic { background: #fff; padding: 8px; border: 3px solid var(--ink); border-radius: 18px; box-shadow: 8px 8px 0 var(--ink); max-width: 420px; transform: rotate(var(--r, -1.5deg)); }
+  .tl .pic { background: #fff; padding: 8px; border: 3px solid var(--ink); border-radius: 18px;  max-width: 420px; transform: rotate(var(--r, -1.5deg)); }
   .tl li:nth-child(even) .pic { justify-self: end; --r: 1.5deg; }
   .tl .pic img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 10px; background: #f1ede0; }
   @media (max-width: 860px) {
@@ -121,9 +120,9 @@
   .multi { background: var(--paper-2); }
   .multi .lede { max-width: 54ch; margin-top: 18px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 22px; margin-top: 44px; }
-  .ity { position: relative; border-radius: 22px; padding: 18px 16px 16px; background: #fff; border: 3px solid var(--ink); box-shadow: 0 6px 0 var(--ink); cursor: default; }
+  .ity { position: relative; border-radius: 22px; padding: 18px 16px 16px; background: #fff; border: 3px solid var(--ink);  cursor: default; }
   .ity .pics { position: relative; aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; background: color-mix(in srgb, var(--c) 16%, #fff); overflow: hidden; }
-  .ity .pics img { position: absolute; max-width: 86%; max-height: 86%; object-fit: contain; transition: opacity .2s ease-out, transform .2s ease-out; filter: drop-shadow(0 10px 10px rgba(0, 0, 0, .25)); }
+  .ity .pics img { position: absolute; max-width: 86%; max-height: 86%; object-fit: contain; transition: opacity .2s ease-out, transform .2s ease-out; }
   .ity .pics .m { opacity: 0; transform: scale(.7); }
   .ity.has-m:hover .pics .m, .ity.has-m:focus-within .pics .m, .ity.flip .pics .m { opacity: 1; transform: none; }
   .ity.has-m:hover .pics .n, .ity.flip .pics .n { opacity: 0; transform: scale(1.3); }
@@ -154,7 +153,7 @@
   .track.rev { animation-direction: reverse; }
   .wall:hover .track, .wall.off .track { animation-play-state: paused; }   /* paused off-screen too */
   @keyframes slide { to { transform: translateX(-50%); } }
-  .track a { flex: none; width: 260px; text-decoration: none; background: #fff; border: 2px solid var(--ink); border-radius: 16px; overflow: hidden; box-shadow: 0 5px 0 var(--ink); }
+  .track a { flex: none; width: 260px; text-decoration: none; background: #fff; border: 2px solid var(--ink); border-radius: 16px; overflow: hidden;  }
   .track img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
   .track span { display: block; padding: 8px 12px; font: 700 .85rem/1.25 var(--round); }
   .track small { display: block; font: 500 .72rem var(--body); }
@@ -226,7 +225,7 @@
       <div class="crew" id="crew"></div>
       <div class="feats">
         <div><b>It sees you</b>Your shirt, your lamp, your mug. It mentions one the second it picks up.</div>
-        <div><b>Bestie meter</b>Five levels, announced out loud. It gets clingier every time.</div>
+        <div><b>It remembers you</b>Tell it your name or your plans; next call, it brings them up.</div>
         <div><b>Three strikes</b>Wrong capital of France? Rude? Three strikes and Verity becomes Cruelty. Say sorry.</div>
         <div><b>Your -ity verdict</b>Before you hang up it tells you who you really are. Procrastinity, probably.</div>
       </div>

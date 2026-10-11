@@ -25,6 +25,53 @@ def sprites(key):
 CX, CY, R = W // 2, H // 2, int(W * 0.42)
 BLACK = (0, 0, 0, 255)
 EYE_Y, EYE_DX = CY - R // 4, R // 3
+WIKI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web', 'assets', 'wiki')
+
+
+def _read(name):
+    """A wiki image (or GIF frames) as RGBA numpy arrays."""
+    from PIL import Image, ImageSequence
+    im = Image.open(os.path.join(WIKI, name))
+    return [np.array(f.convert('RGBA')) for f in ImageSequence.Iterator(im)]
+
+
+def _place(rgba, ref=None):
+    """Scale an image so its ball (the opaque bounding box of ref, default itself) spans 2R, centered on (CX, CY), on a W x H canvas."""
+    ys, xs = np.nonzero((ref if ref is not None else rgba)[..., 3] > 40)
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    k = 2 * R / max(y1 - y0, x1 - x0)
+    small = cv2.resize(rgba, (max(1, round(rgba.shape[1] * k)), max(1, round(rgba.shape[0] * k))), interpolation=cv2.INTER_AREA)
+    ox, oy = round(CX - (x0 + x1) / 2 * k), round(CY - (y0 + y1) / 2 * k)
+    out = np.zeros((H, W, 4), np.uint8)
+    sx0, sy0 = max(0, -ox), max(0, -oy); dx0, dy0 = max(0, ox), max(0, oy)
+    w, h = min(small.shape[1] - sx0, W - dx0), min(small.shape[0] - sy0, H - dy0)
+    out[dy0:dy0 + h, dx0:dx0 + w] = small[sy0:sy0 + h, sx0:sx0 + w]
+    return out
+
+
+@functools.lru_cache(maxsize=None)
+def real_frames(key):
+    """The real Verity from the series (wiki images): idle smile, open mouth, creepy grin, the spin. Cruelty uses its own art; our
+    other characters are the real Verity recolored, plus their gear. None if the images are missing."""
+    from verity.variants import VARIANTS
+    from verity.models import recolor
+    try:
+        if key == 'cruelty':
+            angry = _place(_read('cruelty.webp')[0])
+            return {'idle': angry, 'talk': _place(_read('cruelty1.webp')[0]), 'creepy': angry, 'spin': []}
+        spin = _read('verityspin.gif')
+        f = {'idle': _place(spin[0]), 'talk': _place(_read('verityopen.webp')[0]), 'creepy': _place(_read('veritycreepyopen.webp')[0]),
+             'spin': [_place(x, spin[0]) for x in spin]}
+    except (OSError, ValueError):
+        return None
+    if key != 'verity':
+        v = VARIANTS[key]; static, _ = FACES[v.get('face', 'plain')]
+        def dress(img):
+            img = recolor(img, v['color'])
+            if static: static(img, v['color'])
+            return img
+        f = {k: [dress(x) for x in val] if isinstance(val, list) else dress(val) for k, val in f.items()}
+    return f
 
 
 def sphere(color):
@@ -106,7 +153,9 @@ class Avatar:
         self.source = rtc.VideoSource(W, H)
 
     def set_variant(self, v):
-        self.sprites = sprites(v['name'].lower())                    # real 3D model frames when rendered, else the drawn ball
+        self.sprites = sprites(v['name'].lower())                    # real 3D model frames when rendered
+        self.real = None if self.sprites else real_frames(v['name'].lower())   # else the real Verity images, else the drawn ball
+        self.mood_until = 0.0
         static, self.over = FACES[v.get('face', 'plain')]
         base = sphere(v['color'])
         if static: static(base, v['color'])
@@ -120,6 +169,14 @@ class Avatar:
             idle, talk = self.sprites
             frames = talk if talk and self.level > 0.04 else idle
             return frames[int(now * 8) % len(frames)].copy()             # 8 fps turn/bob cycle, mouth open while it talks
+        if self.real:
+            f = self.real
+            spin_t = now % 14.0                                             # every 14 s it does its spin, like in the series
+            if now < self.mood_until: img = f['creepy']
+            elif f['spin'] and spin_t < len(f['spin']) / 12 and self.level < 0.04: img = f['spin'][int(spin_t * 12)]
+            elif self.level > 0.04: img = f['talk']
+            else: img = f['idle']
+            return np.roll(img, int(6 * np.sin(now * 2.2)), axis=0)        # a gentle float
         img = self.base.copy()
         blink = now >= self.next_blink
         if now >= self.next_blink + 0.15: self.next_blink = now + random.uniform(2.5, 5.0)
@@ -135,6 +192,10 @@ class Avatar:
         else:
             cv2.ellipse(img, (CX, CY + R // 5), (R // 2, R // 3), 0, 20, 160, BLACK, max(4, R // 18), cv2.LINE_AA)
         return img
+
+    def flash(self, seconds=4.0):
+        """The creepy grin for a few seconds (a strike)."""
+        self.mood_until = time.monotonic() + seconds
 
     def draw(self, now):
         img = self.render(now); img[..., 3] = 255                         # the call shows it on black

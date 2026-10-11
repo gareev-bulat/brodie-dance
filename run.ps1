@@ -16,7 +16,7 @@ $py = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $py)) {
     Write-Host 'Creating the Python environment (first run only)...'
     uv venv --python 3.12 .venv
-    uv pip install --python $py livekit livekit-api 'livekit-agents==1.8.5' 'livekit-plugins-google==1.8.5' 'livekit-plugins-fishaudio==1.8.5' aiohttp numpy opencv-python-headless
+    uv pip install --python $py livekit livekit-api 'livekit-agents==1.8.5' 'livekit-plugins-google==1.8.5' 'livekit-plugins-fishaudio==1.8.5' aiohttp numpy opencv-python-headless pillow
     if ($LASTEXITCODE -ne 0) { Remove-Item -Recurse -Force .venv; throw 'Package install failed. Fix the error above and run again.' }
 }
 uv pip install -q --python $py 'livekit-plugins-fishaudio==1.8.5'   # added later (Verity's Fish Audio voice); a no-op once installed

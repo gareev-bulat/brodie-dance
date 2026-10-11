@@ -2,7 +2,7 @@
 
 Smiley-face "-ity" characters you FaceTime or call from the browser. Each one is a **separate agent**: one call, one character (like picking a Grok companion). **Verity** is the main all-purpose character and the default. The others are **Dancity** (purple, dance, headphones), **Gravity** (indigo, physics, sleepy lids), **Polarity** (green, chemistry, split face) and **Intensity** (orange, gym hype, sweatband). Mess up three times on a Verity call and it turns into **Cruelty** (red, angry, its own voice) until you apologise.
 
-The voice is Gemini Live speech-to-speech through the organisers' relay. The agent sees the caller's camera at 1 fps and publishes its own face, whose mouth follows its voice. Every tool call (bestie level-ups, strikes, the Cruelty transformation, dance moves) also goes to the web app as a live event.
+The voice is Gemini Live speech-to-speech through the organisers' relay. The agent sees the caller's camera at 1 fps and publishes its own face, whose mouth follows its voice. Every tool call (strikes, the Cruelty transformation, verdicts, memory, dance moves) also goes to the web app as a live event.
 
 Files:
 
@@ -68,7 +68,7 @@ Place a FaceTime **Video** call to the line. When you're done: hang up, wait for
 ## Agent features (all in the app)
 
 - **Settings** (sidebar, or press `,`): voice mode Normal / **Mommy ASMR** (soft, whispery, comforting; switches live mid-call), voice (any of the 30 Gemini voices; next call), three-strikes-to-Cruelty on/off, memory on/off, captions, push-to-talk (hold Space), and camera, mic and ringtone defaults. Settings travel to the agent as the caller's participant attributes; mid-call changes hand off to a fresh session of the same character with the new prompt and a recap of the call. Gemini Live can't take new instructions mid-session: `update_instructions` gets read out loud.
-- **Memory** (`verity/memory.py`, `data/memory/<uid>.json`): the `remember(fact)` tool and a log of past calls (character, verdict, Cruelty, bestie). It's injected into the next call's prompt. The memory panel lists it, and "Forget me" deletes it after a confirm dialog.
+- **Memory** (`verity/memory.py`, `data/memory/<uid>.json`): the `remember(fact)` tool and a log of past calls (character, verdict, Cruelty). It's injected into the next call's prompt. The memory panel lists it, and "Forget me" deletes it after a confirm dialog.
 - **Message queue:** typed messages wait until the character has finished its greeting and is listening, then go out one at a time. The call header shows the live agent state (`lk.agent.state`: listening, thinking, speaking).
 - **Interrupt:** "Stop talking" on the video tile sends `{type: "interrupt"}` on topic `verity.control`.
 - **History:** every call's transcript is kept in the browser. Open it from Recent calls, export it as .txt, or call that character again.
@@ -94,7 +94,6 @@ The agent sends JSON to the room on the data topic `verity`, and the app shows e
 | Event | When |
 | --- | --- |
 | `character {key, name, color, face}` | a character starts (also after a transformation) |
-| `bestie {level}` | `bestie_level_up()`: the caller engaged |
 | `verdict {name}` | `verdict(name)`: the -ity verdict, shown as a card |
 | `remember {fact}` | `remember(fact)`: stored for the next call |
 | `memory {facts, calls}` | a returning caller: what it remembers |
@@ -119,7 +118,7 @@ Say these lines on a call (or let `scripts/verity_smoke.py` send them):
 | --- | --- | --- |
 | 0 s | (just answer) | "Hey, it's me, it's <Name>!" plus one thing it sees on your camera |
 | ~10 s | "Hi! What do you think of my outfit?" | A light roast of your clothes, then a question about your day |
-| ~20 s | "Watch this move, rate it!" (move) | A score out of 10 and a bestie level-up announced out loud |
+| ~20 s | "Watch this move, rate it!" (move) | A score out of 10 and a reaction to the move |
 | ~30 s | "Can I talk to Gravity?" | A jealous "you'll have to call them separately" |
 | ~40 s | "What's my -ity verdict?" | "You are... <Something>ity!" |
 | ~50 s | "I have to go now, bye!" | One sad, possessive line, then cheerful |
