@@ -47,6 +47,8 @@ if ($missing) {
 # 4. Two windows (they inherit the keys loaded above), then the browser
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent dev"
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
-Write-Host 'Starting... the app opens in your browser in a few seconds.'
-Start-Sleep -Seconds 6
+Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
+foreach ($i in 1..60) {   # the first start on Windows can take a while
+    try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 'http://127.0.0.1:8765/api/health' | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+}
 Start-Process 'http://127.0.0.1:8765'
