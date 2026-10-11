@@ -435,13 +435,13 @@ class MixerAudioOutput(_AudioOutputBase):
 class GeminiModel:
     """The livekit-agents AgentSession with Gemini Live, output through MixerAudioOutput, input from the caller's room audio.
     start() is called once a caller is bound (a warm job never starts it: no model session, no cost)."""
-    def __init__(self, persona, model=None, voice=None, api_key=None, on_turn=None, temperature=None, language=None):
+    def __init__(self, persona, model=None, voice=None, api_key=None, on_turn=None, temperature=None, language=None, text=False):
         self.persona = persona; self.model_id = model or os.environ.get('GEMINI_LIVE_MODEL') or DEFAULT_MODEL
         self.voice = voice or os.environ.get('GEMINI_VOICE') or DEFAULT_VOICE
         self.api_key = api_key or os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
         lang = language if language is not None else os.environ.get('GEMINI_LANGUAGE', DEFAULT_LANGUAGE)
         self.language = None if str(lang).strip().lower() in ('', 'off', 'none') else str(lang).strip()
-        self.on_turn = on_turn; self.temperature = temperature
+        self.on_turn = on_turn; self.temperature = temperature; self.text = text   # text: typed chat in + transcripts out (web app)
         self.last_caller_t = -1e9; self.last_coach_t = -1e9        # monotonic times of the last transcripts (the conversation hold reads them)
         self.rt = None; self.session = None; self.agent = None; self.sink = None; self.video = None; self.started = False; self.n_generate = 0; self.n_interrupt = 0
 
@@ -479,7 +479,7 @@ class GeminiModel:
         kw = dict(record=False)
         if room is not None:
             kw.update(room=room, session_host=False,
-                      room_options=RoomOptions(audio_output=False, text_output=False, text_input=False, video_input=False, audio_input=True,
+                      room_options=RoomOptions(audio_output=False, text_output=self.text, text_input=self.text, video_input=False, audio_input=True,
                                                participant_identity=participant_identity, close_on_disconnect=False))
         await self.session.start(self.agent, **kw)
         self.session.input.set_audio_enabled(False)                        # closed until the floor opens
@@ -491,10 +491,14 @@ class GeminiModel:
         if getattr(item, 'role', None) == 'assistant' and self.on_turn:
             text = (getattr(item, 'text_content', None) or '').strip()
             if text: self.on_turn('coach', text)
+        if getattr(item, 'role', None) == 'user' and self.on_turn and self.text:          # typed chat (--text): a caller turn too
+            text = (getattr(item, 'text_content', None) or '').strip()
+            if text and text != getattr(self, '_last_caller', None): self._last_caller = text; self.last_caller_t = time.monotonic(); self.on_turn('caller', text)
 
     def _on_user_transcript(self, ev):
         if (ev.transcript or '').strip(): self.last_caller_t = time.monotonic()                      # interim transcripts count: the caller is talking
-        if getattr(ev, 'is_final', False) and self.on_turn and (ev.transcript or '').strip(): self.on_turn('caller', ev.transcript.strip())
+        if getattr(ev, 'is_final', False) and self.on_turn and (ev.transcript or '').strip():
+            self._last_caller = ev.transcript.strip(); self.on_turn('caller', ev.transcript.strip())   # (the same turn's chat item is then skipped)
 
     # ---- the Floor's interface ----
     def set_input_enabled(self, on):

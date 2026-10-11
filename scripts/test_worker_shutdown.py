@@ -16,6 +16,9 @@ Scenarios (each with a fresh pipeline; the cue player uses a real rtc.AudioSourc
 
 Run:  .venv/bin/python scripts/test_worker_shutdown.py
 """
+import os as _os
+_wk = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'starter', 'handlers_workout_original.py')
+if _os.path.exists(_wk): _os.environ.setdefault('HANDLERS_FILE', _wk)   # the dance branch replaced starter/handlers.py; these checks are for the workout handler
 import asyncio, json, os, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

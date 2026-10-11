@@ -1,0 +1,70 @@
+# Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
+# windows and open the browser. The app can call the running character only.
+#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity]
+param([string]$Character = 'verity')
+# Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
+$ErrorActionPreference = 'Stop'
+Set-Location $PSScriptRoot
+
+# 1. uv (installs Python 3.12 and the packages)
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Host 'Installing uv...'
+    powershell -ExecutionPolicy ByPass -c 'irm https://astral.sh/uv/install.ps1 | iex'
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+}
+
+# 2. Python environment: Brodie's requirements (CPU torch, no 3 GB of CUDA wheels) plus the web app's, and the pose models
+$py = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path $py)) {
+    Write-Host 'Creating the Python environment (first run only, several minutes)...'
+    uv venv --python 3.12 .venv
+    uv pip install --python $py torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    uv pip install --python $py -r requirements.txt aiohttp pillow
+    if ($LASTEXITCODE -ne 0) { Remove-Item -Recurse -Force .venv; throw 'Package install failed. Fix the error above and run again.' }
+}
+New-Item -ItemType Directory -Force models | Out-Null
+foreach ($m in 'lite', 'full', 'heavy') {   # MediaPipe pose (Dancity), as in the README's install step
+    $f = "models\pose_landmarker_$m.task"
+    if (-not (Test-Path $f)) { Invoke-WebRequest -UseBasicParsing -OutFile $f "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_$m/float16/latest/pose_landmarker_$m.task" }
+}
+
+# 3. Keys live in .env.local, which git ignores
+if (-not (Test-Path .env.local)) {
+    @(
+        'LIVEKIT_URL=wss://<your-project>.livekit.cloud'
+        'LIVEKIT_API_KEY=<key>'
+        'LIVEKIT_API_SECRET=<secret>'
+        'AGENT_NAME=team-verity-agent'
+        'GEMINI_API_KEY=<team token>'
+        'GEMINI_BASE_URL=https://james-72765--rtcoach-gemini.modal.run'
+    ) | Set-Content -Encoding ascii .env.local
+    Write-Host 'Created .env.local.'
+}
+Get-Content .env.local | ForEach-Object {
+    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$') { Set-Item "env:$($matches[1])" $matches[2] }
+}
+if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
+$missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
+    Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue).Value -or (Get-Item "env:$_").Value -match '<' }
+if ($missing) {
+    Write-Host "Fill in these lines in .env.local, save, then run this again: $($missing -join ', ')" -ForegroundColor Red
+    notepad .env.local
+    exit 1
+}
+
+# 4. Two windows (they inherit the keys loaded above), then the browser.
+# A web app left over from an earlier run would keep port 8765 and serve the old page, so stop it first.
+Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+$voice = & $py -c "from verity.variants import VARIANTS as V; k='$Character'; assert k in V and not V[k].get('secret'), 'unknown character: ' + k; print(V[k]['voice'])"
+if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
+$env:VERITY_CHARACTER = $Character
+$args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
+$args_ += if ($Character -eq 'dancity') { ' --dance --leave-grace-s -1' } else { ' --perception off --vision --handlers starter/verity/handlers.py' }
+Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity on Brodie ($Character)'; & '$py' -m facetime.worker $args_ dev"
+Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
+Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
+foreach ($i in 1..60) {   # the first start on Windows can take a while
+    try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 'http://127.0.0.1:8765/api/health' | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+}
+Start-Process 'http://127.0.0.1:8765'

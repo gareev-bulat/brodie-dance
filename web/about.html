@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verity Agent: the lore</title>
+<meta name="description" content="Hello! I'm Verity, your personal helper friend. Ask me anything, I know everything. Now on FaceTime.">
+<link rel="icon" href="assets/verity-face.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600..800&family=Instrument+Sans:wght@400..600&display=swap" rel="stylesheet">
+<script src="lore.js"></script>
+<style>
+  :root {
+    --paper: #fffbe3; --paper-2: #fff3bf; --ink: #1a1505; --night: #0e0c14; --verity: #ffd21f;
+    --round: "Baloo 2", sans-serif; --body: "Instrument Sans", sans-serif;
+    --gutter: clamp(16px, 5vw, 72px);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.05rem/1.6 var(--body); overflow-x: hidden; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--verity); outline-offset: 3px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  h1, h2, h3 { font-family: var(--round); font-weight: 800; margin: 0; line-height: .95; text-wrap: balance; }
+  p { text-wrap: pretty; }
+  h2 { font-size: clamp(2.6rem, 7vw, 5.4rem); }
+  section { position: relative; padding: clamp(72px, 11vw, 140px) var(--gutter); }
+  p { margin: 0; }
+
+  /* the music video's subtitle: glowing yellow, dark outline */
+  .sub { font: 800 clamp(1.5rem, 3.6vw, 2.8rem)/1.15 var(--round); color: #ffe46b;
+         -webkit-text-stroke: 5px #3a2600; paint-order: stroke fill; }
+  /* the -ity chart's label: white, black outline */
+  .tag { font: 800 1.05rem/1 var(--round); color: #fff; -webkit-text-stroke: 5px #000; paint-order: stroke fill; }
+
+
+  .bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 22px;
+         width: min(calc(100% - 20px), 980px); padding: 8px 20px 8px 10px; border-radius: 999px; color: #fff;
+         background: rgba(14, 12, 20, .82); }
+  .bar a { text-decoration: none; font: 700 .95rem var(--round); }
+  .bar .brand { display: flex; align-items: center; gap: 8px; font-size: 1.2rem; margin-right: auto; }
+  .bar .brand img { width: 30px; }
+  .call-btn { position: fixed; right: var(--gutter); bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 21; display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 10px;
+              border-radius: 999px; background: var(--verity); color: var(--ink); text-decoration: none; font: 800 1.1rem var(--round);
+               border: 3px solid var(--ink); transition: transform .15s; }
+  .call-btn img { width: 40px; height: 40px; }
+  .call-btn:hover { transform: translateY(-3px) rotate(-2deg); }
+  @media (max-width: 720px) { .bar a:not(.brand) { display: none; } }
+
+  /* ---------- 1. hero ---------- */
+  /* the backdrop: every real Verity post we have, fixed while the panels slide over it */
+  .bg { position: fixed; inset: -10vh -10vw; z-index: -1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; padding: 14px;
+        transform: rotate(-5deg); background: var(--paper); }
+  .bg img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; }
+  .bg::after { content: ""; position: fixed; inset: 0; background: rgba(255, 249, 220, .38); }
+  main > section:not(.hero) { margin: 0 clamp(8px, 3vw, 40px) clamp(40px, 8vh, 90px); border-radius: clamp(22px, 3vw, 40px); background: var(--panel, var(--paper)); overflow: hidden; }
+  .dark, .ours { --panel: var(--night); } .faces, .multi { --panel: var(--paper-2); }
+  .hero { min-height: 100svh; display: grid; place-items: center; text-align: center; color: #fff; padding-top: 90px; }
+  .hero .inner { position: relative; display: grid; justify-items: center; gap: 18px; }
+  .hero .ball { width: min(62vw, 420px); }
+  .hero .sub { min-height: 2.4em; max-width: 24ch; padding: 10px 22px; border-radius: 18px; background: rgba(14, 12, 20, .82); }
+  .hero .small { font: 700 .9rem var(--round); color: var(--ink); background: var(--verity); padding: 4px 14px; border-radius: 999px; border: 2px solid var(--ink); }
+
+  /* ---------- 2. ask me anything ---------- */
+  .ask { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 6vw, 96px); align-items: start; }
+  .ask .lede { margin-top: 22px; max-width: 34ch; font-size: 1.15rem; }
+  .ask .note { margin-top: 14px; font-size: .85rem; }
+  .chat { display: grid; gap: 14px; }
+  .line { display: flex; gap: 12px; align-items: flex-end; opacity: 0; transform: translateY(18px); transition: opacity .5s, transform .5s; }
+  .line.in { opacity: 1; transform: none; }
+  .line.you { justify-content: flex-end; }
+  .line img { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; flex: none; background: #fff;  }
+  .line p { padding: 12px 18px; border-radius: 22px 22px 22px 6px; background: #fff; border: 2px solid var(--ink); font: 700 1.15rem/1.3 var(--round);  }
+  .line.you p { border-radius: 22px 22px 6px 22px; background: var(--ink); color: var(--paper); }
+  .line.big img { width: 180px; height: auto; border-radius: 14px; background: #000; }
+  @media (max-width: 860px) { .ask { grid-template-columns: 1fr; } }
+
+  /* ---------- 3. faces ---------- */
+  .faces { background: var(--paper-2); overflow: hidden; }
+  .faces .strip { display: flex; gap: 22px; margin: 40px calc(-1 * var(--gutter)) 0; padding: 10px var(--gutter) 30px; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .face { flex: none; width: 220px; scroll-snap-align: start; display: grid; justify-items: center; gap: 4px; }
+  .face img { width: 200px; height: 200px; object-fit: contain; transition: transform .2s ease-out; }
+  .face:nth-child(odd) img { transform: rotate(-4deg); } .face:nth-child(even) img { transform: rotate(3deg); }
+  .face:hover img { transform: scale(1.1) rotate(0); }
+
+  /* ---------- 4. then it stops smiling ---------- */
+  .dark { background: var(--night); color: #f1efe8; overflow: hidden; }
+  .dark h2 { position: relative; }
+  .dark .lede { position: relative; max-width: 46ch; margin-top: 18px; }
+  .collage { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 26px; margin-top: 46px; }
+  .shot { margin: 0; background: #f6f3ea; padding: 10px 10px 40px; transform: rotate(var(--r, 0deg)); transition: transform .3s; position: relative; }
+  .shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; filter: contrast(1.08) saturate(.9); }
+  .shot figcaption { position: absolute; left: 12px; right: 12px; bottom: 9px; color: #1a1505; font: 700 .9rem/1.2 var(--round); }
+  .shot:hover { transform: rotate(0) scale(1.04); z-index: 2; }
+  .shot:hover img { animation: glitch .35s steps(2) 2; }
+  @keyframes glitch { 50% { transform: translate(3px, -2px); filter: contrast(1.6) hue-rotate(90deg); } }
+
+  /* ---------- 5. timeline ---------- */
+  .tl { list-style: none; margin: 50px 0 0; padding: 0; position: relative; }
+  .tl::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; background: var(--ink); transform: translateX(-50%); border-radius: 4px; }
+  .tl li { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; padding: 26px 0; }
+  .tl li::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; border-radius: 50%; background: var(--verity); border: 4px solid var(--ink); transform: translate(-50%, -50%); }
+  .tl li:nth-child(even) .txt { order: 2; }
+  .tl .txt { max-width: 44ch; justify-self: end; text-align: right; }
+  .tl li:nth-child(even) .txt { justify-self: start; text-align: left; }
+  .tl time { font: 800 .9rem var(--round); text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .tl h3 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin: 4px 0 8px; }
+  .tl .pic { background: #fff; padding: 8px; border: 3px solid var(--ink); border-radius: 18px;  max-width: 420px; transform: rotate(var(--r, -1.5deg)); }
+  .tl li:nth-child(even) .pic { justify-self: end; --r: 1.5deg; }
+  .tl .pic img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 10px; background: #f1ede0; }
+  @media (max-width: 860px) {
+    .tl::before, .tl li::after { left: 12px; }
+    .tl li { grid-template-columns: 1fr; gap: 16px; padding-left: 40px; }
+    .tl .txt, .tl li:nth-child(even) .txt { order: 0; justify-self: start; text-align: left; }
+    .tl li:nth-child(even) .pic { justify-self: start; }
+  }
+
+  /* ---------- 6. multiverse ---------- */
+  .multi { background: var(--paper-2); }
+  .multi .lede { max-width: 54ch; margin-top: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 22px; margin-top: 44px; }
+  .ity { position: relative; border-radius: 22px; padding: 18px 16px 16px; background: #fff; border: 3px solid var(--ink);  cursor: default; }
+  .ity .pics { position: relative; aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; background: color-mix(in srgb, var(--c) 16%, #fff); overflow: hidden; }
+  .ity .pics img { position: absolute; max-width: 86%; max-height: 86%; object-fit: contain; transition: opacity .2s ease-out, transform .2s ease-out; }
+  .ity .pics .m { opacity: 0; transform: scale(.7); }
+  .ity.has-m:hover .pics .m, .ity.has-m:focus-within .pics .m, .ity.flip .pics .m { opacity: 1; transform: none; }
+  .ity.has-m:hover .pics .n, .ity.flip .pics .n { opacity: 0; transform: scale(1.3); }
+  .ity .tag { position: absolute; left: 50%; top: -12px; transform: translateX(-50%); white-space: nowrap; font-size: 1.3rem; }
+  .ity p { margin-top: 12px; font-size: .9rem; line-height: 1.4; }
+  .ity button { position: absolute; top: 26px; right: 24px; border: 2px solid var(--ink); background: #fff; border-radius: 999px; font: 700 .72rem var(--round); padding: 2px 8px; cursor: pointer; }
+
+  /* ---------- 7. it FaceTimes you ---------- */
+  .ours { background: var(--night); color: #f1efe8; overflow: hidden; text-align: center; }
+  .ours .wrap { position: relative; }
+  .ours .lede { max-width: 52ch; margin: 18px auto 0; }
+  .crew { display: flex; justify-content: center; align-items: flex-end; flex-wrap: wrap; gap: clamp(8px, 2vw, 26px); margin-top: 44px; }
+  .crew figure { margin: 0; display: grid; justify-items: center; gap: 2px; }
+  .crew img { width: clamp(90px, 12vw, 170px); transition: transform .2s ease-out; }
+  .crew figure:first-child img { width: clamp(130px, 18vw, 240px); }
+  .crew figure:hover img { transform: translateY(-10px) rotate(-6deg); }
+  .crew small { font-size: .78rem; color: #cfcab8; }
+  .crew .locked img { filter: grayscale(.2) brightness(.8); }
+  .feats { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin: 50px auto 0; max-width: 1000px; text-align: left; }
+  .feats div { padding: 18px 20px; border: 2px solid #3b3746; border-radius: 18px; background: rgba(255, 255, 255, .04); }
+  .feats b { display: block; font: 800 1.2rem var(--round); color: #ffe46b; margin-bottom: 4px; }
+  .ours .go { display: inline-flex; margin-top: 40px; position: relative; }
+
+  /* ---------- 8. meme marquee ---------- */
+  .wall { padding-left: 0; padding-right: 0; overflow: hidden; }
+  .wall h2 { padding: 0 var(--gutter); }
+  .track { display: flex; gap: 18px; width: max-content; margin-top: 22px; animation: slide 60s linear infinite; }
+  .track.rev { animation-direction: reverse; }
+  .wall:hover .track, .wall.off .track { animation-play-state: paused; }   /* paused off-screen too */
+  @keyframes slide { to { transform: translateX(-50%); } }
+  .track a { flex: none; width: 260px; text-decoration: none; background: #fff; border: 2px solid var(--ink); border-radius: 16px; overflow: hidden;  }
+  .track img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+  .track span { display: block; padding: 8px 12px; font: 700 .85rem/1.25 var(--round); }
+  .track small { display: block; font: 500 .72rem var(--body); }
+
+  footer { padding: 40px var(--gutter) 110px; background: var(--ink); color: #e9e4d2; font-size: .9rem; }
+  footer h3 { font-size: 1.4rem; margin-bottom: 10px; color: #fff; }
+  footer p + p { margin-top: 6px; }
+  footer a { color: #ffe46b; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .track { animation: none; }
+    .line { opacity: 1; transform: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="bg" id="bg" aria-hidden="true"></div>
+<header class="bar">
+  <a class="brand" href="#top"><img src="assets/verity-face.png" alt="">Verity Agent</a>
+  <a href="#lore">Lore</a><a href="#ities">-ities</a><a href="#wall">Memes</a><a href="/">App</a>
+</header>
+<a class="call-btn" href="/"><img src="assets/3d/verity/face-talk.png" alt="">Call Verity</a>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-sub">
+        <div class="inner">
+      <img class="ball" src="assets/wiki/verityspin.gif" alt="Verity, the yellow smiley, spinning">
+      <h1 class="sr-only">Verity Agent</h1>
+      <p class="sub" id="hero-sub" aria-live="polite"></p>
+      <p class="small">It's me, it's Verity. Now on FaceTime.</p>
+    </div>
+  </section>
+
+  <section class="ask" aria-labelledby="ask-title">
+    <div>
+      <h2 id="ask-title">Ask me anything.<br>I know everything.</h2>
+      <p class="lede">That's how it introduces itself in ThatMob's series: a floating yellow smiley in a box, your personal helper friend. It answers everything. It answers too much.</p>
+      <p class="note">The series, abridged. Scroll slowly.</p>
+    </div>
+    <div class="chat" id="chat"></div>
+  </section>
+
+  <section class="faces" aria-labelledby="faces-title">
+    <h2 id="faces-title">The many faces of Verity.</h2>
+    <div class="strip" id="faces"></div>
+  </section>
+
+  <section class="dark" aria-labelledby="dark-title">
+    <h2 id="dark-title">Then it stops smiling.</h2>
+    <p class="lede">By the last episode the helper friend is a hostile humanoid thing that knows where you live. Hover if you're brave.</p>
+    <div class="collage" id="monsters"></div>
+  </section>
+
+  <section id="lore" aria-labelledby="lore-title">
+    <h2 id="lore-title">How a smiley took over the internet.</h2>
+    <ol class="tl" id="timeline"></ol>
+  </section>
+
+  <section class="multi" id="ities" aria-labelledby="ities-title">
+    <h2 id="ities-title">The -ity multiverse.</h2>
+    <p class="lede">Every word ending in -ity is a character now. These are the fan favourites, from the Verity Wiki. Most of them have a monster form: hover (or tap) to see it.</p>
+    <div class="grid" id="ity-grid"></div>
+  </section>
+
+  <section class="ours" aria-labelledby="ours-title">
+    <div class="wrap">
+      <h2 id="ours-title">Now it FaceTimes you.</h2>
+      <p class="lede">Verity Agent is a real-time AI you call. It sees your camera, roasts your room, rates your dance and decides your -ity. Five of us answer the phone. The sixth only shows up if you mess up.</p>
+      <div class="crew" id="crew"></div>
+      <div class="feats">
+        <div><b>It sees you</b>Your shirt, your lamp, your mug. It mentions one the second it picks up.</div>
+        <div><b>It remembers you</b>Tell it your name or your plans; next call, it brings them up.</div>
+        <div><b>Three strikes</b>Wrong capital of France? Rude? Three strikes and Verity becomes Cruelty. Say sorry.</div>
+        <div><b>Your -ity verdict</b>Before you hang up it tells you who you really are. Procrastinity, probably.</div>
+      </div>
+      <a class="call-btn go" href="/"><img src="assets/3d/verity/face-talk.png" alt="">Call it now</a>
+    </div>
+  </section>
+
+  <section class="wall" id="wall" aria-labelledby="wall-title">
+    <h2 id="wall-title">Your FYP, but only Verity.</h2>
+    <div class="track" id="row1"></div>
+    <div class="track rev" id="row2"></div>
+  </section>
+</main>
+
+<footer>
+  <h3>Credits</h3>
+  <p><b>Verity</b> and its series are by <a href="https://knowyourmeme.com/memes/subcultures/verity-minecraft-arg">ThatMob</a>; Verity is voiced by JustWhispy. "It's me, It's Verity" is by <a href="https://www.youtube.com/watch?v=tVlKLpxyCBY">Horror Skunx</a>; "your verity" is by CG5 × Horror Skunx.</p>
+  <p>Character images: the <a href="https://verityminecraft.fandom.com/">Verity Wiki</a> and its contributors. Falsity by xqree. Memes and edits by their creators, each linked on the wall above.</p>
+  <p id="models3d"></p>
+  <p>Verity Agent is a fan-made parody built at IvyHacks Health × FaceTime on the Brodie starter. Not affiliated with any of them; we're just fans. · <a href="https://www.youtube.com/@verityagent-o6t">YouTube</a> · <a href="https://www.instagram.com/verity.agent/">Instagram</a></p>
+</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// hero subtitle: its real first lines, typed like the music video's captions
+let li = 0;
+(function type() {
+  const text = LORE.intro[li++ % LORE.intro.length], el = $('#hero-sub'); let i = 0;
+  if (reduce) { el.textContent = text; return setTimeout(type, 3500); }
+  (function step() { el.textContent = text.slice(0, ++i); i < text.length ? setTimeout(step, 42) : setTimeout(type, 2400); })();
+})();
+
+// the series, abridged: replies get creepier as you scroll
+const CHAT = [
+  ['you', "What's 2 + 2?"], ['verityopen.webp', '4! Easy.'],
+  ['you', "What's the capital of France?"], ['happy-verity.webp', 'Paris! I know everything.'],
+  ['you', 'How do you know my name?'], ['veritycreepy.webp', 'I told you. I know everything.'],
+  ['you', 'Verity, I want to close the game.'], ['veritydispleased.webp', 'Something is coming in three days.'],
+  ['you', '...Verity?'], ['big', 'veritymonsterform.webp'],
+];
+$('#chat').innerHTML = CHAT.map(([who, text]) => who === 'you' ? `<div class="line you"><p>${esc(text)}</p></div>`
+  : who === 'big' ? `<div class="line big"><img src="${WIKI(text)}" alt="Verity's monster form"></div>`
+  : `<div class="line"><img src="${WIKI(who)}" alt="Verity"><p>${esc(text)}</p></div>`).join('');
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .6 });
+document.querySelectorAll('.line').forEach((l) => io.observe(l));
+
+$('#faces').innerHTML = LORE.expressions.map(([f, t]) => `<figure class="face"><img loading="lazy" src="${WIKI(f)}" alt="Verity: ${esc(t)}"><span class="tag">${esc(t)}</span></figure>`).join('');
+$('#monsters').innerHTML = LORE.monsters.map(([f, t], i) => `<figure class="shot" style="--r:${[-3, 2, -1.5, 3, -2.5, 1.5, -1, 2.5, -2][i % 9]}deg">
+  <img loading="lazy" src="${WIKI(f)}" alt="${esc(t)}"><figcaption>${esc(t)}</figcaption></figure>`).join('');
+$('#timeline').innerHTML = LORE.timeline.map(([d, h, t, img]) => `<li><div class="txt"><time>${esc(d)}</time><h3>${esc(h)}</h3><p>${esc(t)}</p></div>
+  <div class="pic"><img loading="lazy" src="${img}" alt="${esc(h)}"></div></li>`).join('');
+$('#ity-grid').innerHTML = LORE.variants.map((v) => `<article class="ity${v.alt ? ' has-m' : ''}" style="--c:${v.color}" tabindex="0">
+  <span class="tag">${esc(v.name)}</span>
+  <div class="pics"><img class="n" loading="lazy" src="${WIKI(v.img)}" alt="${esc(v.name)}">${v.alt ? `<img class="m" loading="lazy" src="${WIKI(v.alt)}" alt="${esc(v.name)}'s monster form">` : ''}</div>
+  ${v.alt ? '<button type="button" aria-label="Show monster form">monster</button>' : ''}<p>${esc(v.about)}</p></article>`).join('');
+document.querySelectorAll('.ity button').forEach((b) => b.addEventListener('click', () => b.closest('.ity').classList.toggle('flip')));
+
+const CREW = [['verity', 'Verity', 'knows everything'], ['dancity', 'Dancity', 'rates your dance'], ['gravity', 'Gravity', 'everything is heavy'],
+              ['polarity', 'Polarity', 'loves it, hates it'], ['intensity', 'Intensity', 'LET\'S GO'], ['cruelty', 'Cruelty', '3 strikes to meet']];
+$('#crew').innerHTML = CREW.map(([k, n, s]) => `<figure class="${k === 'cruelty' ? 'locked' : ''}"><img loading="lazy" src="assets/3d/${k}/face-talk.png" alt="${n}"><span class="tag">${n}</span><small>${s}</small></figure>`).join('');
+
+const card = ([img, t, by, url]) => `<a ${url ? `href="${url}" target="_blank" rel="noopener"` : ''}><img loading="lazy" src="${img}" alt="${esc(t)}"><span>${esc(t)}<small>${esc(by)}</small></span></a>`;
+const half = Math.ceil(LORE.memes.length / 2), r1 = LORE.memes.slice(0, half), r2 = LORE.memes.slice(half);
+$('#row1').innerHTML = [...r1, ...r1].map(card).join('');      // doubled so the loop is seamless
+$('#row2').innerHTML = [...r2, ...r2].map(card).join('');
+
+$('#bg').innerHTML = [...LORE.memes, ...LORE.monsters.map(([f]) => [WIKI(f)]), ...LORE.memes].slice(0, 63)
+  .map(([img]) => `<img src="${img}" alt="" loading="lazy">`).join('');
+new IntersectionObserver(([e]) => $('#wall').classList.toggle('off', !e.isIntersecting)).observe($('#wall'));
+$('#models3d').innerHTML = '3D models (CC BY, Sketchfab): ' + LORE.models3d.map(([t, by, u]) => `<a href="${u}">${esc(t)}</a> by ${esc(by)}`).join(', ') + '.';
+const title = document.title;
+document.addEventListener('visibilitychange', () => { document.title = document.hidden ? 'Verity misses you.' : title; });
+</script>
+</body>
+</html>
