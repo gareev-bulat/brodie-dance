@@ -50,6 +50,7 @@ import shutil
 import subprocess
 import sys
 import time
+import warnings
 from fractions import Fraction
 from pathlib import Path
 
@@ -191,7 +192,8 @@ def pick_track(tab, forced):
 
 def assemble(per_frame, main_id, members, gap_iou, max_gap):
     """Per frame, the chosen person's detection. Members are taken as-is (main first, then by box conf);
-    gaps are filled from any other id whose box overlaps the nearest kept box (IoU >= gap_iou) within max_gap frames."""
+    gaps are filled from any other id whose box overlaps the nearest kept box (IoU >= gap_iou) within max_gap frames.
+    Ids that co-exist with the members for more than a few frames are another person and never used for filling."""
     N = len(per_frame)
     chosen = [None] * N
     source = np.full(N, -1, np.int64)
@@ -200,6 +202,14 @@ def assemble(per_frame, main_id, members, gap_iou, max_gap):
         if cands:
             cands.sort(key=lambda c: (c[0] != main_id, -c[1][3]))
             source[i], chosen[i] = cands[0]
+    coexist = {}
+    for i, dets in enumerate(per_frame):
+        if chosen[i] is not None:
+            for tid in dets:
+                if tid not in members:
+                    coexist[tid] = coexist.get(tid, 0) + 1
+    n_kept = sum(c is not None for c in chosen)
+    other_people = {tid for tid, c in coexist.items() if c > max(10, 0.1 * n_kept)}
 
     def sweep(order):
         last_box, since = None, 10 ** 9
@@ -212,6 +222,8 @@ def assemble(per_frame, main_id, members, gap_iou, max_gap):
                 continue
             best = None
             for tid, d in per_frame[i].items():
+                if tid in other_people:
+                    continue
                 v = iou(last_box, d[2])
                 if v >= gap_iou and (best is None or v > best[0]):
                     best = (v, tid, d)
@@ -359,7 +371,8 @@ def main():
     vis = ok[:, None] & (conf >= a.kp_conf)
     xy = np.where(vis[:, :, None], xy_raw, np.nan).astype(np.float32)
     xyn = xy / np.array([w, h], np.float32)
-    with np.errstate(all="ignore"):
+    with np.errstate(all="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)          # all-NaN rows (no visible joint) are expected
         kp_box = np.stack([np.nanmin(xy[:, :, 0], 1), np.nanmin(xy[:, :, 1], 1),
                            np.nanmax(xy[:, :, 0], 1), np.nanmax(xy[:, :, 1], 1)], 1).astype(np.float32)
     frame_idx = np.arange(N)

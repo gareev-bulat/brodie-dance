@@ -1,0 +1,38 @@
+{
+  "dance": "americaneagle_8d820a",
+  "description": "Reference choreography from the American Eagle shirt TikTok (solo, full body, living room; 11.3 s of content before the TikTok end card). Move boundaries from the wrist/elbow/knee trajectories and motion energy of data/dance/pose/americaneagle_8d820a.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/americaneagle_8d820a.npz",
+  "video": "data/dance/raw/americaneagle_8d820a.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 123,
+  "bpm_estimate_note": "Estimated from the pump section (5.1-11.0 s): the 'two double pumps + four alternating raises' phrase repeats every 1.93-1.97 s (wrist-height autocorrelation peak at 1.93 s). Assuming the phrase is 4 beats gives ~123 bpm; it could equally be 61.5 bpm half-time. Not verified against the audio track.",
+  "count_in_s": 1.2,
+  "moves": [
+    {"id": "ready",              "name": "Ready pose: standing, hands clasped in front at belly-to-chest height, small fidgets",                                                     "t0": 0.0,  "t1": 1.2},
+    {"id": "lean_hands_up",      "name": "Hands rise beside the face, palms out, as the body leans to screen-right with the screen-left knee bent and heel raised; hold",  "t0": 1.2,  "t1": 3.1},
+    {"id": "overhead_knee_lift", "name": "Arms drop and stand tall, then both arms shoot up overhead in a goal-post shape while the screen-left knee lifts high; hold on one leg", "t0": 3.1, "t1": 4.9},
+    {"id": "double_pump_1",      "name": "Arms drop to the hips, then both hands pump up to head height twice, elbows bent",                                              "t0": 4.9,  "t1": 6.0},
+    {"id": "alt_raise_1",        "name": "Four quick alternating single-hand raises above the head (screen-left, right, left, right), head bobbing",                      "t0": 6.0,  "t1": 7.05},
+    {"id": "double_pump_2",      "name": "Both hands pump up to head height twice, elbows bent",                                                                          "t0": 7.05, "t1": 8.0},
+    {"id": "alt_raise_2",        "name": "Four quick alternating single-hand raises above the head (screen-left, right, left, right), head bobbing",                      "t0": 8.0,  "t1": 9.05},
+    {"id": "double_pump_3",      "name": "Both hands pump up to head height twice, elbows bent",                                                                          "t0": 9.05, "t1": 9.95},
+    {"id": "alt_raise_3",        "name": "Four quick alternating single-hand raises above the head (screen-left, right, left, right), then both hands pump up once as the clip ends", "t0": 9.95, "t1": 11.3}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Content runs 0-11.33 s (last ok frame 340); frames 341-460 are the TikTok end card with no dancer (ok=False).",
+    "Full body is in frame: all 17 joints are visible in essentially every ok frame, so the 'legs' fault can fire on this dance.",
+    "'ready' is the count-in: the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "Mirrored selfie (shirt text reversed): the arm the pose model labels 'left' is on screen right. Move names use screen-relative terms.",
+    "Pump section 4.9-11.3 s repeats a ~1.95 s phrase three times: both-arm double pump (both wrists peak together at ~0.47 s spacing), then four alternating single-arm raises about 0.23 s apart starting with the screen-left arm. The clip cuts during the first double pump of a fourth phrase (11.0-11.33 s), folded into alt_raise_3.",
+    "The end card search bar appears to read @joseriveras_ (low-res, unverified); clips.json lists the handle as unknown."
+  ]
+}

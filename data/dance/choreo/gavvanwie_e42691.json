@@ -1,0 +1,37 @@
+{
+  "dance": "gavvanwie_e42691",
+  "description": "Reference choreography from the @gavvanwie TikTok (15.0 s of content; the 19 s clip ends with a 4 s TikTok end card). Hallway duo, knee-up framing; main dancer = tracker id 2 (dark t-shirt, screen left at the start, swaps to screen right at about 12 s). Move boundaries from the wrist/elbow trajectories, hip x (travel) and upper-body motion energy of data/dance/pose/gavvanwie_e42691.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/gavvanwie_e42691.npz",
+  "video": "data/dance/raw/gavvanwie_e42691.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": null,
+  "count_in_s": 2.0,
+  "moves": [
+    {"id": "ready",            "name": "Ready: standing, arms hanging and swinging gently out to the sides and together at the hips",                                        "t0": 0.0,  "t1": 2.0},
+    {"id": "open_clap",        "name": "Arms spread wide and rise to chest height, then the hands clap together at the chest",                                            "t0": 2.0,  "t1": 3.2},
+    {"id": "hand_roll_left",   "name": "Both hands bounce up and down together in front of the waist and chest, dipping toward screen left",                                        "t0": 3.2,  "t1": 5.25},
+    {"id": "hand_roll_right",  "name": "Hands keep bouncing at the waist, shifted toward screen right with the body leaning that way",                                     "t0": 5.25, "t1": 7.05},
+    {"id": "kick_step_turn",   "name": "Arms drop to the sides, screen-left leg kicks out, then step to screen left turning to face the partner, short pause",        "t0": 7.05, "t1": 9.35},
+    {"id": "low_to_high_five", "name": "Screen-right arm reaches forward to tap the partner's hand at waist height, then swings up overhead into a high five",             "t0": 9.35, "t1": 10.7},
+    {"id": "high_five_hold",   "name": "Screen-right arm held straight up, hand pressed against the partner's hand overhead",                                              "t0": 10.7, "t1": 11.7},
+    {"id": "walk_across",      "name": "Walk across to screen right past the partner, the raised arm lowering to shoulder height and then down to the side",              "t0": 11.7, "t1": 13.1},
+    {"id": "waist_sweep_rise", "name": "Both hands sweep together side to side at the waist (left, right, left), then rise to shoulder height and drop to the hips",       "t0": 13.1, "t1": 14.966}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Reference ankles are NaN in 78% of ok frames and knees in 11-16%: the 'legs' fault rarely fires on this dance and the kick at about 7.5 s is only weakly captured by the pose data.",
+    "'ready' is the count-in: the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used.",
+    "Dancer is present (ok=True) in frames 0-449 only; frames 450-569 are the TikTok end card, so the last move ends at the last ok frame (449, t=14.966 s).",
+    "Hand-roll cycle in hand_roll_left/right is about 0.91 s per up-down (wrist peaks at 3.83, 4.77, 5.70, 6.57 s); bpm left null because it is unclear whether that is one or two beats of the track.",
+    "The dancers swap sides during walk_across (reference hip x goes from 0.16 to 0.77 of the frame width between 11.5 and 12.7 s) and the camera pans; the reference's absolute screen position is not meaningful from 8 s on.",
+    "The npz 'left_wrist'/'left_elbow' (idx 9/7) are the dancer's screen-right arm (mirrored clip); move names use screen sides, which match the learner's own sides when mirroring the screen."
+  ]
+}
