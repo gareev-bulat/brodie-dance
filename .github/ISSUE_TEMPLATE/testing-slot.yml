@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        See open slots at https://ivyhacks-brodie.vercel.app/slots/ . If the slot is already taken, the bot closes this and tells you. Max 2 upcoming slots per team.
+        See open slots at https://getbrodie.com/ivyhacks/slots . Up to 3 teams share a slot. If it is full, the bot closes this and tells you. Max 2 upcoming slots per team.
   - type: dropdown
     id: slot
     attributes:

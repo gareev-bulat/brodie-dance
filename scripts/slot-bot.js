@@ -1,8 +1,21 @@
 // Booking rules for FaceTime testing slots (see .github/workflows/testing-slots.yml).
 const fs = require('fs');
 const MAX_PER_TEAM = 2;
+const CAP = 3;                                   // teams per slot, same as docs/slots/index.html
 const MARK = '<!-- slot-bot -->';
-const PAGE = 'https://ivyhacks-brodie.vercel.app/slots/';
+const PAGE = 'https://getbrodie.com/ivyhacks/slots';
+
+const GARY = '577833469842030612';               // Discord user who provisions the FaceTime line
+
+// Ping Gary in #staff-chat (webhook in secret DISCORD_LINE_WEBHOOK). Only Gary can be mentioned; team text cannot ping anyone.
+async function pingGary(text) {
+  const hook = process.env.DISCORD_LINE_WEBHOOK;
+  if (!hook) return console.log('DISCORD_LINE_WEBHOOK not set, skipping Discord ping');
+  const clean = text.replace(/@/g, '@\u200b');
+  const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: `<@${GARY}> ${clean}`.slice(0, 1900), allowed_mentions: { parse: [], users: [GARY] } }) });
+  if (!r.ok) console.log('Discord ping failed', r.status, await r.text());
+}
 
 function field(body, name) {
   const m = (body || '').match(new RegExp('### ' + name + '\\s*\\n+([^\\n]+)'));
@@ -17,6 +30,14 @@ module.exports = async ({ github, context }) => {
   const slotLabel = field(issue.body, 'Slot');
   const team = field(issue.body, 'Team name');
   const slot = slots.find(s => s.label === slotLabel);
+  const who = () => `**${team}** (agent \`${field(issue.body, 'Agent name') || '?'}\`, Discord ${field(issue.body, 'Discord handle') || '?'}, ${field(issue.body, 'Testing from') || '?'})`;
+
+  if (context.payload.action === 'closed') {
+    const names = (issue.labels || []).map(l => l.name);
+    if (names.includes('booked') && !names.includes('slot-rejected') && slot && new Date(slot.end) > new Date())
+      await pingGary(`line booking cancelled: ${who()} gave up **${slot.label}**. ${issue.html_url}`);
+    return;
+  }
 
   const say = body => github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body: MARK + '\n' + body });
   const reject = async why => {
@@ -32,8 +53,10 @@ module.exports = async ({ github, context }) => {
 
   const open = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', labels: 'slot', per_page: 100 });
   const others = open.filter(i => i.number !== issue.number && i.title.startsWith('[slot]'));
-  const holder = others.find(i => field(i.body, 'Slot') === slot.label && i.number < issue.number);
-  if (holder) return reject(`**${slot.label}** is already booked by #${holder.number} (${field(holder.body, 'Team name')}).`);
+  const holders = others.filter(i => field(i.body, 'Slot') === slot.label && i.number < issue.number);
+  if (holders.some(i => field(i.body, 'Team name').toLowerCase() === team.toLowerCase()))
+    return reject(`**${team}** already has **${slot.label}**.`);
+  if (holders.length >= CAP) return reject(`**${slot.label}** is full (${CAP} teams: ${holders.map(i => field(i.body, 'Team name') + ' #' + i.number).join(', ')}).`);
 
   const now = new Date();
   const mine = others.filter(i => {
@@ -48,8 +71,10 @@ module.exports = async ({ github, context }) => {
 
   const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: issue.number, per_page: 100 });
   if (comments.some(c => c.body && c.body.startsWith(MARK) && c.body.includes('✅'))) return;
+  await pingGary(`provision the FaceTime line: ${who()} booked **${slot.label}** (${holders.length + 1}/${CAP} teams). ${issue.html_url}`);
   const agent = field(issue.body, 'Agent name') || 'team-yourname-agent';
-  await say(`✅ **${slot.label}** is yours, ${team}.
+  const mates = holders.map(i => `${field(i.body, 'Team name')} (${field(i.body, 'Discord handle') || '#' + i.number})`);
+  await say(`✅ **${slot.label}** is yours, ${team}.${mates.length ? ` You share it with ${mates.join(', ')}: agree an order on Discord, up to ${CAP} teams per slot.` : ` Up to ${CAP} teams can share this slot.`}
 
 **When your slot starts** (two terminals in your agent folder):
 \`\`\`

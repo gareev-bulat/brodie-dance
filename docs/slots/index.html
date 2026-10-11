@@ -86,7 +86,7 @@ footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font
     <div>
       <div class="eyebrow">IvyHacks · Shared FaceTime line</div>
       <h1>Book the line.</h1>
-      <p class="lede">Everyone shares one Chert FaceTime line. Grab a 15-minute turn to test your agent on a real call. In person or remote, same process. Max 2 upcoming slots per team.</p>
+      <p class="lede">Everyone shares one Chert FaceTime line. Up to 3 teams share each 15-minute slot. Grab a turn to test your agent on a real call. In person or remote, same process. Max 2 upcoming slots per team.</p>
     </div>
     <img class="mascot" src="brodie.png" alt="Brodie flexing" width="314" height="320">
   </header>
@@ -99,7 +99,7 @@ footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font
   <section style="display:flex;flex-direction:column;gap:16px" aria-labelledby="how-h">
     <h2 id="how-h">How it works</h2>
     <ol class="steps">
-      <li><b>Book</b> a free slot below. It opens a GitHub form; submit it. A bot confirms within a minute, or tells you it's taken.</li>
+      <li><b>Book</b> a free slot below. It opens a GitHub form; submit it. Up to 3 teams share a slot. A bot confirms within a minute, or tells you it's full.</li>
       <li><b>At your time</b> run <code>npm start</code> and <code>chert dev --agent &lt;your-agent&gt;</code>, then call the shared address on FaceTime.</li>
       <li><b>Release it.</b> Hang up, Ctrl+C in the Chert terminal, wait for <i>Stopped</i>, then ping the next team.</li>
     </ol>
@@ -124,6 +124,7 @@ footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font
 
 <script>
 const REPO = 'seraphimlabs-dev/brodie-starter';
+const CAP = 3;   // teams per slot, same as scripts/slot-bot.js
 const $ = id => document.getElementById(id);
 let SLOTS = [], booked = new Map(), lastOk = null;
 
@@ -148,16 +149,17 @@ function render(){
     const sec = el('section','day'); sec.append(el('h3',null,d));
     const ul = el('ul','sheet');
     for(const s of list){
-      const b = booked.get(s.label);
+      const bs = booked.get(s.label) || [], full = bs.length >= CAP, b = bs[0];
       const start = +new Date(s.start), end = +new Date(s.end);
       const past = end <= now, current = start <= now && now < end;
-      const li = el('li','slot'+(b?' taken':'')+(past?' past':'')+(current?' current':''));
+      const li = el('li','slot'+(full?' taken':'')+(past?' past':'')+(current?' current':''));
       li.append(el('span','time',timeOf(s)));
       const who = el('span','who');
-      if(b){ who.textContent = b.team; who.append(el('small',null,b.where==='Remote'?'Remote':'In person')); }
-      else { who.append(el('span','free', past ? '—' : 'Open')); if(!past) free++; }
+      if(b){ who.textContent = bs.map(x=>x.team).join(', '); who.append(el('small',null,`${bs.length}/${CAP} teams`+(full?'':past?'':' · '+(CAP-bs.length)+' left'))); }
+      else who.append(el('span','free', past ? '—' : `Open · ${CAP} spots`));
+      if(!past && !full) free++;
       li.append(who);
-      if(b){ const a=el('a','tag',current?'On now':'#'+b.number); a.href=b.url; li.append(a); }
+      if(b && (full || past || current)){ const a=el('a','tag',current?'On now':'Full'); a.href=b.url; li.append(a); }
       else if(!past){ const a=el('a','book','Book'); a.href=bookUrl(s); a.target='_blank'; a.rel='noopener'; a.setAttribute('aria-label','Book '+s.label); li.append(a); }
       else li.append(el('span'));
       ul.append(li);
@@ -168,10 +170,10 @@ function render(){
 
   const cur = SLOTS.find(s => +new Date(s.start) <= now && now < +new Date(s.end));
   const curB = cur && booked.get(cur.label);
-  $('nowWho').textContent = !SLOTS.length ? '—' : curB ? curB.team : cur ? 'Free right now' : 'No slot running';
+  $('nowWho').textContent = !SLOTS.length ? '—' : curB ? curB.map(x=>x.team).join(', ') : cur ? 'Free right now' : 'No slot running';
   $('nowWhen').textContent = cur ? `${timeOf(cur)} – ${new Date(cur.end).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})}` : '';
   const next = SLOTS.find(s => +new Date(s.start) > now && booked.get(s.label));
-  $('nextWho').textContent = next ? booked.get(next.label).team : 'Nobody booked yet';
+  $('nextWho').textContent = next ? booked.get(next.label).map(x=>x.team).join(', ') : 'Nobody booked yet';
   $('nextWhen').textContent = next ? next.label : '';
 }
 
@@ -187,7 +189,9 @@ async function load(){
     for(const i of issues.sort((a,b)=>a.number-b.number)){
       if(!i.title.startsWith('[slot]')) continue;
       const label = field(i.body,'Slot');
-      if(label && !m.has(label)) m.set(label,{team:field(i.body,'Team name')||'Booked',where:field(i.body,'Testing from'),number:i.number,url:i.html_url});
+      if(!label) continue;
+      if(!m.has(label)) m.set(label, []);
+      if(m.get(label).length < CAP) m.get(label).push({team:field(i.body,'Team name')||'Booked',where:field(i.body,'Testing from'),number:i.number,url:i.html_url});
     }
     booked = m; lastOk = new Date();
     $('status').textContent = 'Updated '+lastOk.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
