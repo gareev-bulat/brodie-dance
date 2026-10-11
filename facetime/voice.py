@@ -432,6 +432,25 @@ class MixerAudioOutput(_AudioOutputBase):
         self.on_playback_finished(playback_position=played / SAMPLE_RATE, interrupted=seg.interrupted)
 
 
+FISH_VOICE = '894f0267a5194c30814e6b15c07da862'    # fish.audio/m/<id>: the Verity voice (env FISH_VOICE overrides)
+FISH_MODEL = 's2.1-pro-free'                       # env FISH_MODEL overrides
+
+
+def fish_tts():
+    """With FISH_API_KEY set, Fish Audio speaks instead of Gemini: the Live session answers in text and this TTS reads it, at the
+    mixer's rate (SAMPLE_RATE). None without the key (Gemini's own voice)."""
+    if not os.environ.get('FISH_API_KEY'): return None
+    from livekit.plugins import fishaudio
+    return fishaudio.TTS(model=os.environ.get('FISH_MODEL') or FISH_MODEL, voice_id=os.environ.get('FISH_VOICE') or os.environ.get('VERITY_FISH_VOICE') or FISH_VOICE,
+                         sample_rate=SAMPLE_RATE, latency_mode='balanced')
+
+
+def describe_voice(voice_name):
+    if os.environ.get('FISH_API_KEY'):
+        return f'Fish Audio {os.environ.get("FISH_MODEL") or FISH_MODEL}, voice {os.environ.get("FISH_VOICE") or os.environ.get("VERITY_FISH_VOICE") or FISH_VOICE}'
+    return f'Gemini {voice_name}'
+
+
 class GeminiModel:
     """The livekit-agents AgentSession with Gemini Live, output through MixerAudioOutput, input from the caller's room audio.
     start() is called once a caller is bound (a warm job never starts it: no model session, no cost)."""
@@ -443,7 +462,7 @@ class GeminiModel:
         self.language = None if str(lang).strip().lower() in ('', 'off', 'none') else str(lang).strip()
         self.on_turn = on_turn; self.temperature = temperature; self.text = text   # text: typed chat in + transcripts out (web app)
         self.last_caller_t = -1e9; self.last_coach_t = -1e9        # monotonic times of the last transcripts (the conversation hold reads them)
-        self.rt = None; self.session = None; self.agent = None; self.sink = None; self.video = None; self.started = False; self.n_generate = 0; self.n_interrupt = 0
+        self.rt = None; self.tts = None; self.session = None; self.agent = None; self.sink = None; self.video = None; self.started = False; self.n_generate = 0; self.n_interrupt = 0
 
     def build(self):
         """The plugin object (google.beta.realtime.RealtimeModel); separate from start() so a test can drive it without a room.
@@ -454,6 +473,11 @@ class GeminiModel:
             if self.api_key: kw['api_key'] = self.api_key
             if self.temperature is not None: kw['temperature'] = self.temperature
             if self.language: kw['language'] = self.language
+            self.tts = fish_tts()
+            if self.tts is not None:                                       # Fish speaks: Gemini answers in text only
+                from google.genai import types
+                kw['modalities'] = [types.Modality.TEXT]
+                print(f'[voice] {describe_voice(self.voice)}', flush=True)
             base_url = (os.environ.get('GEMINI_BASE_URL') or '').strip().rstrip('/')
             if base_url:                                                   # hackathon: GEMINI_API_KEY is the team token, the relay (modal/gemini_relay.py) holds the real key
                 from google.genai import types                             # the SDK builds the Live websocket URL from base_url (wss) and sends the key as x-goog-api-key
@@ -469,7 +493,8 @@ class GeminiModel:
         from livekit.agents import AgentSession, Agent
         from livekit.agents.voice.room_io import RoomOptions
         self.build(); self.sink = sink; self.video = video
-        self.session = AgentSession(llm=self.rt, user_away_timeout=None, **(dict(video_sampler=None) if video is not None else {}))
+        self.session = AgentSession(llm=self.rt, user_away_timeout=None, **(dict(tts=self.tts) if self.tts is not None else {}),
+                                    **(dict(video_sampler=None) if video is not None else {}))
         self.session.output.audio = sink                                  # before start: RoomIO then publishes no audio track
         if video is not None: self.session.input.video = video            # before start: the forward task starts with the session
         self.agent = Agent(instructions=self.persona, allow_interruptions=True)
