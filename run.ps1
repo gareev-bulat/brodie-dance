@@ -46,7 +46,12 @@ if (-not (Test-Path .env.local)) {
 if (-not (Select-String -Path .env.local -Pattern '^\s*FISH_API_KEY' -Quiet)) { Add-Content .env.local 'FISH_API_KEY=' }   # the Fish voice: paste the key after =
 Get-Content .env.local | ForEach-Object {
     # an empty line (like the FISH_API_KEY= placeholder) never overrides a value set on another line; quotes around a value are dropped
-    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$' -and $matches[2]) { Set-Item "env:$($matches[1])" ($matches[2].Trim('"', "'")) }
+    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*(#.*)?$' -and $matches[2]) {
+        $name, $v = $matches[1], $matches[2].Trim('"', "'")
+        $placeholder = $v -in '<key>', '<secret>', '<team token>' -or $v -match '<your-project>'
+        if (-not $placeholder -and $v -match '^<(.+)>$') { $v = $matches[1] }   # a pasted key left inside its <angle brackets>
+        Set-Item "env:$name" $v
+    }
 }
 if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
 $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
