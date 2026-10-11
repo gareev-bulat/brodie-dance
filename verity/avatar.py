@@ -101,7 +101,9 @@ def _inside(img, layer):
 
 # static parts, baked into the base once per character
 def split_base(img, color):
-    layer = img.copy(); layer[:, CX:, :3] = (layer[:, CX:, :3].astype(np.float32) * .45 + 255 * .55).astype(np.uint8)
+    layer = img.copy(); right = layer[:, CX:, :3]
+    face = right.max(axis=2, keepdims=True) > 90                          # lighten the face colour only, keep eyes and mouth black
+    layer[:, CX:, :3] = np.where(face, (right.astype(np.float32) * .45 + 255 * .55).astype(np.uint8), right)
     _inside(img, layer)
     cv2.putText(img, '+', (CX - R + 18, CY + 20), cv2.FONT_HERSHEY_SIMPLEX, 1.6, BLACK, 5, cv2.LINE_AA)
     cv2.putText(img, '-', (CX + R - 52, CY + 16), cv2.FONT_HERSHEY_SIMPLEX, 1.8, BLACK, 6, cv2.LINE_AA)
