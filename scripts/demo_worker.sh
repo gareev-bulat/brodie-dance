@@ -3,4 +3,4 @@
 . "$(dirname "$0")/demo_env.sh" || exit 1
 VOICE=$($PY -c "from verity.variants import VARIANTS as V; print(V['$VERITY_CHARACTER']['voice'])")
 exec $PY -m facetime.worker --plan-file none --voice gemini --voice-name "$VOICE" --persona "starter/verity/$VERITY_CHARACTER.md" \
-  --avatar "$VERITY_CHARACTER" --text --log-caller --dance --leave-grace-s -1 dev
+  --text --log-caller --dance --leave-grace-s -1 dev   # no --avatar: the dance screen is the only video track

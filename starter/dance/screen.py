@@ -10,8 +10,12 @@ The creator's video is data/dances/<name>.mp4 (reference.py copies it there; or 
 import asyncio, os, textwrap, time
 import numpy as np
 
-W, H = 360, 640                     # portrait; the receiver scales it
-FPS_OUT = 15
+_SIZE = os.environ.get('DANCE_VIDEO_SIZE', '540x960')      # portrait; the receiver scales it (720x1280 costs more CPU per frame)
+W, H = (int(v) for v in _SIZE.lower().split('x'))
+FPS_OUT = int(os.environ.get('DANCE_VIDEO_FPS', '24'))
+KBPS = int(os.environ.get('DANCE_VIDEO_KBPS', '3000'))       # max bitrate of the coach video
+CODEC = os.environ.get('DANCE_VIDEO_CODEC', 'h264').lower()  # h264 decodes in hardware on phones; vp8 is the fallback
+K = W / 360                                                  # overlay scale: every position and font size below is in 360x640 units
 VOLT = (217, 255, 61); WHITE = (245, 245, 245); BLACK = (0, 0, 0)
 MIRROR = os.environ.get('DANCE_MIRROR_VIDEO', '1') != '0'
 MIRROR_SELF = os.environ.get('DANCE_MIRROR_SELF', '1') != '0'    # the caller's own camera flipped like a selfie / studio mirror
@@ -21,7 +25,7 @@ LEFT_MP = {11, 13, 15, 23, 25, 27}
 COL_L, COL_R, COL_MID = (255, 200, 0), (0, 170, 255), (240, 240, 240)   # RGB: the caller's left limbs amber, right limbs blue
 LEAD_BEATS = 4                                                     # beats of song before ONE (starter/handlers.py build_clip), no numbers shown
 SHOW_COUNTS = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'      # the 1..8 numbers only when the counts are spoken too
-PIP_W, PIP_H, PIP_PAD, BAR_H = 120, 213, 12, 36                    # the caller's camera bottom-right, the accuracy bar along the bottom
+PIP_W, PIP_H, PIP_PAD, BAR_H = int(120 * K), int(213 * K), int(12 * K), int(36 * K)   # the caller's camera bottom-right, the bar on top
 PASS_MARK = float(os.environ.get('DANCE_PASS', '0.5'))
 
 
@@ -52,9 +56,9 @@ def _skeleton(panel, kp, w, h, s, x0, mirror):
     for a, b in BODY_LINES:
         if a in pts and b in pts:
             col = COL_L if (a in LEFT_MP and b in LEFT_MP) else COL_R if (a not in LEFT_MP and b not in LEFT_MP) else COL_MID
-            cv2.line(panel, pts[a], pts[b], col, 3, cv2.LINE_AA)
+            cv2.line(panel, pts[a], pts[b], col, max(2, int(3 * K)), cv2.LINE_AA)
     for i, p in pts.items():
-        if i >= 11: cv2.circle(panel, p, 4, COL_MID, -1, cv2.LINE_AA)
+        if i >= 11: cv2.circle(panel, p, max(3, int(4 * K)), COL_MID, -1, cv2.LINE_AA)
 
 
 def cam_panel(cam, pw, ph, dim=1.0):
@@ -87,14 +91,17 @@ def load_frames(path, fps=FPS_OUT):
         canvas = np.zeros((H, W, 3), np.uint8)
         y0, x0 = (H - nh) // 2, (W - nw) // 2
         canvas[y0:y0 + nh, x0:x0 + nw] = cv2.resize(rgb, (nw, nh), interpolation=cv2.INTER_AREA)
-        out.append(canvas[:, ::-1] if MIRROR else canvas)
+        frame = canvas[:, ::-1] if MIRROR else canvas
+        out.append(cv2.imencode('.jpg', cv2.cvtColor(np.ascontiguousarray(frame), cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 92])[1])
     cap.release()
-    return (np.stack(out) if out else np.zeros((0, H, W, 3), np.uint8)), fps
+    return out, fps                                           # JPEG-encoded frames: 25 s at 540x960 is ~40 MB instead of ~900 MB raw
 
 
 def _text(img, s, org, scale, color=WHITE, thick=2, center=False):
+    """org, scale and thick are in 360x640 units; scaled by K for the real canvas."""
     import cv2
     font = cv2.FONT_HERSHEY_DUPLEX
+    org = (int(round(org[0] * K)), int(round(org[1] * K))); scale = scale * K; thick = max(1, int(round(thick * K)))
     if center:
         (tw, _), _ = cv2.getTextSize(s, font, scale, thick); org = ((W - tw) // 2, org[1])
     cv2.putText(img, s, org, font, scale, BLACK, thick + 4, cv2.LINE_AA)
@@ -104,7 +111,7 @@ def _text(img, s, org, scale, color=WHITE, thick=2, center=False):
 class Screen:
     def __init__(self, ref, video_path):
         self.ref = ref; self.video_path = video_path
-        self.frames, self.fps = np.zeros((0, H, W, 3), np.uint8), FPS_OUT
+        self.frames, self.fps = [], FPS_OUT                       # JPEG-encoded frames (load_frames)
         self.source = None
 
     def load(self):
@@ -115,7 +122,9 @@ class Screen:
 
     def frame_at(self, t):
         if not len(self.frames): return np.zeros((H, W, 3), np.uint8)
-        return self.frames[int(np.clip(round(t * self.fps), 0, len(self.frames) - 1))].copy()
+        import cv2
+        buf = self.frames[int(np.clip(round(t * self.fps), 0, len(self.frames) - 1))]
+        return cv2.cvtColor(cv2.imdecode(buf, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)   # a fresh array: safe to draw on
 
     def render(self, st, now, cam=None):
         """st: the handler's state dict; cam: (caller rgb frame, MediaPipe kp or None) or None. Returns H x W x 3 RGB.
@@ -134,9 +143,9 @@ class Screen:
             elif SHOW_COUNTS:
                 b = beat - LEAD_BEATS
                 if b < 8 * (play['k1'] - play['k0']):
-                    _text(img, str(b % 8 + 1), (W - 80, 90), 2.6, VOLT, 5)
+                    _text(img, str(b % 8 + 1), (280, 90), 2.6, VOLT, 5)
             label = ('WATCH THE WHOLE DANCE' if play.get('preview') else 'FULL DANCE') if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
-            _text(img, label, (14, BAR_H + 34), 0.75 if play.get('preview') else 0.9, WHITE, 2)
+            _text(img, label, (14, 70), 0.75 if play.get('preview') else 0.9, WHITE, 2)
             return self._finish(img, st, cam)
         # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
         img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
@@ -171,11 +180,11 @@ class Screen:
         if cam is not None:
             y0, x0 = H - PIP_PAD - PIP_H, W - PIP_PAD - PIP_W
             img[y0:y0 + PIP_H, x0:x0 + PIP_W] = cam_panel(cam, PIP_W, PIP_H)
-            cv2.rectangle(img, (x0, y0), (x0 + PIP_W - 1, y0 + PIP_H - 1), WHITE, 2)
+            cv2.rectangle(img, (x0, y0), (x0 + PIP_W - 1, y0 + PIP_H - 1), WHITE, max(2, int(2 * K)))
         y0 = 0                                                        # the accuracy bar along the top
         cv2.rectangle(img, (0, y0), (W, y0 + BAR_H), (18, 18, 18), -1)
-        _text(img, 'ACCURACY', (12, y0 + 24), 0.6, WHITE, 1)
-        bx0, bx1, by0, by1 = 124, W - 62, y0 + 10, y0 + BAR_H - 10
+        _text(img, 'ACCURACY', (12, 24), 0.6, WHITE, 1)
+        bx0, bx1, by0, by1 = int(124 * K), W - int(62 * K), int(10 * K), BAR_H - int(10 * K)
         cv2.rectangle(img, (bx0, by0), (bx1, by1), (70, 70, 70), -1)
         pct = st.get('last_pct')
         if pct is not None:
@@ -183,8 +192,8 @@ class Screen:
             col = (int(255 * (1 - f)), int(215 * f), 60)                # red -> green
             cv2.rectangle(img, (bx0, by0), (bx0 + int((bx1 - bx0) * f), by1), col, -1)
         xm = bx0 + int((bx1 - bx0) * PASS_MARK)
-        cv2.line(img, (xm, by0 - 2), (xm, by1 + 2), VOLT, 2)            # the pass mark
-        _text(img, f'{pct}%' if pct is not None else '--', (bx1 + 8, y0 + 25), 0.6, WHITE, 1)
+        cv2.line(img, (xm, by0 - 2), (xm, by1 + 2), VOLT, max(2, int(2 * K)))   # the pass mark
+        _text(img, f'{pct}%' if pct is not None else '--', (306, 25), 0.6, WHITE, 1)
         return img
 
     async def run(self, room, get_state, get_cam=lambda: None):
@@ -193,9 +202,11 @@ class Screen:
         await asyncio.get_running_loop().run_in_executor(None, self.load)     # decoding the video must not block the call
         self.source = rtc.VideoSource(W, H)
         track = rtc.LocalVideoTrack.create_video_track('coach-video', self.source)
+        codec = rtc.VideoCodec.H264 if CODEC == 'h264' else rtc.VideoCodec.VP8
         await room.local_participant.publish_track(track, rtc.TrackPublishOptions(
-            source=rtc.TrackSource.SOURCE_CAMERA, simulcast=False, video_encoding=rtc.VideoEncoding(max_framerate=FPS_OUT, max_bitrate=1_200_000)))
-        print('[dance] published video track coach-video', flush=True)
+            source=rtc.TrackSource.SOURCE_CAMERA, simulcast=False, video_codec=codec,
+            video_encoding=rtc.VideoEncoding(max_framerate=FPS_OUT, max_bitrate=KBPS * 1000)))
+        print(f'[dance] published video track coach-video: {W}x{H} @ {FPS_OUT} fps, {KBPS} kbps, {CODEC}', flush=True)
         period = 1.0 / FPS_OUT
         while True:
             t0 = time.monotonic()

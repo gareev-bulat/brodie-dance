@@ -725,7 +725,12 @@ async function startCall(firstText) {
   $('#room').textContent = info.room;
 
   room.on(LK.RoomEvent.TrackSubscribed, (track, _pub, p) => {
-    if (track.kind === 'video') { track.attach($('#agent-video')); $('#wait').hidden = true; ringtone(false); }
+    if (track.kind === 'video') {
+      // the dance lesson's video wins over the face track when both arrive (Brodie's worker publishes both in dance mode)
+      const name = _pub?.trackName || ''; const v = $('#agent-video');
+      if (name !== 'verity-face' || !v.dataset.track || v.dataset.track === 'verity-face') { track.attach(v); v.dataset.track = name; }
+      $('#wait').hidden = true; ringtone(false);
+    }
     if (track.kind === 'audio') { const a = track.attach(); a.dataset.agent = p.identity; document.body.append(a); }
   });
   room.on(LK.RoomEvent.Disconnected, () => endCall(true));
