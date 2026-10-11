@@ -159,8 +159,9 @@ def compose(face, screen, st, now):
             _text(out, line, (0, y + 40 * i), 0.9, WHITE, 2, center=True)
         return out
     if state == 'done':
-        _text(out, 'YOU DID IT!', (0, y), 1.4, VOLT, 3, center=True)
         fs = st.get('full_scores') or st.get('scores') or {}
+        good = bool(fs) and sum(fs.values()) / len(fs) >= PASS * 100
+        _text(out, 'YOU DID IT!' if good else 'KEEP PRACTISING', (0, y), 1.4 if good else 1.1, VOLT, 3, center=True)
         for i, (kk, s) in enumerate(sorted(fs.items())[:6]):
             _text(out, f'Part {kk + 1}: {s}%', (0, y + 55 + 40 * i), 0.9, WHITE, 2, center=True)
         return out

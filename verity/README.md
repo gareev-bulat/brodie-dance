@@ -103,15 +103,28 @@ The handler sends JSON to the room on the data topic `verity`, and the app shows
 
 ## Dancity: dance lessons (Brodie Dance + Steven's model)
 
-`scripts/run_verity.sh dancity` runs Bulat's Brodie dance mode (`--dance`, `starter/handlers.py`) with Dancity's persona and face. Dancity counts you in, teaches the dance 8 counts at a time from `data/dances/<name>.npz` (`DANCE=<name>`, default the first one; make one with `python -m starter.dance.reference --video <clip> --name <name> --bpm <bpm> --first-beat <s> --steps steps.txt`) and judges each part with Brodie's pose model plus **Steven's trained judge** (`data/models/dance_judge.pt`, through `model_judge` in `starter/dance/judge.py`; `RTCOACH_DANCE_MODEL=` empty uses his DTW rules only). Under 70% it gives one tip and runs the part again (3 tries), getting angrier each miss, up to the red Cruelty look and yelling; a pass calms it down. Then the whole dance once, and an honest wrap-up.
+`scripts/run_verity.sh dancity` runs Bulat's Brodie dance mode (`--dance`, `starter/handlers.py`) with Dancity's persona and face. Dancity counts you in, teaches the dance 8 counts at a time from `data/dances/<name>.npz` (`DANCE=<name>`, default the first one there: **`eagle`**, a real TikTok dance with its music and step descriptions) and judges each part with Brodie's pose model plus **Steven's trained judge** (`data/models/dance_judge.pt`, through `model_judge` in `starter/dance/judge.py`; `RTCOACH_DANCE_MODEL=` empty uses his DTW rules only). Under the pass bar (`DANCE_PASS`, default 50%: the judge gives the creator's own clip 96 to 99% and jumping jacks 15 to 33%) it gives one tip and runs the part again (3 tries), getting angrier each miss, up to the red Cruelty look and yelling; a pass calms it down. Then the whole dance once, and an honest wrap-up.
 
-Steven's reference poses and clips are in `data/dance/` (`pose/`, `raw/`); `data/dances/josh_king_o.npz` is a lesson built from one of them (`DANCE=josh_king_o`; bpm and first beat are estimates). A second test dance, `jacks`, is jumping jacks cut from the starter's `live.mp4` (see the commands above to build it). Score a clip without a call: `python -m starter.dance.reference --score <clip> --against jacks --first-beat 2.0`. On a call (good dancer, then a bad one):
+**What the caller sees and needs.** The call video is one track: between parts Dancity with a card (part number, last score, the moves); while a part plays, the creator's clip mirrored like a studio mirror with the big count and Dancity in the corner (`DANCE_VIDEO=0` for the face alone). The lesson starts as soon as the caller's **head, shoulders and hips** are in frame (Brodie's whole-body rule is accepted too, but ankles are not required: a laptop webcam or a hand-held phone never shows them). Dancity also gets the caller's camera (`--vision`, one frame every 4 s) for small talk between parts.
+
+**Make a dance** from a clip (poses with Brodie's own MediaPipe model, the song from the clip's audio, the clip kept for the screen):
+
+```
+python -m starter.dance.reference --video data/dance/raw/americaneagle_8d820a.mp4 --name eagle --bpm 121 --first-beat 1.2 --chunks 2 --steps starter/dance/steps/eagle.txt
+python -m starter.dance.reference --show data/dances/eagle.npz
+python -m starter.dance.reference --score data/dance/raw/americaneagle_8d820a.mp4 --against eagle --first-beat 1.2   # the creator against itself: 96%, 99%
+```
+`--bpm` from the song (the eagle clip's audio gives 121); `--first-beat` is the second where count ONE falls; `--steps` one line per part, said and shown. `data/dances/` is gitignored except what is added with `git add -f` (eagle, jacks, josh_king_o).
+
+Steven's reference poses and clips are in `data/dance/` (`pose/`, `raw/`); `data/dances/josh_king_o.npz` is a lesson built from one of them (`DANCE=josh_king_o`; no music or steps, bpm and first beat are estimates). `jacks` is jumping jacks cut from the starter's `live.mp4`. On a call (the creator's own clip as the dancer, then a bad one), recording what Dancity really said:
 
 ```
 scripts/run_verity.sh dancity
+python scripts/verity_smoke.py --character dancity --video data/dances/eagle.mp4 --silent --seconds 100 --record data/tmp/dancity.wav
 python scripts/verity_smoke.py --character dancity --video data/dances/jacks.mp4 --silent --seconds 120
-python scripts/verity_smoke.py --character dancity --video data/tmp/dance_test/squats.mp4 --silent --seconds 170
 ```
+
+**Known relay quirk (2026-10-11):** through the organisers' Gemini relay the model's *transcript* channel sometimes carries its private reasoning or unrelated text ("Follow specific talk style guidelines...", once a list of cow breeds) while the spoken audio is fine (checked by transcribing the recorded wav). It shows up only as captions in the web app; FaceTime callers never hear it. Turning the model's thinking off (`thinking_budget=0`) is not a fix: `gemini-3.8-live` then answers every ask with an empty turn.
 
 ## Add a character
 
