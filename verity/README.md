@@ -78,6 +78,14 @@ Place a FaceTime **Video** call to the line. When you're done: hang up, wait for
 
 ## Real 3D models on the call
 
+The app and the calls use **"Verity Full Model" by ChocoChip67** (CC BY 4.0, [Sketchfab](https://sketchfab.com/3d-models/verity-full-model-696156ec15c248098b87e6fc32dd34e7)), in `web/assets/models/verity.glb`. Its five faces become the call video: Verity smiles when idle, opens its mouth while talking and flashes the creepy toothy grin on a strike; Gravity gets the bored half-lidded face, and Cruelty gets the creepy toothy grin in red. The other characters are recoloured with their gear. The home screen shows the live model for Verity (three.js); hover it to make it talk. The rendered frames are committed in `web/assets/3d/`, so nothing needs a GPU. To re-render after changing the model:
+
+```
+npm i playwright && node scripts/render_model.js && python -m verity.models frames
+```
+
+The older per-model pipeline below still works.
+
 `verity/models.py` turns fan-made, CC BY Sketchfab models (closed and open-mouth Verity, Falsity, the monster) into frames for the call avatar. It renders them on the GPU, headless, then turns, bobs and recolours them for each character and adds each one's gear. The avatar plays the open-mouth frames while the agent talks, and falls back to the drawn 3D ball when there are no frames.
 
 ```

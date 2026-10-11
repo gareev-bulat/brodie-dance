@@ -11,6 +11,46 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.7/dist/livekit-client.umd.js"></script>
 <script src="lore.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+// The home screen's live Verity: web/assets/models/verity.glb ("Verity Full Model" by ChocoChip67, CC BY 4.0).
+// It sways like the call video, and hovering (or tapping) makes it talk. If WebGL or the CDN fails, the still image stays.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+try {
+  const canvas = document.getElementById('ball3d'), SIZE = 200;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const scene = new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+  const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-2, 3, 4); scene.add(key);
+  const model = (await new GLTFLoader().loadAsync('assets/models/verity.glb')).scene;
+  model.traverse((o) => { if (o.isMesh) { const g = mergeVertices(o.geometry.deleteAttribute('normal'), 1e-4); g.computeVertexNormals(); o.geometry = g; } });
+  const faces = {};
+  model.traverse((o) => { if (/^mouth_/.test(o.name)) faces[o.name.replace(/_\d+$/, '')] = o; });
+  const pivot = new THREE.Group(); pivot.add(model); scene.add(pivot); model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(faces.mouth_closed_idle), r = box.getSize(new THREE.Vector3()).y / 2;
+  model.position.sub(box.getCenter(new THREE.Vector3()));
+  const half = r * 1.06, cam = new THREE.OrthographicCamera(-half, half, half, -half, -100, 100); cam.position.z = 10;
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  let talking = false;
+  const face = (n) => { for (const [k, o] of Object.entries(faces)) o.visible = k === n; };
+  const resize = () => { const s = canvas.clientWidth || SIZE; renderer.setSize(s, s, false); };
+  canvas.addEventListener('pointerenter', () => { talking = true; });
+  canvas.addEventListener('pointerleave', () => { talking = false; });
+  canvas.addEventListener('click', () => { talking = !talking; });
+  renderer.setAnimationLoop((ms) => {
+    if (canvas.hidden) return;
+    const t = ms / 1000, move = still.matches ? 0 : 1;
+    pivot.rotation.y = THREE.MathUtils.degToRad(180 + 14 * Math.sin(t * 2 * Math.PI / 3) * move);   // the model faces -z
+    pivot.position.y = 0.04 * r * Math.sin(t * 4 * Math.PI / 3) * move;
+    face(talking && Math.floor(t * 6) % 2 ? 'mouth_open_idle' : 'mouth_closed_idle');
+    resize(); renderer.render(scene, cam);
+  });
+  window.verity3d = true; dispatchEvent(new Event('verity3d'));
+} catch (e) { console.warn('3D Verity unavailable, keeping the image', e); }
+</script>
 <style>
   :root {
     --paper: #fff4bf; --side: #ffeb8f; --card: #fffdf2;     /* lemon, not cream: the face's own yellow, thinned */
@@ -79,7 +119,9 @@
   /* home */
   #view-home { background: var(--ground); color: var(--on-ground); transition: background-color .45s ease-out, color .45s; }
   .home { display: grid; place-content: center; text-align: center; padding: 24px 24px 120px; min-height: 100%; }
-  .home .ball { width: 168px; height: 168px; object-fit: contain; margin: 0 auto 6px; }
+  .ball-wrap { width: 200px; height: 200px; margin: 0 auto 2px; }
+  .home .ball { display: block; width: 200px; height: 200px; object-fit: contain; }
+  #ball3d { cursor: pointer; }
   .wordmark { margin: 0; font: 800 clamp(3.2rem, 9vw, 8rem)/.85 var(--round); text-transform: uppercase;
               color: var(--wm-fill, var(--verity)); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
   .home .sub { max-width: 44ch; margin: 14px auto 0; font-size: 1.1rem; line-height: 1.4; opacity: .85; }
@@ -261,7 +303,7 @@
     .pick img { width: 50px; height: 50px; }
     .pick b { font-size: .85rem; }
     .pick small { display: none; }
-    .home .ball { width: 128px; height: 128px; }
+    .ball-wrap, .home .ball { width: 150px; height: 150px; }
   }
   @media (prefers-reduced-motion: reduce) { .tile .wait img, body.cruel .tile, .timer::before { animation: none; } #view-home, .side, .cta, .pick img { transition: none; } }
 </style>
@@ -291,7 +333,7 @@
       </div>
       <div data-pane="lore" hidden>
         <p class="group">Credits</p>
-        <p class="empty">Verity by ThatMob. "It's Me, It's Verity" by Horror Skunx. Character images from the Verity Wiki; 3D models from Sketchfab creators (CC BY). Memes by their creators, linked on every image.</p>
+        <p class="empty">Verity by ThatMob. "It's Me, It's Verity" by Horror Skunx. Character images from the Verity Wiki. 3D Verity: <a href="https://sketchfab.com/3d-models/verity-full-model-696156ec15c248098b87e6fc32dd34e7" rel="noopener">"Verity Full Model" by ChocoChip67</a> (CC BY 4.0), recoloured for the other characters. Memes by their creators, linked on every image.</p>
         <p class="group">Socials</p>
         <nav class="nav">
           <a href="https://www.youtube.com/@verityagent-o6t" rel="noopener">YouTube</a>
@@ -311,7 +353,7 @@
 
     <section class="view" id="view-home" aria-labelledby="wm">
       <div class="home">
-        <img class="ball" id="home-ball" src="assets/wiki/verityspin.gif" alt="Verity spinning">
+        <div class="ball-wrap"><img class="ball" id="home-ball" src="assets/3d/verity/face.png" alt="Verity"><canvas class="ball" id="ball3d" hidden aria-label="Verity, 3D. Hover to make it talk"></canvas></div>
         <h1 class="wordmark" id="wm">Verity Agent</h1>
         <p class="glow" id="home-sub" aria-live="polite"></p>
         <div class="badges" id="badges"></div>
@@ -343,7 +385,7 @@
           </div>
           <div class="tile" id="tile">
             <video id="agent-video" autoplay playsinline muted></video>
-            <div class="wait" id="wait"><img id="wait-face" src="assets/wiki/verityspin.gif" alt=""><span id="wait-text">Ringing…</span></div>
+            <div class="wait" id="wait"><img id="wait-face" src="assets/3d/verity/face.png" alt=""><span id="wait-text">Ringing…</span></div>
             <p class="captions glow" id="captions" aria-hidden="true"></p>
             <div class="tile-tools">
               <button type="button" id="interrupt" hidden aria-label="Make it stop talking">Stop talking</button>
@@ -442,7 +484,7 @@ const LK = window.LivekitClient;
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rgb = (c) => `rgb(${c.join(',')})`;
-const ours = (key, talk) => `assets/ours/${key}${talk ? '-talk' : ''}.png`;
+const ours = (key, talk) => `assets/3d/${key}/face${talk ? '-talk' : ''}.png`;   // renders of the full 3D model (verity/models.py frames)
 const store = {   // per-browser conveniences; everything still works without storage
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -554,12 +596,17 @@ function renderChars() {
     if (next[0] !== lines[0]) { lines = next; ii = 0; intro(); }
   }
 }
+function show3d() {
+  const live = current === 'verity' && window.verity3d;
+  $('#ball3d').hidden = !live; $('#home-ball').hidden = !!live;
+}
+addEventListener('verity3d', show3d);
 function pickChar(key) {
   if (room) return toast('Hang up first. One -ity per call.');
   current = key; renderChars();
   const c = CHARS.find((x) => x.key === key);
   $('#say').placeholder = `Say something to ${c.name}…`; $('#wm').textContent = `${c.name} Agent`;
-  $('#home-ball').src = key === 'verity' ? 'assets/wiki/verityspin.gif' : ours(key, true);
+  $('#home-ball').src = ours(key); show3d();
   show('home');
 }
 $('#pick').addEventListener('change', (e) => pickChar(e.target.value));
@@ -623,7 +670,7 @@ function add(l) { if (entry) entry.lines.push(l); return render(l); }
 function ev(html, kind) { return add({ ev: html, kind }); }
 function setChar(c) {
   callChar = c; $('#who').textContent = c.name; document.documentElement.style.setProperty('--accent', rgb(c.color));
-  $('#wait-face').src = c.key === 'verity' ? 'assets/wiki/verityspin.gif' : ours(c.key, true);
+  $('#wait-face').src = ours(c.key);
 }
 function meter(id, n) { document.querySelectorAll(`#${id} i`).forEach((p, i) => p.classList.toggle('on', i < n)); }
 

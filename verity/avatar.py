@@ -17,11 +17,13 @@ SPRITES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 @functools.lru_cache(maxsize=None)
 def sprites(key):
-    """Rendered frames of the real 3D model for a character (verity/models.py render): (idle, talk) RGBA lists, or None."""
-    idle = sorted(glob.glob(os.path.join(SPRITES, key, 'idle_*.png'))); talk = sorted(glob.glob(os.path.join(SPRITES, key, 'talk_*.png')))
+    """Rendered frames of the real 3D model for a character (verity/models.py): (idle, talk, creepy) RGBA lists (talk and creepy may
+    be None), or None."""
+    kind = lambda k: sorted(glob.glob(os.path.join(SPRITES, key, f'{k}_*.png')))
+    idle = kind('idle')
     if not idle: return None
     load = lambda f: cv2.cvtColor(cv2.imread(f, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
-    return [load(f) for f in idle], [load(f) for f in talk] or None
+    return [load(f) for f in idle], [load(f) for f in kind('talk')] or None, [load(f) for f in kind('creepy')] or None
 CX, CY, R = W // 2, H // 2, int(W * 0.42)
 BLACK = (0, 0, 0, 255)
 EYE_Y, EYE_DX = CY - R // 4, R // 3
@@ -166,8 +168,8 @@ class Avatar:
         self.level *= 0.6                                                 # decay between audio frames
         while self.levels and self.levels[0][0] <= now: self.level = max(self.level, self.levels.popleft()[1])
         if self.sprites:
-            idle, talk = self.sprites
-            frames = talk if talk and self.level > 0.04 else idle
+            idle, talk, creepy = self.sprites
+            frames = creepy if creepy and now < self.mood_until else talk if talk and self.level > 0.04 else idle   # creepy: a strike
             return frames[int(now * 8) % len(frames)].copy()             # 8 fps turn/bob cycle, mouth open while it talks
         if self.real:
             f = self.real

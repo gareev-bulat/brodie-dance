@@ -2,6 +2,7 @@
 
   python -m verity.models fetch     # needs SKETCHFAB_API_TOKEN (sketchfab.com/settings/password -> API token) in the env
   python -m verity.models render    # GPU, headless (EGL): data/models3d/<name>/ -> web/assets/3d/<character>/{idle,talk}_NN.png
+  node scripts/render_model.js && python -m verity.models frames   # the full model in web/assets/models/verity.glb (no GPU)
 
 Rendering: the closed-mouth and open-mouth Verity models are turned slowly left to right and bobbed (IDLE_FRAMES poses), lit
 from the top left, centered and scaled so the ball matches the 2D avatar's ball (avatar.CX, CY, R). The variants are the same
@@ -107,5 +108,43 @@ def render(closed=None, opened=None):
         print('rendered', key, 2 * IDLE_FRAMES, 'frames')
 
 
+# The full model (web/assets/models/verity.glb) has five faces; scripts/render_model.js renders each one turning and bobbing.
+FULL_MODEL = ('Verity Full Model', 'ChocoChip67', 'https://sketchfab.com/3d-models/verity-full-model-696156ec15c248098b87e6fc32dd34e7')
+FRAMES = os.path.join(ROOT, 'data', 'tmp', 'model_frames')
+KINDS = ('idle', 'talk', 'creepy')                                    # creepy: shown for a moment after a strike
+FACE_SETS = {'cruelty': ('mouth_closed_sus', 'mouth_open_sus', 'mouth_open_sus'),     # the series' creepy grin, in red
+             'gravity': ('mouth_closed_bored', 'mouth_open_idle', 'mouth_closed_sus')}  # half-lidded: Gravity's sleepy look
+DEFAULT_SET = ('mouth_closed_idle', 'mouth_open_idle', 'mouth_closed_sus')
+
+
+def frames():
+    """data/tmp/model_frames (node scripts/render_model.js) -> web/assets/3d/<character>/{idle,talk,creepy}_NN.png, recoloured with
+    gear, plus face.png and face-talk.png thumbnails."""
+    import cv2
+    from verity.avatar import CX, CY, FACES, R
+    from verity.variants import VARIANTS
+    load = lambda face: [cv2.cvtColor(cv2.imread(f, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+                         for f in sorted(glob.glob(os.path.join(FRAMES, f'{face}_*.png')))]
+    for key, v in VARIANTS.items():
+        d = os.path.join(OUT, key); os.makedirs(d, exist_ok=True)
+        for f in glob.glob(os.path.join(d, '*.png')): os.remove(f)
+        static, _ = FACES[v.get('face', 'plain')]
+        for kind, face in zip(KINDS, FACE_SETS.get(key, DEFAULT_SET)):
+            raw = load(face)
+            if not raw: raise SystemExit(f'no frames for {face}: run node scripts/render_model.js first')
+            for i, f in enumerate(raw):
+                img = f if key == 'verity' else recolor(f, v['color'])
+                if static: img = img.copy(); static(img, v['color'])
+                cv2.imwrite(os.path.join(d, f'{kind}_{i:02d}.png'), cv2.cvtColor(img, cv2.COLOR_RGBA2BGRA), [cv2.IMWRITE_PNG_COMPRESSION, 9])
+            if kind == 'creepy': continue
+            # square thumbnails for the website (sidebar, picker, chat): the ball and its gear, from frame 0
+            top, size = CY - R - 70, 2 * R + 100
+            first = cv2.imread(os.path.join(d, f'{kind}_00.png'), cv2.IMREAD_UNCHANGED)
+            sq = np.pad(first, ((0, 0), (size, size), (0, 0)))[top:top + size, CX + size // 2:CX + size + size // 2]
+            cv2.imwrite(os.path.join(d, 'face.png' if kind == 'idle' else 'face-talk.png'), cv2.resize(sq, (192, 192), interpolation=cv2.INTER_AREA),
+                        [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        print('frames', key, FACE_SETS.get(key, DEFAULT_SET))
+
+
 if __name__ == '__main__':
-    {'fetch': fetch, 'render': render}[sys.argv[1] if len(sys.argv) > 1 else 'render']()
+    {'fetch': fetch, 'render': render, 'frames': frames}[sys.argv[1] if len(sys.argv) > 1 else 'render']()

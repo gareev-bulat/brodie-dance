@@ -175,7 +175,7 @@
   <a class="brand" href="#top"><img src="assets/verity-face.png" alt="">Verity Agent</a>
   <a href="#lore">Lore</a><a href="#ities">-ities</a><a href="#wall">Memes</a><a href="/">App</a>
 </header>
-<a class="call-btn" href="/"><img src="assets/ours/verity-talk.png" alt="">Call Verity</a>
+<a class="call-btn" href="/"><img src="assets/3d/verity/face-talk.png" alt="">Call Verity</a>
 
 <main id="top">
   <section class="hero" aria-labelledby="hero-sub">
@@ -229,7 +229,7 @@
         <div><b>Three strikes</b>Wrong capital of France? Rude? Three strikes and Verity becomes Cruelty. Say sorry.</div>
         <div><b>Your -ity verdict</b>Before you hang up it tells you who you really are. Procrastinity, probably.</div>
       </div>
-      <a class="call-btn go" href="/"><img src="assets/ours/verity-talk.png" alt="">Call it now</a>
+      <a class="call-btn go" href="/"><img src="assets/3d/verity/face-talk.png" alt="">Call it now</a>
     </div>
   </section>
 
@@ -288,7 +288,7 @@ document.querySelectorAll('.ity button').forEach((b) => b.addEventListener('clic
 
 const CREW = [['verity', 'Verity', 'knows everything'], ['dancity', 'Dancity', 'rates your dance'], ['gravity', 'Gravity', 'everything is heavy'],
               ['polarity', 'Polarity', 'loves it, hates it'], ['intensity', 'Intensity', 'LET\'S GO'], ['cruelty', 'Cruelty', '3 strikes to meet']];
-$('#crew').innerHTML = CREW.map(([k, n, s]) => `<figure class="${k === 'cruelty' ? 'locked' : ''}"><img loading="lazy" src="assets/ours/${k}-talk.png" alt="${n}"><span class="tag">${n}</span><small>${s}</small></figure>`).join('');
+$('#crew').innerHTML = CREW.map(([k, n, s]) => `<figure class="${k === 'cruelty' ? 'locked' : ''}"><img loading="lazy" src="assets/3d/${k}/face-talk.png" alt="${n}"><span class="tag">${n}</span><small>${s}</small></figure>`).join('');
 
 const card = ([img, t, by, url]) => `<a ${url ? `href="${url}" target="_blank" rel="noopener"` : ''}><img loading="lazy" src="${img}" alt="${esc(t)}"><span>${esc(t)}<small>${esc(by)}</small></span></a>`;
 const half = Math.ceil(LORE.memes.length / 2), r1 = LORE.memes.slice(0, half), r2 = LORE.memes.slice(half);

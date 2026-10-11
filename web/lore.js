@@ -53,11 +53,12 @@ const LORE = {
     ['June to Sep', 'The -ity multiverse', 'Fans make variants: Falsity (xqree, June 17), then Lovity, Cruelty, Curiosity and hundreds more. Any word ending in -ity is now a character.', WIKI('falsity3d.webp')],
     ['Summer 2026', 'Brainrot era', 'AI edits, Verity Tung, Roblox games, plushies, CG5 × Horror Skunx "your verity". A teacher tells HuffPost any yellow smiley is basically now Verity.', MEME('../verity-tung.webp')],
     ['Sep 27, 2026', 'Forbes explains it', "USA Today calls it the possible new 6-7. Reddit's r/hatethissmug calls it a content farm. Nobody can stop saying it.", WIKI('verity-plushs-in-box.webp')],
-    ['Now', 'Verity Agent', 'You can FaceTime it. It sees your room, rates your dance, and if you get the capital of France wrong three times, you meet Cruelty.', 'assets/ours/verity-talk.png'],
+    ['Now', 'Verity Agent', 'You can FaceTime it. It sees your room, rates your dance, and if you get the capital of France wrong three times, you meet Cruelty.', 'assets/3d/verity/face-talk.png'],
   ],
 
   // 3D models used for the call avatar (verity/models.py), CC Attribution, from Sketchfab
   models3d: [
+    ['Verity Full Model', 'ChocoChip67', 'https://sketchfab.com/3d-models/verity-full-model-696156ec15c248098b87e6fc32dd34e7'],   // what the app and the calls use
     ['Verity', 'c00lzer', 'https://sketchfab.com/3d-models/aa5225880f5445e79a425eea391c42fb'],
     ['Verity Open Mouth', 'c00lzer', 'https://sketchfab.com/3d-models/5ba54a0cbcb34b9fa2f85948bbbaa617'],
     ['Falsity', 'Astrix3D', 'https://sketchfab.com/3d-models/3661aadc8ff24c87af9a10c70839c2ec'],
