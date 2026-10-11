@@ -30,6 +30,16 @@ from verity.dance import DanceDetector
 from verity.variants import DEFAULT, VARIANTS, instructions
 
 log = logging.getLogger('verity')
+
+
+class _QuietLoopMonitor(logging.Filter):
+    """livekit-agents warns on every event-loop stall with a long stack trace. On a Windows console, printing those is slow enough
+    to cause the next stall, so they are dropped unless VERITY_DEBUG is set."""
+    def filter(self, record):
+        return not record.getMessage().startswith('event loop blocked')
+
+
+if not os.environ.get('VERITY_DEBUG'): logging.getLogger('livekit.agents').addFilter(_QuietLoopMonitor())
 CHARACTER = os.environ.get('VERITY_CHARACTER', DEFAULT).strip().lower()
 VOICES = typing.get_args(Voice)
 STRIKES_TO_CRUELTY = 3

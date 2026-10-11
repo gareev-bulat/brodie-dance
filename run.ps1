@@ -19,7 +19,7 @@ if (-not (Test-Path $py)) {
     uv pip install --python $py livekit livekit-api 'livekit-agents==1.8.5' 'livekit-plugins-google==1.8.5' 'livekit-plugins-fishaudio==1.8.5' aiohttp numpy opencv-python-headless pillow
     if ($LASTEXITCODE -ne 0) { Remove-Item -Recurse -Force .venv; throw 'Package install failed. Fix the error above and run again.' }
 }
-uv pip install -q --python $py 'livekit-plugins-fishaudio==1.8.5'   # added later (Verity's Fish Audio voice); a no-op once installed
+uv pip install -q --python $py 'livekit-plugins-fishaudio==1.8.5' pillow   # added later (Fish voice; Pillow lets Gemini see the camera); a no-op once installed
 
 # 3. Keys live in .env.local, which git ignores
 if (-not (Test-Path .env.local)) {
@@ -49,7 +49,7 @@ if ($missing) {
 # A web app left over from an earlier run would keep port 8765 and serve the old page, so stop it first.
 Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue |
     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent dev"
+Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity agent'; & '$py' -m verity.agent start --log-level info"   # dev prints every debug line, and a Windows console is slow enough to stall the audio
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Verity web app'; & '$py' -m verity.server"
 Write-Host 'Starting... the app opens in your browser as soon as it is ready.'
 foreach ($i in 1..60) {   # the first start on Windows can take a while
