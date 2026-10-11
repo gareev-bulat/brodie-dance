@@ -51,7 +51,7 @@ Get-Content .env.local | ForEach-Object {
 if (-not $env:AGENT_NAME) { $env:AGENT_NAME = 'team-verity-agent' }
 $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_KEY' |
     Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue).Value -or (Get-Item "env:$_").Value -match '<' }
-if (-not $env:FISH_API_KEY) { Write-Host 'No FISH_API_KEY in .env.local: the characters use Gemini voices until you add it.' -ForegroundColor Yellow }
+if (-not $env:FISH_API_KEY) { Write-Host "No FISH_API_KEY in $((Resolve-Path .env.local).Path): the characters use Gemini voices until you add it there (and save)." -ForegroundColor Yellow }
 if ($missing) {
     Write-Host "Fill in these lines in .env.local, save, then run this again: $($missing -join ', ')" -ForegroundColor Red
     notepad .env.local
