@@ -8,30 +8,32 @@
 <link rel="icon" href="assets/verity-face.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600..800&family=Instrument+Sans:wght@400..600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.7/dist/livekit-client.umd.js"></script>
 <script src="lore.js"></script>
 <style>
   :root {
-    --paper: #fffbe3; --side: #fff6cf; --card: #ffffff;
-    --ink: #1f1a08; --muted: #7d7149; --line: rgba(31, 26, 8, .12);
+    --paper: #fff4bf; --side: #ffeb8f; --card: #fffdf2;     /* lemon, not cream: the face's own yellow, thinned */
+    --ink: #1a1400; --muted: #6b5a12; --line: rgba(26, 20, 0, .14);
+    --ground: #ffd21f; --on-ground: #1a1400;               /* the home screen is the picked character's face colour */
+    --call: #2fb565;
     --verity: #ffd21f; --gold: #a87d00; --bad: #d62828;
     --accent: var(--gold);           /* follows the character on a call (Cruelty turns it red) */
     --round: "Baloo 2", sans-serif;
-    --body: "Instrument Sans", sans-serif;
+    --body: "Baloo 2", sans-serif;
     --lift: 0 1px 2px rgba(70,50,0,.08), 0 4px 12px rgba(70,50,0,.08);
     --z-composer: 10; --z-drawer: 20; --z-toast: 30;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 .95rem/1.5 var(--body); overflow: hidden; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1rem/1.45 var(--body); overflow: hidden; }
   button, input, select { font: inherit; color: inherit; }
   img { display: block; max-width: 100%; }
   a { color: inherit; }
   h1, h2, h3 { text-wrap: balance; }
   p { text-wrap: pretty; }
   :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
-  [hidden] { display: none !important; }   /* beats display rules like .collage's grid */
+  [hidden] { display: none !important; }   /* beats display rules like .tile .wait's grid */
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .num { font-variant-numeric: tabular-nums; }
 
@@ -42,7 +44,7 @@
   .side-top { display: flex; align-items: center; gap: 8px; padding: 14px 16px 8px; font: 800 1.05rem/1 var(--round); }
   .side-top img { width: 26px; height: 26px; }
   .tabs { display: flex; gap: 18px; padding: 6px 16px 0; border-bottom: 1px solid var(--line); }
-  .tabs button { border: 0; background: none; padding: 8px 0; font: 700 .75rem var(--body); text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabs button { border: 0; background: none; padding: 8px 0; font: 700 .95rem var(--body); color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
   .tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--ink); }
   .side-scroll { flex: 1; overflow-y: auto; padding: 10px 8px; }
   .nav { display: grid; gap: 1px; margin-bottom: 10px; }
@@ -50,7 +52,7 @@
   .nav button:hover, .nav a:hover, .nav button[aria-current="true"] { background: rgba(31, 26, 8, .06); }
   .nav svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; flex: none; }
   .nav kbd { margin-left: auto; font: 500 .68rem var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
-  .group { margin: 16px 0 6px; padding: 0 10px; font: 700 .72rem/1 var(--body); text-transform: uppercase; color: var(--gold); }
+  .group { margin: 18px 0 4px; padding: 0 10px; font: 700 .9rem/1 var(--body); color: var(--muted); }
   .char { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 6px 10px; border: 0; border-radius: 10px; background: none; cursor: pointer; text-align: left; }
   .char:hover { background: rgba(31, 26, 8, .06); }
   .char[aria-pressed="true"] { background: var(--card); box-shadow: var(--lift); }
@@ -71,31 +73,26 @@
 
   /* ---------- main ---------- */
   .main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .collage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; padding: 18px;
-             opacity: .14; filter: sepia(.4); transform: rotate(-4deg) scale(1.15);
-             -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, transparent 35%, #000 80%); mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, transparent 35%, #000 80%); }
-  .collage img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; }
   .view { position: relative; flex: 1; min-height: 0; overflow-y: auto; }
   .view[hidden] { display: none; }
 
   /* home */
+  #view-home { background: var(--ground); color: var(--on-ground); transition: background-color .45s ease-out, color .45s; }
   .home { display: grid; place-content: center; text-align: center; padding: 24px 24px 120px; min-height: 100%; }
-  .home .ball { width: 132px; height: 132px; object-fit: contain; margin: 0 auto 10px; filter: drop-shadow(0 12px 24px rgba(200, 150, 0, .45)); }
+  .home .ball { width: 168px; height: 168px; object-fit: contain; margin: 0 auto 6px; filter: drop-shadow(0 14px 18px rgba(26, 20, 0, .35)); }
   .wordmark { margin: 0; font: 800 clamp(3.2rem, 9vw, 8rem)/.85 var(--round); text-transform: uppercase;
-              color: var(--verity); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 7px 7px 0 var(--ink); }
-  .home .sub { max-width: 46ch; margin: 14px auto 0; color: var(--muted); font-size: 1rem; }
+              color: var(--wm-fill, var(--verity)); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 7px 7px 0 var(--ink); }
+  .home .sub { max-width: 44ch; margin: 14px auto 0; font-size: 1.1rem; line-height: 1.4; opacity: .85; }
   .home .glow { min-height: 1.3em; margin-top: 14px; }
-  .picker { margin: 26px auto 0; }
-  .picker > p { margin: 0 0 10px; font: 700 .72rem/1 var(--body); text-transform: uppercase; letter-spacing: .04em; color: var(--gold); }
-  .picker-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
-  .pick { display: grid; justify-items: center; gap: 2px; width: 92px; padding: 10px 6px 8px; border: 2px solid transparent; border-radius: 18px; background: var(--card); box-shadow: var(--lift); cursor: pointer;
-          transition: transform .15s ease-out, border-color .15s; }
-  .pick:hover { transform: translateY(-2px); }
-  .pick[aria-pressed="true"] { border-color: var(--ink); background: color-mix(in srgb, var(--c) 22%, #fff); }
-  .pick img { width: 48px; height: 48px; object-fit: contain; }
-  .pick b { font: 800 .9rem/1.1 var(--round); }
-  .pick small { font-size: .7rem; color: var(--muted); }
-  .cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px; border: 2px solid var(--ink); border-radius: 999px; padding: 12px 26px; background: var(--verity); color: var(--ink);
+  .picker { margin: 28px auto 0; }
+  .picker-row { display: flex; justify-content: center; gap: 18px; }
+  .pick { display: grid; justify-items: center; gap: 4px; width: 76px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+  .pick img { width: 64px; height: 64px; object-fit: contain; border-radius: 50%; padding: 3px; outline: 3px solid transparent; outline-offset: 1px; transition: outline-color .15s; }
+  .pick:hover img { outline-color: color-mix(in srgb, var(--on-ground) 35%, transparent); }
+  .pick[aria-pressed="true"] img { outline-color: var(--on-ground); }
+  .pick b { font: 700 .95rem/1.1 var(--round); }
+  .pick small { font-size: .78rem; opacity: .75; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; border: 2px solid var(--ink); border-radius: 999px; padding: 12px 28px; background: var(--call); color: #fff;
          font: 800 1.15rem/1 var(--round); cursor: pointer; box-shadow: 0 4px 0 var(--ink); transition: transform .1s, box-shadow .1s; }
   .cta:hover { transform: translateY(-1px); box-shadow: 0 5px 0 var(--ink); }
   .cta:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
@@ -104,8 +101,8 @@
   .badges:empty { display: none; }
   .badge { font: 700 .78rem var(--round); padding: 2px 10px; border-radius: 999px; background: var(--ink); color: var(--verity); }
   .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px; }
-  .chips button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 14px; cursor: pointer; box-shadow: var(--lift); transition: border-color .15s; }
-  .chips button:hover { border-color: var(--ink); }
+  .chips button { border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .chips button:hover { background: #fff; }
 
   /* the music video's subtitle look */
   .glow { font: 800 clamp(1.1rem, 2.2vw, 1.7rem)/1.2 var(--round); color: #ffe46b;
@@ -115,7 +112,7 @@
   .call { display: grid; grid-template-columns: minmax(0, 5fr) minmax(320px, 4fr); gap: 20px; padding: 20px 24px 104px; height: 100%; }
   .stage { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
   .stage-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .stage-head h2 { margin: 0; font: 800 2rem/1 var(--round); text-transform: uppercase; }
+  .stage-head h2 { margin: 0; font: 800 2.25rem/1 var(--round); }
   .pill { font-size: .75rem; padding: 3px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
   .pill.speaking { background: var(--verity); border-color: var(--ink); }
   .pill.thinking { background: #f3ecd4; }
@@ -123,7 +120,7 @@
   .timer::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e0453a; vertical-align: 1px; animation: blink 1.4s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
   .meters { margin-left: auto; display: flex; gap: 12px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line);
-            font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+            font-size: .85rem; font-weight: 600; color: var(--muted); }
   .pips { display: flex; gap: 3px; } .pips i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--ink); transition: background .2s, transform .2s; }
   .pips i.on { background: var(--verity); transform: scale(1.15); }
   .x i { font-style: normal; font: 800 1rem/1 var(--round); color: #d4cfb8; } .x i.on { color: var(--bad); }
@@ -144,7 +141,7 @@
 
   .feed { display: flex; flex-direction: column; background: var(--card); border-radius: 22px; box-shadow: var(--lift); min-height: 0; overflow: hidden; }
   .feed-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 18px; border-bottom: 1px solid var(--line); }
-  .feed-head h3 { margin: 0 auto 0 0; font: 700 .75rem/1 var(--body); text-transform: uppercase; color: var(--muted); }
+  .feed-head h3 { margin: 0 auto 0 0; font: 700 1rem/1 var(--body); }
   .feed-head button { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 4px 10px; font-size: .78rem; cursor: pointer; }
   .log { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .log:empty::before { content: "Say hi. What you both say, and every tool it calls (bestie level, strikes, verdict), shows up here."; margin: auto; max-width: 30ch; text-align: center; color: var(--muted); font-size: .85rem; }
@@ -195,7 +192,7 @@
   .icon { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: none; display: grid; place-items: center; cursor: pointer; flex: none; transition: background .15s; }
   .icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
   .icon.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  .icon.go { background: var(--ink); color: var(--verity); border: 0; }
+  .icon.go { background: var(--call); color: #fff; border: 0; }
   .icon.end { background: #e0453a; color: #fff; border: 0; }
   #callbtn { width: auto; gap: 8px; padding: 0 16px 0 14px; border-radius: 999px; display: flex; align-items: center; font: 800 .95rem/1 var(--round); }
   #callbtn.end svg { transform: rotate(135deg); }
@@ -209,7 +206,7 @@
   .dlg h2 { margin: 0; font: 800 1.8rem/1 var(--round); }
   .dlg-head { display: flex; align-items: center; justify-content: space-between; }
   .dlg-head .icon { width: 34px; height: 34px; }
-  .dlg h3 { margin: 6px 0 -4px; font: 700 .72rem/1 var(--body); text-transform: uppercase; letter-spacing: .04em; color: var(--gold); }
+  .dlg h3 { margin: 6px 0 -4px; font: 800 1.15rem/1 var(--round); }
   .dlg h3:not(:first-of-type) { padding-top: 14px; border-top: 1px solid var(--line); }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .row b { display: block; font-weight: 600; }
@@ -259,13 +256,14 @@
     #callbtn .lbl { display: none; }
     #callbtn { width: 38px; padding: 0; justify-content: center; }
     .home { padding-inline: 16px; }
-    .picker-row { flex-wrap: nowrap; gap: 6px; }
-    .pick { width: auto; flex: 1 1 0; min-width: 0; padding: 8px 2px 6px; border-radius: 14px; }
-    .pick img { width: 36px; height: 36px; }
-    .pick b { font-size: .78rem; }
+    .picker-row { gap: 4px; }
+    .pick { width: auto; flex: 1 1 0; min-width: 0; }
+    .pick img { width: 50px; height: 50px; }
+    .pick b { font-size: .85rem; }
     .pick small { display: none; }
+    .home .ball { width: 128px; height: 128px; }
   }
-  @media (prefers-reduced-motion: reduce) { .tile .wait img, body.cruel .tile, .timer::before { animation: none; } .side, .cta, .pick { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .tile .wait img, body.cruel .tile, .timer::before { animation: none; } #view-home, .side, .cta, .pick img { transition: none; } }
 </style>
 </head>
 <body>
@@ -279,10 +277,10 @@
     </div>
     <div class="side-scroll">
       <nav class="nav" aria-label="Main">
-        <button data-view="home" aria-current="true"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New call<kbd>Ctrl K</kbd></button>
+        <button data-view="home" aria-current="true"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New call</button>
         <button data-view="memes"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>Meme wall</button>
         <button data-view="fans"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>Fan -ities</button>
-        <button id="open-settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>Settings<kbd>,</kbd></button>
+        <button id="open-settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>Settings</button>
         <a href="about.html"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Lore</a>
       </nav>
       <div data-pane="calls">
@@ -310,7 +308,6 @@
       <b><img src="assets/verity-face.png" alt="">Verity Agent</b>
       <button type="button" class="icon" id="open-settings-2" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
     </header>
-    <div class="collage" id="collage" aria-hidden="true"></div>
 
     <section class="view" id="view-home" aria-labelledby="wm">
       <div class="home">
@@ -320,8 +317,7 @@
         <div class="badges" id="badges"></div>
         <p class="sub">Call it, show it your room, or just type. Mess up three times and you'll meet Cruelty. <a href="about.html">Read the lore</a>.</p>
         <div class="picker" id="picker" hidden>
-          <p id="picker-label">Who are you calling?</p>
-          <div class="picker-row" id="home-chars" role="group" aria-labelledby="picker-label"></div>
+          <div class="picker-row" id="home-chars" role="group" aria-label="Pick who to call"></div>
         </div>
         <div><button type="button" class="cta" id="home-call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span id="home-call-label">Call Verity</span></button></div>
         <div class="chips" id="starters">
@@ -358,7 +354,7 @@
         </div>
         <div class="feed">
           <div class="feed-head">
-            <h3>Transcript &amp; tool calls</h3>
+            <h3>Transcript</h3>
             <button type="button" id="export">Export</button>
           </div>
           <div class="log" id="log" aria-live="polite"></div>
@@ -403,7 +399,7 @@
       <button type="button" class="icon on" id="mic" aria-pressed="true" aria-label="Microphone"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <button type="button" class="icon go" id="callbtn" aria-label="Call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span class="lbl" aria-hidden="true">Call</span></button>
     </form>
-    <div class="status"><span id="room" class="num">no call</span><span id="ptt-hint" hidden>Hold Space to talk</span><span>Gemini Live · LiveKit</span></div>
+    <div class="status"><span id="room" class="num"></span><span id="ptt-hint" hidden>Hold Space to talk</span></div>
   </main>
 </div>
 
@@ -510,13 +506,14 @@ $('#fans').innerHTML = LORE.variants.map((v) => `<article class="ity${v.alt ? ' 
   <div class="pics"><img class="n" src="${WIKI(v.img)}" alt="${esc(v.name)}">${v.alt ? `<img class="m" loading="lazy" src="${WIKI(v.alt)}" alt="${esc(v.name)}'s monster form">` : ''}</div>
   ${v.alt ? '<button type="button">monster</button>' : ''}<p>${esc(v.about)}</p></article>`).join('');
 document.querySelectorAll('.ity button').forEach((b) => b.addEventListener('click', () => b.closest('.ity').classList.toggle('flip')));
-$('#collage').innerHTML = LORE.memes.slice(0, 18).map(([img]) => `<img src="${img}" alt="">`).join('');
 
-let ii = 0;
-(function intro() {   // its real first lines, typed like the music video's subtitles
-  const t = LORE.intro[ii++ % LORE.intro.length], el = $('#home-sub'); let i = 0;
-  (function step() { el.textContent = t.slice(0, ++i); i < t.length ? setTimeout(step, 40) : setTimeout(intro, 2600); })();
-})();
+let ii = 0, lines = LORE.intro, typeT;
+function intro() {   // the picked character's first lines (Verity's are from the series), typed like the music video's subtitles
+  clearTimeout(typeT);
+  const t = lines[ii++ % lines.length], el = $('#home-sub'); let i = 0;
+  (function step() { el.textContent = t.slice(0, ++i); typeT = setTimeout(i < t.length ? step : intro, i < t.length ? 40 : 2600); })();
+}
+intro();
 
 // ---- views & sidebar ----
 function drawer(open) {
@@ -529,7 +526,6 @@ $('#side').addEventListener('click', (e) => { if (e.target.closest('.nav button,
 function show(view) {
   document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${view}`; });
   document.querySelectorAll('.nav [data-view]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.view === view)));
-  $('#collage').hidden = view !== 'home';
 }
 document.querySelectorAll('.nav [data-view]').forEach((b) => b.addEventListener('click', () => show(b.dataset.view === 'home' && room ? 'call' : b.dataset.view)));
 document.querySelectorAll('.tabs button').forEach((t) => t.addEventListener('click', () => {
@@ -548,7 +544,16 @@ function renderChars() {
     <img src="${ours(c.key)}" alt=""><b>${esc(c.name)}</b><small>${esc(c.domain)}</small></button>`).join('');
   document.querySelectorAll('.pick').forEach((b) => b.addEventListener('click', () => pickChar(b.dataset.key)));
   $('#picker').hidden = !CHARS.length;
-  $('#home-call-label').textContent = `Call ${CHARS.find((c) => c.key === current)?.name || 'Verity'}`;
+  const c = CHARS.find((x) => x.key === current);
+  $('#home-call-label').textContent = `Call ${c?.name || 'Verity'}`;
+  if (c) {   // dark faces (Gravity's indigo) get light text
+    const [r2, g, b] = c.color.map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+    const home = $('#view-home'); home.style.setProperty('--ground', rgb(c.color));
+    home.style.setProperty('--on-ground', .2126 * r2 + .7152 * g + .0722 * b > .22 ? '#1a1400' : '#fffdf2');
+    home.style.setProperty('--wm-fill', c.key === 'verity' ? '#fffdf2' : 'var(--verity)');   // yellow on yellow would vanish
+    const next = c.key === 'verity' ? LORE.intro : [c.intro];
+    if (next[0] !== lines[0]) { lines = next; ii = 0; intro(); }
+  }
 }
 function pickChar(key) {
   if (room) return toast('Hang up first. One -ity per call.');
@@ -565,7 +570,7 @@ const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 
 function renderRecent() {
   const calls = store.get('verity-calls', []);
   $('#recent').innerHTML = calls.length
-    ? calls.slice(0, 12).map((c, i) => `<button class="recent" data-i="${i}"><span>${esc(c.name)}${c.cruel ? ' → Cruelty' : ''}${c.verdict ? ` · ${esc(c.verdict)}` : ''}</span><span class="num">${ago(c.t)}</span></button>`).join('')
+    ? calls.slice(0, 12).map((c, i) => `<button class="recent" data-i="${i}"><span>${esc(c.name)}${c.cruel ? ' (turned Cruelty)' : ''}${c.verdict ? `: ${esc(c.verdict)}` : ''}</span><span class="num">${ago(c.t)}</span></button>`).join('')
     : '<p class="empty">No calls yet. <button class="linkbtn" id="first-call">Call Verity</button></p>';
   document.querySelectorAll('.recent').forEach((b) => b.addEventListener('click', () => openHistory(+b.dataset.i)));
   $('#first-call')?.addEventListener('click', () => startCall());
@@ -575,7 +580,7 @@ let viewing = null;
 function openHistory(i) {
   const c = store.get('verity-calls', [])[i]; if (!c) return; viewing = c;
   $('#history-title').textContent = c.name; current = CHARS.find((x) => x.name === c.name)?.key || current;
-  $('#history-sub').textContent = `${new Date(c.t).toLocaleString()}${c.verdict ? ` · verdict: ${c.verdict}` : ''}${c.cruel ? ' · turned into Cruelty' : ''}`;
+  $('#history-sub').textContent = [new Date(c.t).toLocaleString(), c.verdict && `verdict: ${c.verdict}`, c.cruel && 'turned into Cruelty'].filter(Boolean).join(', ');
   $('#history-log').innerHTML = (c.lines || []).length ? '' : '<p class="note">No transcript saved for this call.</p>'; (c.lines || []).forEach((l) => render(l, $('#history-log')));
   show('history');
 }
@@ -667,7 +672,7 @@ async function startCall(firstText) {
   ringtone(true);
   let info;
   try { info = await (await fetch(`/api/token?character=${c.key}&uid=${uid}&settings=${encodeURIComponent(JSON.stringify(agentSettings()))}`)).json(); }
-  catch { ringtone(false); show('home'); return toast('Could not reach the backend'); }
+  catch { ringtone(false); show('home'); return toast("Can't reach the app server. Start it: python -m verity.server"); }
   room = new LK.Room({ adaptiveStream: true, dynacast: true });
   $('#room').textContent = info.room;
 
@@ -696,7 +701,7 @@ async function startCall(firstText) {
   });
 
   try { await room.connect(info.url, info.token); await room.startAudio(); }
-  catch { toast('Connection failed'); return endCall(); }
+  catch { toast("Couldn't join the call. Check LIVEKIT_URL and your LiveKit keys."); return endCall(); }
   const t0 = Date.now(), tick = () => { const s = Math.floor((Date.now() - t0) / 1000); $('#timer').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   tick(); $('#timer').hidden = false; clearInterval(timerT); timerT = setInterval(tick, 1000);
   try {
@@ -753,7 +758,7 @@ async function endCall(remote) {
   const r = room; room = null; ringtone(false); clearInterval(timerT); $('#timer').hidden = true;
   if (!remote) await r.disconnect();
   document.querySelectorAll('audio[data-agent]').forEach((a) => a.remove());
-  $('#pip').hidden = true; $('#state').textContent = 'Call ended'; $('#interrupt').hidden = true; $('#room').textContent = 'no call';
+  $('#pip').hidden = true; $('#state').textContent = 'Call ended'; $('#interrupt').hidden = true; $('#room').textContent = '';
   document.documentElement.style.removeProperty('--accent'); document.body.classList.remove('cruel');
   setCallButton(false);
   if (entry) saveCall({ ...entry, lines: entry.lines.map(({ el, ...l }) => l) });
