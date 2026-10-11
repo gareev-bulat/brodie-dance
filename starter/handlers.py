@@ -25,8 +25,9 @@ from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E4
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
 
-PASS = float(os.environ.get('DANCE_PASS', '0.7'))           # score needed to move on
-MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
+PASS = float(os.environ.get('DANCE_PASS', '0.5'))           # score that counts as nailing a part (praise instead of a tip)
+MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '1'))     # one chance per part: tip or praise, then the next part
+LENIENCY = float(os.environ.get('DANCE_LENIENCY', '0.6'))   # displayed score = raw ** LENIENCY (< 1 is kinder: 0.4 -> 0.58, 0.55 -> 0.70)
 COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'   # count "One" .. "Eight" over the music while teaching (off: no counting at all)
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
 MUSIC_DB = float(os.environ.get('DANCE_MUSIC_DB', '-24'))   # music loudness (RMS dBFS) under the counts
@@ -35,6 +36,8 @@ REST_S = float(os.environ.get('DANCE_REST_S', '5'))         # pause after the fe
 SETTLE_S = float(os.environ.get('DANCE_SETTLE_S', '1.0'))   # wait after a part's clip ends before judging it, so the last move counts
 NO_COUNT = (" Never count in or count beats aloud (no 'five, six, seven, eight'): the recorded counts and music do that, "
             'you only talk between parts.')                 # appended to every voice prompt: the caller hears ONE count-in
+MOTIVATE = (' Style: a warm, high-energy dance coach who believes in them. Celebrate effort and progress, keep every line '
+            'positive and encouraging, never discouraging; short and punchy.')
 RATE = reference.AUDIO_RATE
 COUNT_IN = ['Five', 'Six', 'Seven', 'Eight']
 COUNT_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']
@@ -94,7 +97,12 @@ def _ensure_screen():
 
 
 def _ask(prompt):
-    if S['ask']: S['ask'](prompt + NO_COUNT)
+    if S['ask']: S['ask'](prompt + MOTIVATE + NO_COUNT)
+
+
+def _lenient(score):
+    """The raw judge score (0..1) made kinder for display and the pass line."""
+    return float(max(0.0, min(1.0, score))) ** LENIENCY
 
 
 def _cam():
@@ -249,23 +257,25 @@ def teach_part():
 
 def on_result(res):
     k = S['chunk']; S['tries'] += 1
-    score = float(res.get('score') or 0.0); pct = int(round(score * 100)); S['last_pct'] = pct
+    score = _lenient(float(res.get('score') or 0.0)); pct = int(round(score * 100)); S['last_pct'] = pct
     S['scores'][k] = max(S['scores'].get(k, 0), pct)
-    print(f'[dance] part {k + 1} try {S["tries"]}: {pct}% ({res.get("source")}) worst {res.get("worst_part")} {res.get("details", "")}', flush=True)
-    if score >= PASS or S['tries'] >= MAX_TRIES:
+    print(f'[dance] part {k + 1} try {S["tries"]}: {pct}% (raw {float(res.get("score") or 0):.2f}, {res.get("source")}) '
+          f'worst {res.get("worst_part")} {res.get("details", "")}', flush=True)
+    part = res.get('worst_part')
+    tip = f' One concrete, upbeat tip about their {part}.' if part else ' One upbeat tip about matching the timing.'
+    if score >= PASS or S['tries'] >= MAX_TRIES:                # one chance per part by default: praise or a tip, then onwards
         if score >= PASS: S['say'](random.choice(PRAISE))
         if k + 1 >= REF.n_chunks:
             return start_full_run()
-        S['chunk'] += 1; S['tries'] = 0; S['last_pct'] = None
-        what = f'passed part {k + 1} with {pct}%' if score >= PASS else f'got {pct}% on part {k + 1}, close enough to move on'
-        _ask(f'The caller {what} of the {REF.name} dance. In ONE short sentence react, then introduce part {k + 2}.' + _describe(k + 1))
+        S['chunk'] += 1; S['tries'] = 0                          # last_pct stays: the bar keeps the score until the next result
+        if score >= PASS:
+            _ask(f'They nailed part {k + 1} of the {REF.name} dance with {pct}%. In ONE short sentence celebrate it, then introduce part {k + 2}.' + _describe(k + 1))
+        else:
+            _ask(f'They gave part {k + 1} of the {REF.name} dance a real go ({pct}%).{tip} Then, in the same breath, introduce part {k + 2}: '
+                 f'two short sentences total, all encouragement.' + _describe(k + 1))
     else:
-        part = res.get('worst_part'); move = res.get('move')
-        tip = f'The body part furthest from the creator was the {part}.' if part else 'Their timing was off.'
-        steps = f' The moves are: "{REF.step(k)}".' if REF.step(k) else ''
-        _ask(f'The caller scored {pct}% on part {k + 1} of the {REF.name} dance (they need {int(PASS * 100)}%). {tip}'
-             + (f' The move was "{move}".' if move else '') + steps
-             + ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.')
+        steps = f' The moves are: "{REF.step(k).replace(" | ", ", ")}".' if REF.step(k) else ''
+        _ask(f'They scored {pct}% on part {k + 1} of the {REF.name} dance.{tip}{steps} In ONE or two short sentences, then say we go again.')
     S['state'] = 'waiting'
     when_quiet(teach_part, min_wait=REST_S)                   # feedback, then a real pause before the next count-in
 
@@ -283,7 +293,7 @@ def start_full_run():
 
 
 def on_full_result(res):
-    S['full_scores'] = {k: int(round(float(r.get('score') or 0) * 100)) for k, r in res.items()}
+    S['full_scores'] = {k: int(round(_lenient(float(r.get('score') or 0)) * 100)) for k, r in res.items()}
     print(f'[dance] full run: {S["full_scores"]}', flush=True)
     finish()
 

@@ -22,7 +22,7 @@ COL_L, COL_R, COL_MID = (255, 200, 0), (0, 170, 255), (240, 240, 240)   # RGB: t
 LEAD_BEATS = 4                                                     # beats of song before ONE (starter/handlers.py build_clip), no numbers shown
 SHOW_COUNTS = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'      # the 1..8 numbers only when the counts are spoken too
 PIP_W, PIP_H, PIP_PAD, BAR_H = 120, 213, 12, 36                    # the caller's camera bottom-right, the accuracy bar along the bottom
-PASS_MARK = float(os.environ.get('DANCE_PASS', '0.7'))
+PASS_MARK = float(os.environ.get('DANCE_PASS', '0.5'))
 
 
 def _fit(img, pw, ph, cx=None):
@@ -136,7 +136,7 @@ class Screen:
                 if b < 8 * (play['k1'] - play['k0']):
                     _text(img, str(b % 8 + 1), (W - 80, 90), 2.6, VOLT, 5)
             label = ('WATCH THE WHOLE DANCE' if play.get('preview') else 'FULL DANCE') if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
-            _text(img, label, (14, 40), 0.75 if play.get('preview') else 0.9, WHITE, 2)
+            _text(img, label, (14, BAR_H + 34), 0.75 if play.get('preview') else 0.9, WHITE, 2)
             return self._finish(img, st, cam)
         # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
         img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
@@ -169,13 +169,13 @@ class Screen:
         """Every frame ends with you bottom-right (camera + skeleton) and the accuracy bar along the bottom."""
         import cv2
         if cam is not None:
-            y0, x0 = H - BAR_H - PIP_PAD - PIP_H, W - PIP_PAD - PIP_W
+            y0, x0 = H - PIP_PAD - PIP_H, W - PIP_PAD - PIP_W
             img[y0:y0 + PIP_H, x0:x0 + PIP_W] = cam_panel(cam, PIP_W, PIP_H)
             cv2.rectangle(img, (x0, y0), (x0 + PIP_W - 1, y0 + PIP_H - 1), WHITE, 2)
-        y0 = H - BAR_H
-        cv2.rectangle(img, (0, y0), (W, H), (18, 18, 18), -1)
+        y0 = 0                                                        # the accuracy bar along the top
+        cv2.rectangle(img, (0, y0), (W, y0 + BAR_H), (18, 18, 18), -1)
         _text(img, 'ACCURACY', (12, y0 + 24), 0.6, WHITE, 1)
-        bx0, bx1, by0, by1 = 124, W - 62, y0 + 10, H - 10
+        bx0, bx1, by0, by1 = 124, W - 62, y0 + 10, y0 + BAR_H - 10
         cv2.rectangle(img, (bx0, by0), (bx1, by1), (70, 70, 70), -1)
         pct = st.get('last_pct')
         if pct is not None:
