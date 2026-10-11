@@ -72,9 +72,22 @@ class Call:
         self.tasks.add(t); t.add_done_callback(self.tasks.discard)
 
 
-def realtime(voice):
+# Fish Audio voices (fish.audio/m/<id>): with FISH_API_KEY set, these characters think in Gemini (text out) and speak in Fish.
+FISH_VOICES = {'verity': os.environ.get('VERITY_FISH_VOICE', '894f0267a5194c30814e6b15c07da862')}
+
+
+def fish_tts(key):
+    if not os.environ.get('FISH_API_KEY') or not FISH_VOICES.get(key): return None
+    from livekit.plugins import fishaudio
+    return fishaudio.TTS(voice_id=FISH_VOICES[key], sample_rate=24000, latency_mode='balanced')   # 24 kHz like voice_out
+
+
+def realtime(voice, text_only=False):
     kw = dict(model=os.environ.get('GEMINI_LIVE_MODEL', 'gemini-3.8-live'), voice=voice, language='en-US',
               api_key=os.environ['GEMINI_API_KEY'])
+    if text_only:
+        from google.genai import types
+        kw['modalities'] = [types.Modality.TEXT]
     base = os.environ.get('GEMINI_BASE_URL', '').strip().rstrip('/')
     if base:                                             # hackathon relay: GEMINI_API_KEY is the team token (as facetime/voice.py)
         from google.genai import types
@@ -101,8 +114,11 @@ class Character(Agent):
     def __init__(self, key, call, opener=None, history=''):
         """opener: what to say on entering instead of the greeting (a live settings change hands off to a fresh session)."""
         self.key, self.v, self.opener = key, VARIANTS[key], opener
-        voice = call.settings['voice'] if key == call.key and call.settings['voice'] else self.v['voice']   # Cruelty keeps its own
-        super().__init__(instructions=build_instructions(key, call, history), llm=realtime(voice))
+        picked = key == call.key and call.settings['voice']   # a Gemini voice picked in Settings wins over the Fish voice
+        voice = picked or self.v['voice']                     # Cruelty keeps its own
+        tts = None if picked else fish_tts(key)
+        super().__init__(instructions=build_instructions(key, call, history), llm=realtime(voice, text_only=tts is not None),
+                         **({'tts': tts} if tts else {}))
 
     async def on_enter(self):
         call: Call = self.session.userdata

@@ -17,5 +17,6 @@ modal[api-proxy-support]>=1.0   # api-proxy-support: python-socks so the client 
 livekit>=1.0
 livekit-api>=1.0
 livekit-agents==1.8.5   # facetime/worker.py: the LiveKit Agents worker the Chert CLI dispatches by name (pins openai<3; only facetime/cues_tts.py imports openai)
+livekit-plugins-fishaudio==1.8.5   # verity/agent.py: Verity's Fish Audio voice when FISH_API_KEY is set
 livekit-plugins-google==1.8.5   # facetime/voice.py: Gemini Live (google.beta.realtime.RealtimeModel, voice Puck) for --voice gemini; same version as livekit-agents
 sounddevice   # facetime/webcam_local.py speaker output (needs PortAudio; bundled in the macOS wheel)
