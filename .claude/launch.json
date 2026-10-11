@@ -4,8 +4,27 @@
     {
       "name": "dancity-web",
       "runtimeExecutable": "wsl.exe",
-      "runtimeArgs": ["-d", "Ubuntu-24.04", "--", "bash", "/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter/scripts/demo_web.sh"],
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter/scripts/demo_web.sh"
+      ],
       "port": 8765
+    },
+    {
+      "name": "landing-preview",
+      "runtimeExecutable": "wsl.exe",
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "-c",
+        "cd '/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter' && VERITY_CHARACTER=dancity DANCE=sbbyj ~/.venvs/brodie/bin/python -m verity.server --port 8099"
+      ],
+      "port": 8099
     }
   ]
 }

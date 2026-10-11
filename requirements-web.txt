@@ -1,0 +1,8 @@
+# The web + token server only (verity/server.py): landing page, call app, LiveKit tokens, lesson list. No torch, no MediaPipe.
+aiohttp>=3.9
+livekit-api>=1.0
+livekit-protocol>=1.0
+numpy>=2.0
+# optional: lists Gemini voice names in /api/health (the server runs without it)
+# livekit-agents==1.8.5
+# livekit-plugins-google==1.8.5

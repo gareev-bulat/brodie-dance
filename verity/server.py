@@ -11,12 +11,35 @@ from livekit import api
 from livekit.protocol.agent_dispatch import RoomAgentDispatch
 from livekit.protocol.room import RoomConfiguration
 from verity import memory
-from verity.agent import VOICES, parse_settings
 from verity.variants import VARIANTS
 
-WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web')
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WEB = os.path.join(ROOT, 'web')
 CALLABLE = [k for k, v in VARIANTS.items() if not v.get('secret')]
 LIVE = os.environ.get('VERITY_CHARACTER', '')           # the character the worker is running ('' = any, e.g. the legacy verity.agent)
+
+
+def _voices():
+    """Gemini Live voice names, when the agents plugin is installed (a hosted web server can run without it)."""
+    try:
+        import typing
+        from livekit.plugins.google.realtime.api_proto import Voice
+        return list(typing.get_args(Voice))
+    except Exception:
+        return []
+
+
+VOICES = _voices()
+
+
+def parse_settings(raw):
+    """verity.settings from the caller's attributes, validated (it comes from the browser). Same rules as verity/agent.py."""
+    try: s = json.loads(raw or '{}')
+    except ValueError: s = {}
+    if not isinstance(s, dict): s = {}
+    voice = s.get('voice') if s.get('voice') in VOICES else ''
+    return {'asmr': 'mommy' if s.get('asmr') == 'mommy' else 'off', 'voice': voice,
+            'strikes': s.get('strikes', True) is not False, 'memory': s.get('memory', True) is not False}
 
 
 def mint_call(key, room=None, settings=None, uid=''):
@@ -61,19 +84,55 @@ async def health(_req):
     return web.json_response({'ok': True, 'characters': chars, 'voices': VOICES, 'agent_name': os.environ.get('AGENT_NAME', ''), 'live': LIVE})
 
 
+async def landing(_req):
+    """The public landing page (web/landing.html); the call app lives at /app."""
+    return web.FileResponse(os.path.join(WEB, 'landing.html'))
+
+
 async def index(_req):
     return web.FileResponse(os.path.join(WEB, 'index.html'))
 
 
+async def config(_req):
+    """What the landing page needs to link up with the running system (all from env, nothing secret)."""
+    return web.json_response({'ok': True, 'live': LIVE, 'agent_name': os.environ.get('AGENT_NAME', ''),
+                              'facetime': os.environ.get('FACETIME_NUMBER', ''), 'dance': os.environ.get('DANCE', ''),
+                              'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/brodie-starter'), 'app': '/app'})
+
+
+async def dances(_req):
+    """The lessons in data/dances (newest first, as the handler picks them): name, parts, length, bpm, steps."""
+    out = []
+    try:
+        import glob
+        from starter.dance.reference import Reference, DANCES_DIR
+        live = os.environ.get('DANCE', '')
+        paths = sorted(glob.glob(os.path.join(DANCES_DIR, '*.npz')), key=os.path.getmtime, reverse=True)
+        for i, p in enumerate(paths):
+            try:
+                r = Reference(p)
+                out.append({'name': r.name, 'parts': r.n_chunks, 'bpm': r.bpm, 'seconds': round(len(r.kps) / 10, 1),
+                            'steps': [s for s in r.steps if s.strip()], 'video': bool(r.video_path), 'music': r.audio is not None,
+                            'live': r.name == live or (not live and i == 0)})
+            except Exception as e:
+                out.append({'name': os.path.basename(p)[:-4], 'error': repr(e)})
+    except Exception as e:
+        return web.json_response({'dances': out, 'error': repr(e)})
+    return web.json_response({'dances': out})
+
+
 def app():
     a = web.Application()
-    a.add_routes([web.get('/api/token', token), web.get('/api/health', health), web.get('/api/memory', get_memory),
-                  web.delete('/api/memory', forget_memory), web.get('/', index), web.static('/', WEB)])
+    a.add_routes([web.get('/api/token', token), web.get('/api/health', health), web.get('/api/config', config),
+                  web.get('/api/dances', dances), web.get('/api/memory', get_memory), web.delete('/api/memory', forget_memory),
+                  web.get('/', landing), web.get('/app', index), web.get('/index.html', index), web.static('/', WEB)])
     return a
 
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(); ap.add_argument('--host', default='127.0.0.1'); ap.add_argument('--port', type=int, default=8765)
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--host', default=os.environ.get('HOST', '127.0.0.1'), help='0.0.0.0 on a hosting service')
+    ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', '8765')), help='hosting services set PORT')
     a = ap.parse_args()
-    print(f'[verity] web app on http://{a.host}:{a.port}', flush=True)
+    print(f'[verity] web app on http://{a.host}:{a.port} (landing at /, call app at /app)', flush=True)
     web.run_app(app(), host=a.host, port=a.port, print=None)
