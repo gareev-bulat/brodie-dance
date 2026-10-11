@@ -31,6 +31,10 @@ COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '1') != '0'   # count "One" ..
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
 MUSIC_DB = float(os.environ.get('DANCE_MUSIC_DB', '-24'))   # music loudness (RMS dBFS) under the counts
 HEAR_LAG_S = 0.15                                           # clip pushed -> heard on the phone, roughly (queue + network)
+REST_S = float(os.environ.get('DANCE_REST_S', '5'))         # pause after the feedback before the next count-in starts (breathing room)
+SETTLE_S = float(os.environ.get('DANCE_SETTLE_S', '1.0'))   # wait after a part's clip ends before judging it, so the last move counts
+NO_COUNT = (" Never count in or count beats aloud (no 'five, six, seven, eight'): the recorded counts and music do that, "
+            'you only talk between parts.')                 # appended to every voice prompt: the caller hears ONE count-in
 RATE = reference.AUDIO_RATE
 COUNT_IN = ['Five', 'Six', 'Seven', 'Eight']
 COUNT_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']
@@ -85,12 +89,19 @@ def _ensure_screen():
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
     path = getattr(REF, 'video_path', None) or os.path.join(reference.DANCES_DIR, f'{REF.name}.mp4')
-    task = _loop().create_task(Screen(REF, path).run(room, lambda: S))
+    task = _loop().create_task(Screen(REF, path).run(room, lambda: S, _cam))
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
 
 
 def _ask(prompt):
-    if S['ask']: S['ask'](prompt)
+    if S['ask']: S['ask'](prompt + NO_COUNT)
+
+
+def _cam():
+    """The caller's latest camera frame and pose for the screen: (rgb HxWx3, kp (33,4) normalised or None), or None before the first frame."""
+    try: rgb = S['say'].__self__.job.per.last_rgb
+    except Exception: return None
+    return None if rgb is None else (rgb, S.get('kp'))
 
 
 # ---- audio: one clip per part = the song + the counts ----
@@ -150,7 +161,7 @@ def _watch_play():
         t_push = rec.get('t_push') or max(p['t_said'], time.time() - p['dur'])
         start = t_push + HEAR_LAG_S + p['dance_off']
         wins = {k: (start + (k - p['k0']) * REF.chunk_s, start + (k - p['k0'] + 1) * REF.chunk_s) for k in range(p['k0'], p['k1'])}
-        p['then'](wins); return
+        _loop().call_later(SETTLE_S, p['then'], wins); return      # let the caller finish the last move before judging
     _loop().call_later(0.1, _watch_play)
 
 
@@ -239,7 +250,7 @@ def on_result(res):
              + (f' The move was "{move}".' if move else '') + steps
              + ' In ONE or two short sentences: one concrete, encouraging tip about that body part, then say we will run it again.')
     S['state'] = 'waiting'
-    when_quiet(teach_part)
+    when_quiet(teach_part, min_wait=REST_S)                   # feedback, then a real pause before the next count-in
 
 
 def start_full_run():
@@ -247,7 +258,7 @@ def start_full_run():
         return finish()
     S['state'] = 'full'
     _ask(f'The caller has learned all {REF.n_chunks} parts of the {REF.name} dance. In ONE short sentence, hype them up: '
-         f'now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + ', you will count them in.')
+         f'now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + '; the count-in starts right after you speak.')
     def go():
         print('[dance] full run', flush=True)
         play_parts(0, REF.n_chunks, False, lambda wins: judge_async(sorted(wins.items()), on_full_result))
@@ -277,12 +288,13 @@ def on_event(event, say_now, ask_voice):
     _ensure_screen()
     t = event['type']
     if t == 'pose':
+        S['kp'] = event['kp'] if event.get('ok') else None       # the latest pose for the screen's skeleton overlay
         if event.get('ok'): POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
     elif t == 'visibility':
         was = S['visible']; S['visible'] = event.get('state') == 'full'
         if S['visible'] and not was and S['state'] == 'idle':
             S['state'] = 'intro'
             say_now('Great, I can see you', 'visibility')
-            ask_voice(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
-                      f'in {REF.n_chunks} parts of eight counts, and that you will count them in.' + _describe(0))
-            when_quiet(teach_part, min_wait=4.0)
+            _ask(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
+                 f'in {REF.n_chunks} parts of eight counts, and that the count-in starts right after you speak.' + _describe(0))
+            when_quiet(teach_part, min_wait=max(4.0, REST_S))

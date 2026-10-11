@@ -14,6 +14,57 @@ W, H = 360, 640                     # portrait; the receiver scales it
 FPS_OUT = 15
 VOLT = (217, 255, 61); WHITE = (245, 245, 245); BLACK = (0, 0, 0)
 MIRROR = os.environ.get('DANCE_MIRROR_VIDEO', '1') != '0'
+MIRROR_SELF = os.environ.get('DANCE_MIRROR_SELF', '1') != '0'    # the caller's own camera flipped like a selfie / studio mirror
+# MediaPipe-33 limb pairs for the skeleton over the caller's camera (shoulders, arms, hips, legs; the face is left alone)
+BODY_LINES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27), (24, 26), (26, 28)]
+LEFT_MP = {11, 13, 15, 23, 25, 27}
+COL_L, COL_R, COL_MID = (255, 200, 0), (0, 170, 255), (240, 240, 240)   # RGB: the caller's left limbs amber, right limbs blue
+
+
+def _fit(img, pw, ph, cx=None):
+    """Scale img to height ph, then take a pw-wide column centred on cx (0..1 of the width; None = middle); narrow content is
+    letterboxed. Returns (panel, s, x0): a point (u, v) in 0..1 of img lands at (u * w * s - x0, v * h * s) in the panel."""
+    import cv2
+    h, w = img.shape[:2]; s = ph / h; nw = max(1, int(round(w * s)))
+    big = cv2.resize(img, (nw, ph), interpolation=cv2.INTER_AREA) if (nw, ph) != (w, h) else img
+    if nw >= pw:
+        c = nw / 2 if cx is None else cx * nw
+        x0 = int(np.clip(round(c - pw / 2), 0, nw - pw)); panel = big[:, x0:x0 + pw]
+    else:
+        x0 = -((pw - nw) // 2); panel = np.zeros((ph, pw, 3), np.uint8); panel[:, -x0:-x0 + nw] = big
+    return np.ascontiguousarray(panel), s, x0
+
+
+def _skeleton(panel, kp, w, h, s, x0, mirror):
+    """Draw the MediaPipe pose (kp (33, >=4): x, y in 0..1, z, visibility) on a panel made by _fit."""
+    import cv2
+    pts = {}
+    for i, k in enumerate(kp):
+        x, y, v = float(k[0]), float(k[1]), float(k[3]) if len(k) > 3 else 1.0
+        if v < 0.3: continue
+        if mirror: x = 1.0 - x
+        px, py = int(round(x * w * s - x0)), int(round(y * h * s))
+        if 0 <= px < panel.shape[1] and 0 <= py < panel.shape[0]: pts[i] = (px, py)
+    for a, b in BODY_LINES:
+        if a in pts and b in pts:
+            col = COL_L if (a in LEFT_MP and b in LEFT_MP) else COL_R if (a not in LEFT_MP and b not in LEFT_MP) else COL_MID
+            cv2.line(panel, pts[a], pts[b], col, 3, cv2.LINE_AA)
+    for i, p in pts.items():
+        if i >= 11: cv2.circle(panel, p, 4, COL_MID, -1, cv2.LINE_AA)
+
+
+def cam_panel(cam, pw, ph, dim=1.0):
+    """The caller's camera (rgb HxWx3, kp or None) as a pw x ph panel: mirrored like a selfie, cropped around the hips, skeleton on top."""
+    rgb, kp = cam
+    img = rgb[:, ::-1] if MIRROR_SELF else rgb
+    cx = None
+    if kp is not None and len(kp) > 24:
+        hx = (float(kp[23][0]) + float(kp[24][0])) / 2
+        cx = 1.0 - hx if MIRROR_SELF else hx
+    panel, s, x0 = _fit(img, pw, ph, cx)
+    if dim < 1.0: panel = (panel.astype(np.float32) * dim).astype(np.uint8)
+    if kp is not None: _skeleton(panel, kp, rgb.shape[1], rgb.shape[0], s, x0, MIRROR_SELF)
+    return panel
 
 
 def load_frames(path, fps=FPS_OUT):
@@ -62,15 +113,23 @@ class Screen:
         if not len(self.frames): return np.zeros((H, W, 3), np.uint8)
         return self.frames[int(np.clip(round(t * self.fps), 0, len(self.frames) - 1))].copy()
 
-    def render(self, st, now):
-        """st: the handler's state dict. Returns H x W x 3 RGB."""
+    def render(self, st, now, cam=None):
+        """st: the handler's state dict; cam: (caller rgb frame, MediaPipe kp or None) or None. Returns H x W x 3 RGB.
+        While a part plays: the creator (left) next to the caller's own camera with the skeleton (right), counts on top.
+        Between parts: the card over the caller's camera, dimmed (the creator's pose when there is no camera yet)."""
         ref = self.ref; play = st.get('play'); k = st.get('chunk', 0); n = ref.n_chunks
         rec = play.get('rec') if play else None
         t_push = rec.get('t_push') if isinstance(rec, dict) else None
         if play and t_push and not rec.get('t_done'):
             el = now - t_push - 0.1                                    # seconds into the clip, as heard
             t_vid = ref.first_beat_s + 8 * play['k0'] * ref.beat_s - 4 * ref.beat_s + el
-            img = self.frame_at(t_vid)
+            creator = self.frame_at(t_vid)
+            if cam is not None:
+                left, _, _ = _fit(creator, W // 2, H)
+                img = np.concatenate([left, cam_panel(cam, W - W // 2, H)], axis=1)
+                _text(img, 'YOU', (W // 2 + 12, 40), 0.9, WHITE, 2)
+            else:
+                img = creator
             beat = int(np.floor(el / ref.beat_s))
             if 0 <= beat < 4:
                 _text(img, str(5 + beat), (0, 360), 5.0, VOLT, 8, center=True)
@@ -81,8 +140,11 @@ class Screen:
             label = 'FULL DANCE' if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
             _text(img, label, (14, 40), 0.9, WHITE, 2)
             return img
-        # between parts: a card over the creator's first pose of the next part, darkened
-        img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
+        # between parts: a card over the caller's camera (dimmed, skeleton on), else over the creator's first pose of the next part
+        if cam is not None:
+            img = cam_panel(cam, W, H, dim=0.45)
+        else:
+            img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
         state = st.get('state')
         if state == 'idle' or not st.get('visible'):
             _text(img, 'BRODIE DANCE', (0, 120), 1.3, VOLT, 3, center=True)
@@ -105,8 +167,8 @@ class Screen:
                 _text(img, line, (0, 260 + 36 * i), 0.75, WHITE, 2, center=True)
         return img
 
-    async def run(self, room, get_state):
-        """Publish the video track and push frames at FPS_OUT until the room closes."""
+    async def run(self, room, get_state, get_cam=lambda: None):
+        """Publish the video track and push frames at FPS_OUT until the room closes. get_cam() -> (rgb, kp) or None."""
         from livekit import rtc
         await asyncio.get_running_loop().run_in_executor(None, self.load)     # decoding the video must not block the call
         self.source = rtc.VideoSource(W, H)
@@ -118,7 +180,7 @@ class Screen:
         while True:
             t0 = time.monotonic()
             try:
-                img = self.render(get_state(), time.time())
+                img = self.render(get_state(), time.time(), get_cam())
                 self.source.capture_frame(rtc.VideoFrame(W, H, rtc.VideoBufferType.RGB24, np.ascontiguousarray(img).tobytes()).convert(rtc.VideoBufferType.I420))
             except Exception as e:
                 print(f'[dance] screen frame failed: {e!r}', flush=True); await asyncio.sleep(1.0)
