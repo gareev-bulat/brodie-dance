@@ -1,8 +1,8 @@
 # Windows: install (first run only), then start one Verity character on Brodie's worker (facetime.worker) and the web app in two
 # windows and open the browser. The app can call the running character only.
-#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [verity|dancity|gravity|polarity|intensity] [-Agent]
-# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Cruelty; no Dancity lesson).
-param([string]$Character = 'verity', [switch]$Agent)
+#   powershell -ExecutionPolicy Bypass -File .\run.ps1 [brodie|verity|dancity|gravity|polarity|intensity] [-Agent]
+# -Agent: run the standalone verity/agent.py instead of Brodie's worker (every character, Cruelty; no dance lesson).
+param([string]$Character = 'brodie', [switch]$Agent)
 # Keys come from .env.local (created on first run for you to fill in). Close both windows to stop.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # PowerShell 5's download progress bar makes Invoke-WebRequest many times slower
@@ -65,16 +65,20 @@ if ($missing) {
 # A web app left over from an earlier run would keep port 8765 and serve the old page, so stop it first.
 Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue |
     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-$voice = & $py -c "from verity.variants import VARIANTS as V; k='$Character'; assert k in V and not V[k].get('secret'), 'unknown character: ' + k; print(V[k]['voice'])"
+$spec = & $py -c "from verity.variants import VARIANTS as V; k='$Character'; assert k in V and not V[k].get('secret'), 'unknown character: ' + k; print(V[k]['voice'], V[k].get('lesson', ''))"
 if ($LASTEXITCODE -ne 0) { throw "Unknown character '$Character'." }
+$spec = "$spec".Trim() -split ' ', 2   # "<voice> <lesson>", e.g. 'Puck dance' (Brodie), 'Aoede' (Verity, no lesson)
+$voice = $spec[0]
+$lesson = if ($spec.Count -gt 1) { $spec[1].Trim() } else { '' }
+$dance = $lesson -eq 'dance'   # characters flagged lesson='dance' in verity/variants.py (Brodie, Dancity) run the dance lesson
 $env:VERITY_CHARACTER = $Character
 $args_ = "--plan-file none --voice gemini --voice-name $voice --persona starter/verity/$Character.md --avatar $Character --text --log-caller"
 # Same flags as scripts/run_verity.sh: --vision shows the character the caller, sharp (--video-quality high), one frame every 4 s for
-# Dancity (it looks between parts) or 2 s for a conversation (1 fps bloats the model's context and slows its replies); VISION_FPS and
-# DANCE_PASS (the score that passes a part; 70% was too strict for a learner) can be set in .env.local; DANCE_VIDEO=0 = the face alone.
-$fps = if ($env:VISION_FPS) { $env:VISION_FPS } else { if ($Character -eq 'dancity') { '0.25' } else { '0.5' } }
-if ($Character -eq 'dancity' -and -not $env:DANCE_PASS) { $env:DANCE_PASS = '0.5' }
-$args_ += if ($Character -eq 'dancity') { " --dance --leave-grace-s -1 --vision --vision-fps $fps --video-quality high" } else { " --perception off --vision --vision-fps $fps --video-quality high --barge-in --handlers starter/verity/handlers.py" }
+# the dance lesson (the coach looks between parts) or 2 s for a conversation (1 fps bloats the model's context and slows its replies);
+# VISION_FPS and DANCE_PASS (the score that passes a part; 70% was too strict for a learner) can be set in .env.local; DANCE_VIDEO=0 = the face alone.
+$fps = if ($env:VISION_FPS) { $env:VISION_FPS } else { if ($dance) { '0.25' } else { '0.5' } }
+if ($dance -and -not $env:DANCE_PASS) { $env:DANCE_PASS = '0.5' }
+$args_ += if ($dance) { " --dance --leave-grace-s -1 --vision --vision-fps $fps --video-quality high" } else { " --perception off --vision --vision-fps $fps --video-quality high --barge-in --handlers starter/verity/handlers.py" }
 # start --log-level info, not dev: dev logs every debug line, and a Windows console is slow enough to stall the audio
 if ($Agent) {
     Remove-Item env:VERITY_CHARACTER -ErrorAction SilentlyContinue   # the web app may call any character; the agent picks it from the room name

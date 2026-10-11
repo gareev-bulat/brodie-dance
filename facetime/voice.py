@@ -81,13 +81,14 @@ def clean_transcript(text):
     was clean in every recorded call (verity/README.md, relay quirk); this only keeps captions and the event log honest."""
     t = re.sub(r'<[^>]*>?', '', text or '').strip()                   # stage directions the model writes: <whispering>
     if not t: return ''
+    if '---' in t: t = [x for x in t.split('---') if x.strip()][-1] if any(x.strip() for x in t.split('---')) else ''   # 'plan --- the line'
     cuts = list(_GLUE.finditer(t))
     if cuts: t = t[cuts[-1].end():]
     for m in reversed(list(re.finditer(r'[a-z](?=[A-Z])', t))):        # "...pulling itThat run..." : a draft of the line, then the line
         tail = t[m.end():]
         if len(tail) >= 20 and tail[:20] in t[:m.end()]: t = tail; break
-    t = re.sub(r'^(?:the )?(?:final |spoken )?(?:output|response|line|reply)(?: should be)?:\s*', '', t, flags=re.I)   # "The output should be: ..."
-    lines = [l for l in t.split('\n') if l.strip() and not _MD_LINE.match(l) and '**' not in l]
+    t = re.sub(r'^(?:the )?(?:final |spoken )?(?:output|response|line|reply|plan|notes?|draft)(?: should be)?:\s*', '', t, flags=re.I)   # "The output should be: ...", "Plan: ..."
+    lines = [re.sub(r'^\s*-{2,}\s*', '', l) for l in t.split('\n') if l.strip() and not _MD_LINE.match(l) and '**' not in l and not re.fullmatch(r'\s*-{2,}\s*', l)]
     t = ' '.join(' '.join(lines).split())
     if not t or _NOTE.match(t): return ''
     if '"' in t and len(t.split()) < 4: return ''                   # ' Again".': the tail of an instruction echoed, not a line
