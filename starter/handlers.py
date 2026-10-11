@@ -5,7 +5,10 @@ Run the worker in dance mode (pose events, no workout script, the voice may spea
 Pick the dance with DANCE=<name> (data/dances/<name>.npz, made with starter/dance/reference.py); default: the first one there.
 
 The call:
-  1. The caller steps into view -> "Great, I can see you"; Brodie (Gemini) says hi and describes part 1.
+  0. Watch first: Brodie says hi and plays the whole creator video with the song (the caller is still holding the phone).
+     Then setup: "prop your phone up and step back"; the screen shows the caller's live skeleton until the whole body is in
+     view for SETUP_HOLD_S.
+  1. "Great, I can see you"; Brodie (Gemini) describes part 1.
   2. Each 8-count part plays as ONE clip: that part of the song with "Five, six, seven, eight" and "One" .. "Eight" mixed
      on top (built here from the song and the bank's count clips, so music and counts never drift). The caller's poses are
      recorded while it plays.
@@ -33,9 +36,13 @@ MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '3'))
 COUNT_ALOUD = os.environ.get('DANCE_COUNT_ALOUD', '1') != '0'   # count "One" .. "Eight" over the music while teaching
 FULL_RUN = os.environ.get('DANCE_FULL_RUN', '1') != '0'     # the whole dance with music at the end
 MUSIC_DB = float(os.environ.get('DANCE_MUSIC_DB', '-24'))   # music loudness (RMS dBFS) under the counts
+PREVIEW = os.environ.get('DANCE_PREVIEW', '1') != '0'      # play the whole dance once before the lesson
+SETUP_MIN_S = float(os.environ.get('DANCE_SETUP_S', '6'))  # at least this long to prop the phone up and step back
+SETUP_HOLD_S = 2.0                                          # whole body in view this long before the lesson starts
 HEAR_LAG_S = 0.15                                           # clip pushed -> heard on the phone, roughly (queue + network)
 RATE = reference.AUDIO_RATE
 COUNT_IN = ['Five', 'Six', 'Seven', 'Eight']
+COUNT_GAIN = float(os.environ.get('DANCE_COUNT_GAIN', '0.6'))  # the counts while dancing, quieter than the count-in
 COUNT_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']
 PRAISE = ['Nice work', 'Great rhythm', 'Looking strong', "That's it", 'Keep it up']
 
@@ -63,7 +70,8 @@ print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
 S = dict(state='idle', visible=False, vis_full=False, vis_upper=False, upper_run=0, upper_miss=0, chunk=0, tries=0, scores={},
-         full_scores=None, say=None, ask=None, last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0)
+         full_scores=None, say=None, ask=None, last_step_back=0.0, play=None, last_pct=None, screen=False, anger=0,
+         live=None, visible_since=None, setup_since=None)
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
 # A dancer counts as "in view" when Brodie's rule says the whole body is in frame OR the upper body is: nose, both shoulders and
@@ -210,10 +218,33 @@ def _db_gain(pcm, target_db):
 
 
 def build_clip(k0, k1, count_dance):
-    """Parts k0 .. k1-1 as one int16 clip: 4 count-in beats + 8 beats per part. Returns (pcm, dance_offset_s)."""
-    player = _player(); beat = REF.beat_s
+    """Parts k0 .. k1-1 as one int16 clip: 4 count-in beats + 8 beats per part. Returns (pcm, dance_offset_s, t_start)."""
+    beat = REF.beat_s
     t_start = REF.first_beat_s + 8 * k0 * beat - 4 * beat           # the count-in starts 4 beats before ONE
     t_end = REF.first_beat_s + 8 * k1 * beat + 0.3
+    words = [(i * beat, w) for i, w in enumerate(COUNT_IN)]
+    if count_dance:
+        words += [(4 * beat + j * beat, COUNT_WORDS[j % 8], COUNT_GAIN) for j in range(8 * (k1 - k0))]
+    return build_span(t_start, t_end, words), 4 * beat, t_start
+
+
+def _fit_word(c, max_s):
+    """A spoken count squeezed into its beat: leading/trailing silence dropped, then up to 1.35x faster, then a soft cut."""
+    loud = np.flatnonzero(np.abs(c) > 0.02 * 32768)
+    if len(loud): c = c[max(0, loud[0] - int(0.01 * RATE)):loud[-1] + int(0.03 * RATE)]
+    n_max = int(max_s * RATE)
+    if len(c) > n_max:
+        if len(c) <= 1.35 * n_max:                                  # a little long: speed it up (slightly higher pitch)
+            c = np.interp(np.linspace(0, len(c) - 1, n_max), np.arange(len(c)), c)
+        else:                                                       # far too long: keep the start, fade out
+            c = c[:n_max].copy()
+    f = min(len(c), int(0.03 * RATE)); c[-f:] *= np.linspace(1, 0, f)
+    return c
+
+
+def build_span(t_start, t_end, words):
+    """The song from t_start to t_end (video seconds) with bank words [(offset_s, text)] mixed on top: int16 pcm."""
+    player = _player()
     n = int((t_end - t_start) * RATE)
     out = np.zeros(n, np.float32)
     if REF.audio is not None:                                       # the song for exactly these beats (zeros before the video starts)
@@ -223,17 +254,17 @@ def build_clip(k0, k1, count_dance):
             seg = src[lo:hi] * _db_gain(src, MUSIC_DB)
             f = min(len(seg), int(0.03 * RATE)); seg[:f] *= np.linspace(0, 1, f); seg[-f:] *= np.linspace(1, 0, f)
             out[lo - a:lo - a + len(seg)] += seg
-    words = [(i * beat, w) for i, w in enumerate(COUNT_IN)]
-    if count_dance:
-        words += [(4 * beat + j * beat, COUNT_WORDS[j % 8]) for j in range(8 * (k1 - k0))]
-    for t, w in words:
+    words = sorted(words)
+    for j, item in enumerate(words):
+        t, w = item[0], item[1]; gain = item[2] if len(item) > 2 else 1.0
         c = player.bank.get(w) if player is not None else None
         if c is None: continue
+        nxt = words[j + 1][0] if j + 1 < len(words) else t + 2.0
+        c = _fit_word(c.astype(np.float32), max(0.15, nxt - t - 0.05)) * gain   # never runs into the next count
         i = int(t * RATE); m = min(len(c), n - i)
-        if m > 0: out[i:i + m] += c[:m].astype(np.float32)
+        if m > 0: out[i:i + m] += c[:m]
     pcm = np.clip(out, -32768, 32767).astype(np.int16)
-    pcm = np.concatenate([pcm, np.zeros((-len(pcm)) % 480, np.int16)])  # whole 20 ms frames
-    return pcm, 4 * beat
+    return np.concatenate([pcm, np.zeros((-len(pcm)) % 480, np.int16)])  # whole 20 ms frames
 
 
 def play_parts(k0, k1, count_dance, then):
@@ -241,12 +272,25 @@ def play_parts(k0, k1, count_dance, then):
     player = _player()
     if player is None:
         print('[dance] no cue player (events-only mode): cannot play the clip', flush=True); return
-    pcm, dance_off = build_clip(k0, k1, count_dance)
-    key = f'[dance {k0}-{k1} {"counts" if count_dance else "quiet"}]'
+    pcm, dance_off, t_start = build_clip(k0, k1, count_dance)
+    _play(pcm, f'[dance {k0}-{k1} {"counts" if count_dance else "quiet"}]',
+          dict(kind='full' if k1 - k0 > 1 else 'part', k0=k0, k1=k1, dance_off=dance_off, t_start=t_start), then)
+
+
+def play_preview(then):
+    """The whole creator video with the song, no counts: the caller watches before learning."""
+    t_end = (len(REF.audio) / RATE) if REF.audio is not None else REF.first_beat_s + 8 * REF.n_chunks * REF.beat_s
+    _play(build_span(0.0, t_end, []), '[dance preview]', dict(kind='preview', k0=0, k1=0, dance_off=0.0, t_start=0.0), lambda wins: then())
+
+
+def _play(pcm, key, info, then):
+    player = _player()
+    if player is None:
+        print('[dance] no cue player (events-only mode): cannot play the clip', flush=True); return
     player.bank.cache[key] = pcm                                    # the bank serves cached clips by key: say() plays it
     rec = S['say'](key, 'announce')
-    S['play'] = dict(rec=rec, k0=k0, k1=k1, dance_off=dance_off, then=then, dur=len(pcm) / RATE, t_said=time.time())
-    print(f'[dance] playing parts {k0 + 1}..{k1} ({len(pcm) / RATE:.1f} s, music {"on" if REF.audio is not None else "off"}): '
+    S['play'] = dict(info, rec=rec, then=then, dur=len(pcm) / RATE, t_said=time.time())
+    print(f'[dance] playing {key} ({len(pcm) / RATE:.1f} s, music {"on" if REF.audio is not None else "off"}): '
           f'{rec.get("status") if isinstance(rec, dict) else rec}', flush=True)
     _loop().call_later(0.2, _watch_play)
 
@@ -403,17 +447,47 @@ def finish():
             'before they post it, because you will be watching. Lovingly.'))
 
 
+# ---- the start: watch first, then set up the camera ----
+def start_call():
+    S['state'] = 'preview'
+    if PREVIEW and not isinstance(REF, _Practice):
+        p = _ask(f'The call just started. In two short sentences: say hi, you are Brodie and today you will teach them the {REF.name} '
+             f'dance; first they should just watch it once on screen.')
+        when_quiet(lambda: play_preview(start_setup), min_wait=3.0, retry=p)
+    else:
+        p = _ask(f'The call just started. In one short sentence: say hi, you are Brodie and today you will teach them the {REF.name} dance.')
+        when_quiet(start_setup, min_wait=3.0, retry=p)
+
+
+def start_setup():
+    S['state'] = 'setup'; S['setup_since'] = time.time()
+    _ask('Now ask the caller, in two short sentences, to prop the phone up at about knee height and step back two or three '
+         'metres until their whole body, head to feet, is on screen.')
+    _loop().call_later(1.0, check_setup)
+
+
+def check_setup():
+    if S['state'] != 'setup': return
+    now = time.time()
+    ready = S['visible'] and S['visible_since'] is not None and now - S['visible_since'] >= SETUP_HOLD_S
+    if ready and now - S['setup_since'] >= SETUP_MIN_S:
+        S['state'] = 'intro'
+        S['say']('Great, I can see you', 'visibility')
+        p = _ask(f'The caller is in position. In two short sentences: say we learn the {REF.name} dance in {REF.n_chunks} parts of '
+             f'eight counts and that you will count them in.' + _describe(0))
+        when_quiet(teach_part, min_wait=4.0, retry=p); return
+    if not S['visible'] and now - S['setup_since'] > 20 and now - S['last_step_back'] > 10:
+        S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = now
+    _loop().call_later(0.5, check_setup)
+
+
 # ---- the events ----
 def _set_visible():
     """visible = Brodie's whole-body rule OR the upper-body rule; the first time the dancer is in view the lesson starts."""
     was = S['visible']; S['visible'] = bool(S['vis_full'] or S['vis_upper'])
-    if S['visible'] and not was and S['state'] == 'idle':
-        S['state'] = 'intro'
-        S['say']('Great, I can see you', 'visibility')
-        p = _ask(f'The caller just stepped into frame, ready. In two short sentences: say hi with your intro line, then sell today\'s '
-                 f'lesson like a dance teacher who has had too much caffeine: the {REF.name} dance, {REF.n_chunks} parts of eight counts'
-                 + (', with the music' if REF.audio is not None else '') + ', and you count them in.' + _describe(0))
-        when_quiet(teach_part, min_wait=4.0, retry=p)
+    if S['visible'] and not was: S['visible_since'] = time.time()
+    if not S['visible']: S['visible_since'] = None
+    if S['visible'] and not was and S['state'] == 'idle': start_call()   # watch first, then set up, then the lesson
 
 
 def on_event(event, say_now, ask_voice):
@@ -422,12 +496,15 @@ def on_event(event, say_now, ask_voice):
     t = event['type']
     if t == 'pose':
         ok = bool(event.get('ok'))
-        if ok: POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
+        if ok:
+            coco = mediapipe_to_coco(event['kp'], event['wh'])
+            POSES.append((event['t_wall'], coco)); S['live'] = (event['t_wall'], coco, event['wh'])
         if ok and _upper_body_in_frame(event['kp']):
             S['upper_run'] += 1; S['upper_miss'] = 0
             if S['upper_run'] >= UPPER_ON_FRAMES and not S['vis_upper']: S['vis_upper'] = True; _set_visible()
         else:
             S['upper_miss'] += 1; S['upper_run'] = 0
             if S['upper_miss'] >= UPPER_OFF_FRAMES and S['vis_upper']: S['vis_upper'] = False; _set_visible()
+        if S['state'] == 'idle': start_call()                       # the caller's video arrived: watch first, then set up
     elif t == 'visibility':
         S['vis_full'] = event.get('state') == 'full'; _set_visible()
