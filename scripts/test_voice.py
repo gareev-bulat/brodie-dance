@@ -36,6 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from facetime import SAMPLE_RATE, FRAME_SAMPLES
 from facetime.audio_out import CuePlayer, MixInput
+import os
 from facetime.voice import Floor, SetSummary, VoiceLayer, MixerAudioOutput, GeminiModel, VideoTee, OPEN_STATES, DEFAULT_PERSONA, load_handlers, HANDLERS_PATH, ASK_TTL_S
 
 PASS = []
@@ -157,7 +158,9 @@ async def test_layer():
     check(mix2 is job2.player.mix and v2.sink.floor is v2.floor and v2.floor.sink is v2.sink, 'attach(): the sink reads the Floor and the Floor cuts through the sink')
     job2.player.stop()
     # the default starter/handlers.py: one ask at each rest and at done, nothing else
-    fn = load_handlers(HANDLERS_PATH); m3 = FakeModel(); job3 = FakeJob()
+    # (the dance branch replaced starter/handlers.py; the workout handler this checks lives on as handlers_workout_original.py)
+    workout = os.path.join(os.path.dirname(HANDLERS_PATH), 'handlers_workout_original.py')
+    fn = load_handlers(workout if os.path.exists(workout) else HANDLERS_PATH); m3 = FakeModel(); job3 = FakeJob()
     v3 = VoiceLayer(job3, model=m3, plan='squats:10,pushups:8', handlers=fn, now=lambda: now[0])
     for e in (session('init'), session('wait'), session('active'), ev('rep', exercise='squats', n=1), ev('cue', text='One', intent='count'),
               ev('fault', label='squats - shallow', cue_text='Sink lower', p=0.6), ev('visibility', state='partial', paused=True, no_pose_s=0.0)):
