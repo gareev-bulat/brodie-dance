@@ -164,7 +164,7 @@
   <section id="dances">
     <h2>dances brodie knows</h2>
     <div class="dances" id="dances-list"><div class="empty">Loading the lesson list…</div></div>
-    <p class="fine">References come from the original creators' clips, slowed to a learner tempo. New dances are built with one script from any clip.</p>
+    <p class="fine">Each one is learned from the creator's own clip and slowed down so you can keep up. More dances land after launch.</p>
   </section>
 
   <section id="facetime">
@@ -233,18 +233,22 @@
     }
   }).catch(() => { document.getElementById('status').lastElementChild.textContent = 'static page'; });
 
-  fetch(API + '/api/dances').then((r) => r.json()).then((d) => {
+  // the lessons: from the server when it is reachable, else the list baked in at the last deploy
+  const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true}];
+  const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
+  function renderDances(list) {
     const box = document.getElementById('dances-list'); box.innerHTML = '';
-    if (!d.dances || !d.dances.length) { box.innerHTML = '<div class="empty">No lessons loaded yet.</div>'; return; }
-    for (const x of d.dances) {
+    for (const x of list) {
       const el = document.createElement('div'); el.className = 'dance';
       const steps = (x.steps || []).slice(0, 2).map((s) => '<li>' + s.split('|').map((t) => t.trim()).filter(Boolean).join(' · ') + '</li>').join('');
-      el.innerHTML = (x.live ? '<span class="live">live now</span>' : '') + '<b>' + pretty(x.name) + '</b>'
+      el.innerHTML = (x.live ? '<span class="live">live now</span>' : '') + '<b>' + credit(x.name) + '</b>'
         + '<span class="meta">' + x.parts + ' parts · ' + x.seconds + ' s · ' + Math.round(x.bpm) + ' bpm' + (x.music ? ' · with the song' : '') + '</span>'
         + (steps ? '<ul>' + steps + '</ul>' : '');
       box.append(el);
     }
-  }).catch(() => { document.getElementById('dances-list').innerHTML = '<div class="empty">Lesson list needs the server.</div>'; });
+  }
+  renderDances(FALLBACK_DANCES);
+  fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
 
   // ---- accounts: sign up or log in here, then the call page (/app) lets you in ----
   const $ = (id) => document.getElementById(id);
