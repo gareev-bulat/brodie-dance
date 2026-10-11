@@ -98,7 +98,7 @@ async def config(_req):
     """What the landing page needs to link up with the running system (all from env, nothing secret)."""
     return web.json_response({'ok': True, 'live': all(os.environ.get(k) and '<' not in os.environ.get(k, '') for k in LIVEKIT_KEYS) and bool(os.environ.get('AGENT_NAME')),
                               'agent_name': os.environ.get('AGENT_NAME', ''), 'facetime': os.environ.get('FACETIME_NUMBER', ''),
-                              'dance': os.environ.get('DANCE', ''), 'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/brodie-starter'),
+                              'dance': os.environ.get('DANCE', ''), 'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance'),
                               'app': '/app'})
 
 
@@ -122,6 +122,34 @@ async def dances(_req):
     return web.json_response({'dances': out})
 
 
+# ---- waitlist: open to the public landing page wherever it is hosted (CORS on these routes only) ----
+CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type'}
+
+
+async def waitlist_join(req):
+    b = await _body(req)
+    try: pos, created = users.waitlist_add(b.get('email', ''), b.get('name', ''), req.headers.get('Origin', '') or req.headers.get('Referer', '')[:80])
+    except ValueError as e: return web.json_response({'error': str(e)}, status=400, headers=CORS)
+    return web.json_response({'ok': True, 'position': pos, 'new': created, 'count': users.waitlist_count()}, headers=CORS)
+
+
+async def waitlist_count(_req):
+    return web.json_response({'count': users.waitlist_count()}, headers=CORS)
+
+
+async def waitlist_options(_req):
+    return web.Response(status=204, headers=CORS)
+
+
+async def waitlist_export(req):
+    """CSV of the waitlist for the team: GET /api/waitlist/export?key=<ADMIN_KEY>."""
+    key = os.environ.get('ADMIN_KEY', '')
+    if not key or req.query.get('key', '') != key: return web.json_response({'error': 'forbidden'}, status=403)
+    rows = users.waitlist_all()
+    body = 'id,email,name,source,created\n' + ''.join(f'{r["id"]},{r["email"]},"{r["name"]}","{r["source"]}",{datetime.datetime.utcfromtimestamp(r["created"]).isoformat()}\n' for r in rows)
+    return web.Response(text=body, content_type='text/csv')
+
+
 async def landing(_req): return web.FileResponse(os.path.join(WEB, 'landing.html'))
 
 
@@ -135,6 +163,8 @@ def app():
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.get('/api/me', me),
                   web.get('/api/token', token), web.get('/api/health', health), web.get('/api/config', config), web.get('/api/dances', dances),
+                  web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
+                  web.get('/api/waitlist/export', waitlist_export),
                   web.get('/', landing), web.get('/index.html', landing), web.get('/app', app_page), web.static('/', WEB)])
     return a
 

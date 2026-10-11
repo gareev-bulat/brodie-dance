@@ -47,3 +47,18 @@ curl https://<server>/api/health     # ok, agent_name, dance, livekit (keys pres
 curl https://<server>/api/config     # live, facetime number, fork
 curl https://<server>/api/dances     # the lessons with parts, bpm, steps
 ```
+
+## 4. The landing page on Vercel (launch day)
+
+The landing page is static, so it can go up on Vercel in a minute while the server runs elsewhere:
+
+1. In `web/landing.html` set `<meta name="brodie-api" content="https://<your server>">` to the public https URL of the
+   server (a Cloudflare quick tunnel to this PC works: `cloudflared tunnel --url http://localhost:8099`, or the hosted
+   server from section 1). The waitlist posts there across origins; the server allows it (CORS on `/api/waitlist` only).
+2. Deploy the `web/` folder: `cd web && vercel --prod` (or drag the folder onto vercel.com). `web/vercel.json` serves
+   `landing.html` at `/`.
+3. On the Vercel copy, accounts and the call page are hidden (they need the server's own origin for the session cookie);
+   visitors join the waitlist. For a quick check without redeploying, open `https://<vercel>/?api=https://<server>`.
+
+The waitlist lives in the server's sqlite file: `GET /api/waitlist` is the public count, `GET /api/waitlist/export?key=<ADMIN_KEY>`
+is the CSV for the team (set `ADMIN_KEY` in the server's environment).

@@ -71,7 +71,7 @@ frame -> short side 288 (facetime/pipeline.py:166, 72-78) -> MediaPipe VIDEO, co
 ## 7. Licence & consent caveats
 
 - `clf_pose.pt`, `trigger_lr.json`, `thresholds_e3c.json`, `cue_prior.json`: 30-day QEVD evaluation licence, hackathon only, private, never identify a participant, no face recognition (README.md:94; STARTER_README.md:338-340). Fine-tuning from `clf_pose.pt` inherits this; train from scratch. QEVD label names ship verbatim as cues.json keys; no QEVD clips/frames may be requested (STARTER_README.md:341-343).
-- `thresholds_e3c.json` and `cue_prior.json` are git-tracked (`git ls-files src/rtcoach`), so pushes to the team fork (`origin git@github.com:zxpeng2007/brodie-starter.git`) carry them: keep it private.
+- `thresholds_e3c.json` and `cue_prior.json` are git-tracked (`git ls-files src/rtcoach`), so pushes to the team fork (`origin git@github.com:zxpeng2007/ivyhacks-brodie-dance.git`) carry them: keep it private.
 - `data/tmp/mac_handoff/*` are James's consented recordings, never publish (data/STARTER_BUNDLE_README.txt:16, 25); yours need written consent, under gitignored `data/`, TikTok videos only with rights; callers get the disclosure line (STARTER_README.md:324-334).
 
 ## 8. Open questions

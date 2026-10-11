@@ -41,6 +41,33 @@ def init():
     with _db() as c:
         c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, '
                   'pw_hash TEXT NOT NULL, salt TEXT NOT NULL, created REAL NOT NULL, calls INTEGER NOT NULL DEFAULT 0, last_call REAL)')
+        c.execute('CREATE TABLE IF NOT EXISTS waitlist (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT "", '
+                  'source TEXT NOT NULL DEFAULT "", created REAL NOT NULL)')
+
+
+# ---- waitlist (launch day: emails first, accounts when the lesson opens) ----
+def waitlist_add(email, name='', source=''):
+    """Returns (position, created_now). ValueError on a bad email. A repeat email keeps its original position."""
+    email = (email or '').strip().lower()[:120]
+    if not EMAIL.match(email): raise ValueError('that does not look like an email address')
+    with _db() as c:
+        try:
+            c.execute('INSERT INTO waitlist (email, name, source, created) VALUES (?, ?, ?, ?)', (email, (name or '').strip()[:40], (source or '')[:80], time.time()))
+            created = True
+        except sqlite3.IntegrityError:
+            created = False
+        pos = c.execute('SELECT COUNT(*) FROM waitlist WHERE id <= (SELECT id FROM waitlist WHERE email = ?)', (email,)).fetchone()[0]
+    return pos, created
+
+
+def waitlist_count():
+    with _db() as c:
+        return c.execute('SELECT COUNT(*) FROM waitlist').fetchone()[0]
+
+
+def waitlist_all():
+    with _db() as c:
+        return [dict(r) for r in c.execute('SELECT id, email, name, source, created FROM waitlist ORDER BY id').fetchall()]
 
 
 def _hash(password, salt):

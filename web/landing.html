@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Brodie Dance</title>
+<meta name="brodie-api" content="">   <!-- on a static host (Vercel): the server's https URL, for the waitlist -->
 <meta name="description" content="Brodie teaches you viral TikTok dances on a video call: watch the creator, learn it eight counts at a time, get scored on every part.">
 <link rel="icon" href="assets/brodie/brodie-pfp-square.png">
 <meta property="og:title" content="Brodie Dance">
@@ -79,6 +80,12 @@
   footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--grey); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
   footer img { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }
 
+  .waitlist { display: flex; gap: 10px; margin-top: 26px; max-width: 520px; }
+  .waitlist input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 1.05rem; }
+  .waitlist input:focus { outline: 2px solid var(--volt); outline-offset: -1px; }
+  .waitlist .btn { white-space: nowrap; }
+  .waitlist.done { display: block; background: var(--panel); border: 1px solid var(--volt); border-radius: 12px; padding: 16px 18px; font-size: 1.05rem; }
+  .cta#cta-row .btn.ghost { font-size: 0.95rem; padding: 10px 16px; }
   .account { font-size: 0.95rem; color: var(--grey); white-space: nowrap; }
   .account a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
   .account b { color: var(--text); font-weight: 600; margin-right: 10px; }
@@ -106,7 +113,11 @@
     .hero .art { order: -1; }
     .steps { grid-template-columns: 1fr; }
     nav .links { display: none; }
+    .waitlist { flex-direction: column; max-width: none; }
+    .waitlist .btn { width: 100%; justify-content: center; }
+    .status { display: none; }
   }
+  body { overflow-x: hidden; }
 </style>
 </head>
 <body>
@@ -114,7 +125,7 @@
   <nav>
     <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp.png" alt="Brodie">brodie dance</a>
     <div class="links">
-      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#facetime">facetime</a><a id="nav-fork" href="https://github.com/zxpeng2007/brodie-starter">github</a>
+      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#facetime">facetime</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
     </div>
     <span class="status" id="status"><i></i><span>checking</span></span>
     <span class="account" id="account"><a href="#" id="nav-login">log in</a></span>
@@ -125,11 +136,16 @@
       <div class="eyebrow">a coach on your video call</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
       <p class="lead">Brodie plays the creator's video, watches your camera, scores every part against the original and tells you the one thing to fix. Then the whole dance, with the song.</p>
-      <div class="cta">
-        <a class="btn primary" id="cta-app" href="#signup">sign up to dance</a>
+      <form class="waitlist" id="waitlist" autocomplete="on">
+        <input type="email" id="wl-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
+        <button class="btn primary" type="submit" id="wl-go">join the waitlist</button>
+      </form>
+      <p class="fine" id="wl-note">Brodie opens in a few hours. First on the list, first to dance.</p>
+      <div class="cta" id="cta-row">
+        <a class="btn ghost" id="cta-app" href="#signup">have access? sign up to dance</a>
         <a class="btn ghost" id="cta-facetime" href="#facetime" hidden>call on facetime</a>
       </div>
-      <p class="fine" id="cta-fine">Free account, one minute to set up. Works in the browser on a phone or laptop: prop the phone up, step back so your whole body is in frame.</p>
+      <p class="fine" id="cta-fine">Works in the browser on a phone or laptop: prop the phone up, step back so your whole body is in frame.</p>
     </div>
     <div class="art"><img src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top"></div>
   </header>
@@ -177,7 +193,7 @@
 
   <footer>
     <span><img src="assets/brodie/brodie-pfp-square.png" alt="">Built on the Brodie starter for IvyHacks 2026.</span>
-    <a id="foot-fork" href="https://github.com/zxpeng2007/brodie-starter">source on GitHub</a>
+    <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">source on GitHub</a>
     <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
   </footer>
 </div>
@@ -198,11 +214,14 @@
 
 <script>
   // The page is static; these two calls connect it to whatever is running behind it (see docs/HOSTING.md).
-  const APP = new URLSearchParams(location.search).get('app') || window.APP_URL || '/app';
+  const Q = new URLSearchParams(location.search);
+  const API = (Q.get('api') || window.BRODIE_API || (document.querySelector('meta[name="brodie-api"]')?.content || '')).replace(/\/$/, '');   // '' = same origin
+  const REMOTE = API !== '';   // hosted apart from the server (Vercel): the waitlist posts across origins; accounts need the server's own origin
+  const APP = Q.get('app') || window.APP_URL || (REMOTE ? API + '/app' : '/app');
   document.getElementById('cta-app').href = APP;
   const pretty = (s) => s.replace(/_[0-9a-f]{6}$/, '').replace(/[_-]+/g, ' ');
 
-  fetch('/api/config').then((r) => r.json()).then((c) => {
+  fetch(API + '/api/config').then((r) => r.json()).then((c) => {
     const st = document.getElementById('status');
     if (c.live) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
     else { st.lastElementChild.textContent = 'brodie is offline'; }
@@ -214,7 +233,7 @@
     }
   }).catch(() => { document.getElementById('status').lastElementChild.textContent = 'static page'; });
 
-  fetch('/api/dances').then((r) => r.json()).then((d) => {
+  fetch(API + '/api/dances').then((r) => r.json()).then((d) => {
     const box = document.getElementById('dances-list'); box.innerHTML = '';
     if (!d.dances || !d.dances.length) { box.innerHTML = '<div class="empty">No lessons loaded yet.</div>'; return; }
     for (const x of d.dances) {
@@ -245,7 +264,7 @@
     user = u;
     if (u) {
       $('account').innerHTML = '<b>hi ' + u.name.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
-      $('nav-logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); showUser(null); };
+      $('nav-logout').onclick = async (e) => { e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }); showUser(null); };
       cta.textContent = 'dance with brodie'; cta.href = APP; $('cta-fine').textContent = 'Prop the phone up, step back so your whole body is in frame, sound on.';
     } else {
       $('account').innerHTML = '<a href="#" id="nav-login">log in</a>';
@@ -262,16 +281,33 @@
     e.preventDefault(); $('auth-err').textContent = ''; $('auth-go').disabled = true;
     const body = { name: $('in-name').value, email: $('in-email').value, password: $('in-password').value };
     try {
-      const r = await fetch(mode === 'signup' ? '/api/signup' : '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(API + (mode === 'signup' ? '/api/signup' : '/api/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
       if (!r.ok) { $('auth-err').textContent = d.error || 'Something went wrong.'; if (r.status === 409) setMode('login'); return; }
       showUser(d.user); closeAuth(); location.href = APP;
     } catch (err) { $('auth-err').textContent = 'No connection to the server.'; }
     finally { $('auth-go').disabled = false; }
   });
-  fetch('/api/me').then((r) => r.ok ? r.json() : { user: null }).then((d) => { showUser(d.user); if (NEXT && !d.user) openAuth('signup'); })
+  fetch(API + '/api/me').then((r) => r.ok ? r.json() : { user: null }).then((d) => { showUser(d.user); if (NEXT && !d.user) openAuth('signup'); })
     .catch(() => showUser(null));
   if (location.hash === '#signup') openAuth('signup');
+  // ---- waitlist (launch day) ----
+  const wl = $('waitlist'), wlNote = $('wl-note');
+  const people = (n, verb) => `${n} ${n === 1 ? 'person' : 'people'}${verb ? ' ' + (n === 1 ? verb[0] : verb[1]) : ''}`;
+  fetch(API + '/api/waitlist').then((r) => r.json()).then((d) => { if (d.count > 0) wlNote.textContent = `Brodie opens in a few hours. ${people(d.count, ['is', 'are'])} already in line.`; }).catch(() => {});
+  wl.addEventListener('submit', async (e) => {
+    e.preventDefault(); $('wl-go').disabled = true;
+    try {
+      const r = await fetch(API + '/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('wl-email').value }) });
+      const d = await r.json();
+      if (!r.ok) { wlNote.textContent = d.error || 'Something went wrong.'; return; }
+      wl.classList.add('done');
+      wl.innerHTML = d.new ? `You're #${d.position} on the list. We'll email you the moment Brodie opens.` : `You're already on the list, #${d.position}. See you soon.`;
+      wlNote.textContent = `${people(d.count)} waiting to dance.`;
+    } catch (err) { wlNote.textContent = 'Could not reach the waitlist server. Try again in a minute.'; }
+    finally { $('wl-go').disabled = false; }
+  });
+  if (REMOTE) { $('account').hidden = true; $('cta-row').hidden = true; $('cta-fine').hidden = true; }
 </script>
 </body>
 </html>
