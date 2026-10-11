@@ -264,7 +264,7 @@ def _watch_play():
     _loop().call_later(0.1, _watch_play)
 
 
-RETRY_AFTER_S = 3.5                                         # a reply that has not started by then was lost (relay: "no active generation")
+RETRY_AFTER_S = 3.0                                         # a reply that has not started by then was lost (relay: "no active generation"); replies start in 0.6-1.8 s
 
 
 def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0, retry=None):
@@ -273,6 +273,7 @@ def when_quiet(fn, min_wait=2.5, quiet_s=1.0, max_wait=15.0, retry=None):
     retry: the prompt that was just asked; if no voice audio at all has played RETRY_AFTER_S after the ask, the reply was lost
     (seen through the relay: "received server content but no active generation") and the prompt is asked once more."""
     player = _player(); t0 = [time.monotonic()]; last = [time.monotonic()]; heard = [False]; retried = [False]
+    if retry: min_wait = max(min_wait, RETRY_AFTER_S + 1.0)     # leave room for the retry: fn must not run before the second ask could
     def tick():
         mix = getattr(player, 'mix', None) if player is not None else None
         now = time.monotonic()

@@ -79,7 +79,7 @@ def clean_transcript(text):
     ("Let's go again.Your left arm was..."); a speech transcription always has a space between sentences. So: keep the tail after
     the last glue point, drop markdown and note-like lines, collapse whitespace. '' when nothing spoken is left. The audio itself
     was clean in every recorded call (verity/README.md, relay quirk); this only keeps captions and the event log honest."""
-    t = (text or '').strip()
+    t = re.sub(r'<[^>]*>?', '', text or '').strip()                   # stage directions the model writes: <whispering>
     if not t: return ''
     cuts = list(_GLUE.finditer(t))
     if cuts: t = t[cuts[-1].end():]
