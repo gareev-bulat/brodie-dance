@@ -1,7 +1,7 @@
 """Brodie Dance on the web: the landing page, accounts, and the call page that joins a LiveKit room with Brodie's worker.
 
   python -m brodie.server [--host 127.0.0.1] [--port 8765]     # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET, AGENT_NAME in env
-Routes: /  landing (web/landing.html)      /app  the call page (web/app.html, needs a login)
+Routes: /  landing (web/index.html)      /app  the call page (web/app.html, needs a login)
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
         GET /api/token   a LiveKit token for a fresh room "web-<user>-<id>" with AGENT_NAME dispatched into it (login required)
         GET /api/config  what the landing page shows (FaceTime number, lesson, fork)   GET /api/dances   GET /api/health
