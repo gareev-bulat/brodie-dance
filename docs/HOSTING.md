@@ -4,27 +4,30 @@ Three pieces. Only the first two go on a hosting service.
 
 | Piece | What | Where |
 | --- | --- | --- |
-| Web + token server (`verity/server.py`) | Landing page at `/`, call app at `/app`, `/api/token`, `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
+| Website (`brodie/server.py`) | Landing page at `/`, accounts (`/api/signup`, `/api/login`), the call page at `/app`, `/api/token`, `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
 | LiveKit Cloud | Rooms, media, agent dispatch | cloud.livekit.io (free project) |
 | Brodie's worker (`facetime.worker --dance`) | The coach: pose, judge, voice, the lesson video | A machine with the data bundle and the Python env (a laptop is fine); it connects out to LiveKit, no inbound port |
 
-## 1. Deploy the web server
+## 1. Deploy the website
 
-Build from the repo root with the `Dockerfile` (it copies only `verity/`, `web/`, the reference loader and `data/dances/*.npz`).
+Build from the repo root with the `Dockerfile` (it copies `brodie/`, `web/`, the reference loader and `data/dances/*.npz`; no torch, no MediaPipe).
 
 Environment variables on the host:
 
 | Variable | Value |
 | --- | --- |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | from the LiveKit project (Settings, then Keys) |
-| `AGENT_NAME` | `team-verity-agent` (must match the worker) |
-| `VERITY_CHARACTER` | `dancity` |
-| `DANCE` | `sbbyj` (the lesson the worker runs; shows "live now" on the landing page) |
-| `FACETIME_NUMBER` | the Chert FaceTime line, e.g. `+1 555 010 0100` (optional; the FaceTime buttons appear when set) |
+| `AGENT_NAME` | `brodie-dance` (must match the worker) |
+| `DANCE` | `sbbyj` (the lesson the worker runs; "live now" on the landing page) |
+| `SESSION_SECRET` | any long random string, so logins survive a redeploy |
+| `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
+| `FACETIME_NUMBER` | the Chert FaceTime line (optional; the FaceTime buttons appear when set) |
 | `FORK_URL` | the team's GitHub fork (optional) |
 | `HOST` / `PORT` | `0.0.0.0` and whatever the host assigns (the Dockerfile sets both; most hosts override `PORT`) |
 
-`/api/token` has no auth: anyone who can reach the server can start a call and spend Gemini minutes. Keep the URL to the team, or put the host's auth in front of it.
+Accounts: users sign up on the landing page (name, email, password; PBKDF2 hashes in sqlite) and get a signed, HttpOnly session
+cookie. `/app` and `/api/token` need that cookie, so only signed-up users can start calls (which spend Gemini minutes).
+The cookie is marked Secure when the request arrives over https (directly or via `X-Forwarded-Proto`).
 
 ## 2. Run the worker
 
@@ -34,16 +37,13 @@ On the machine that has the data bundle, with the same `LIVEKIT_*` and `AGENT_NA
 bash scripts/demo_worker.sh
 ```
 
-LiveKit dispatches that worker into every room the web server creates (`web-dancity-…`) and into the Chert FaceTime line. The worker's `DANCE` should match the server's.
+LiveKit dispatches that worker into every room the website creates (`web-<user>-…`) and into the Chert FaceTime line. The
+worker's `DANCE` should match the website's.
 
-## 3. Static-only landing (optional)
-
-`web/landing.html` is a static page. On a static host (Vercel, Netlify) it works alone, with the lesson list and FaceTime buttons hidden; point its call button at the hosted app with `?app=https://<server>/app`, or set `window.APP_URL` before the script.
-
-## Check it
+## 3. Check it
 
 ```
-curl https://<server>/api/health     # ok, characters, agent_name, live
-curl https://<server>/api/config     # live character, facetime number, fork
+curl https://<server>/api/health     # ok, agent_name, dance, livekit (keys present), users
+curl https://<server>/api/config     # live, facetime number, fork
 curl https://<server>/api/dances     # the lessons with parts, bpm, steps
 ```

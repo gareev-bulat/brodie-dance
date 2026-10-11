@@ -283,12 +283,8 @@ class CoachJob:
             await self.room.local_participant.publish_track(self.player.track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
             self.player_task = asyncio.create_task(self.player.run())
             print(f'[worker] published audio track {AUDIO_TRACK_NAME}', flush=True)
-        if getattr(a, 'avatar', None):                         # the face: published with the audio, before any caller (Chert binds on both)
-            from verity.avatar import Avatar, tap
-            from verity.variants import VARIANTS
-            self.avatar = Avatar(VARIANTS[a.avatar]); self.avatar_task = await self.avatar.publish(self.room)
-            if self.voice is not None and self.voice.sink is not None: tap(self.avatar, self.voice.sink)   # the mouth follows the model's voice
-            print(f'[worker] published video track verity-face ({a.avatar})', flush=True)
+        if getattr(a, 'avatar', None):                         # the old character face track was removed with the Verity agent
+            print(f'[worker] --avatar {a.avatar!r} ignored: Brodie Dance publishes the lesson video instead (starter/dance/screen.py)', flush=True)
         if self.voice_mode:                                       # no Perception: the worker's own session/status events, logged the same way
             from facetime.perception import JsonlWriter
             self.event_writer = JsonlWriter(a.event_log, extra=dict(room=self.room.name, call_id=self.call_id, job=ctx.job.id))

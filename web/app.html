@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brodie Dance</title>
+<meta name="description" content="Your call with Brodie: he plays the dance, watches your camera and coaches you eight counts at a time.">
+<link rel="icon" href="assets/brodie/brodie-pfp-square.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.7/dist/livekit-client.umd.js"></script>
+<style>
+  /* Brand from the Brodie character kit: volt on near-black, cream only on Brodie himself. */
+  :root { --ground: #0A0A0B; --panel: #1F2126; --grey: #8E9198; --volt: #D9FF3D; --ink: #1A1919; --text: #F4F2EE; --line: #2A2D33; --bad: #E24B4B; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--text); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 17px; line-height: 1.5; overflow-x: hidden; }
+  [hidden] { display: none !important; }
+  h1, h2, .btn, .seg button { font-family: 'Archivo', 'Plus Jakarta Sans', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.03em; }
+  h1 { font-size: clamp(2.4rem, 9vw, 3.6rem); line-height: 0.95; margin: 0; }
+  h2 { font-size: 1.6rem; line-height: 1; margin: 0; }
+  p { margin: 0; }
+  a { color: inherit; }
+  .muted { color: var(--grey); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 22px; border-radius: 12px; text-decoration: none; font-size: 1.05rem; border: 2px solid var(--volt); background: none; color: var(--text); cursor: pointer; transition: transform .12s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: default; transform: none; }
+  .btn.primary { background: var(--volt); color: var(--ink); }
+  .btn.ghost { border-color: var(--line); }
+  .btn.ghost:hover { border-color: var(--volt); }
+  .btn.wide { width: 100%; padding: 18px 22px; font-size: 1.25rem; }
+
+  /* pre-call and end screens: one centred column, portrait first */
+  .screen { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px calc(32px + env(safe-area-inset-bottom)); text-align: center; }
+  .screen .col { width: min(420px, 100%); display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .pfp { width: 128px; height: 128px; border-radius: 50%; box-shadow: 0 0 0 4px var(--panel), 0 20px 40px rgba(0,0,0,.5); }
+  .advice { list-style: none; margin: 4px 0; padding: 0; width: 100%; display: grid; gap: 8px; text-align: left; }
+  .advice li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 0.95rem; display: flex; gap: 12px; align-items: baseline; }
+  .advice b { font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--volt); font-size: 1.2rem; line-height: 1; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button { border: 0; border-radius: 9px; background: none; color: var(--grey); padding: 10px; font-size: 1rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+  .err { color: var(--bad); font-size: 0.9rem; min-height: 1.4em; }
+  .small { font-size: 0.85rem; color: var(--grey); }
+
+  /* the call: coach video fills the viewport, everything else floats on top */
+  #call { position: fixed; inset: 0; background: var(--ground); display: flex; }
+  #coach { width: 100%; height: 100%; object-fit: contain; background: var(--ground); }
+  #joining { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--ground); text-align: center; padding: 16px; }
+  #joining .pfp { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 4px var(--panel); } 50% { transform: scale(1.04); box-shadow: 0 0 0 4px var(--panel), 0 0 44px rgba(217,255,61,.35); } }
+  #me { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 26vw; max-width: 150px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); background: var(--panel); }
+  #me.mirror { transform: scaleX(-1); }
+  #note { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--volt); color: var(--ink); font-weight: 600; font-size: 0.9rem; padding: 8px 14px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #captions { position: absolute; left: 16px; right: 16px; bottom: calc(92px + env(safe-area-inset-bottom)); margin: 0 auto; max-width: 640px; text-align: center; background: rgba(10,10,11,.8); border-radius: 12px; padding: 10px 14px; font-size: 1.05rem; font-weight: 600; line-height: 1.35; }
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(10,10,11,.85)); }
+  .bar .btn { padding: 12px 16px; font-size: 1rem; }
+  .bar .btn.off { border-color: var(--volt); color: var(--volt); }
+  .bar .btn.end { border-color: var(--bad); background: var(--bad); color: #fff; }
+</style>
+</head>
+<body>
+
+<section id="pre" class="screen" hidden>
+  <div class="col">
+    <img class="pfp" src="assets/brodie/brodie-pfp.png" alt="Brodie">
+    <h1 id="greet">hey</h1>
+    <p class="muted">three things before we start.</p>
+    <ul class="advice">
+      <li><b>1</b><span>prop the phone up, about waist height, and step back.</span></li>
+      <li><b>2</b><span>get your whole body in frame, head to feet.</span></li>
+      <li><b>3</b><span>sound on: Brodie talks you through it and plays the song.</span></li>
+    </ul>
+    <div class="seg" role="group" aria-label="camera">
+      <button type="button" data-facing="user" aria-pressed="true">front camera</button>
+      <button type="button" data-facing="environment" aria-pressed="false">back camera</button>
+    </div>
+    <button class="btn primary wide" id="join">dance with brodie</button>
+    <p class="err" id="err" aria-live="polite"></p>
+    <a class="small" id="logout" href="/">log out</a>
+  </div>
+</section>
+
+<section id="call" hidden>
+  <video id="coach" autoplay playsinline></video>
+  <div id="joining">
+    <img class="pfp" src="assets/brodie/brodie-pfp.png" alt="">
+    <h2>brodie is joining…</h2>
+    <p class="muted">a few seconds. get in frame.</p>
+  </div>
+  <video id="me" class="mirror" autoplay playsinline muted hidden></video>
+  <div id="note" hidden></div>
+  <p id="captions" aria-live="polite" hidden></p>
+  <div class="bar">
+    <button class="btn ghost" id="mic">mute</button>
+    <button class="btn ghost" id="flip">flip camera</button>
+    <button class="btn end" id="hangup">hang up</button>
+  </div>
+</section>
+
+<section id="end" class="screen" hidden>
+  <div class="col">
+    <img class="pfp" src="assets/brodie/brodie-pfp.png" alt="Brodie">
+    <h1>nice work</h1>
+    <p class="muted">that's the lesson. come back for the next one.</p>
+    <button class="btn primary wide" id="again">dance again</button>
+    <a class="btn ghost wide" href="/">home</a>
+  </div>
+</section>
+
+<script>
+const LK = window.LivekitClient, $ = (s) => document.querySelector(s);
+let user = null, room = null, facing = 'user', micOn = true, capT, noteT;
+const show = (name) => { for (const id of ['pre', 'call', 'end']) $('#' + id).hidden = id !== name; };
+const toLogin = () => location.replace('/?next=app');
+const fail = (text) => { $('#err').textContent = text; $('#join').disabled = false; show('pre'); };
+const clean = (t) => t.replace(/<[^>]*>?/g, '').replace(/\*/g, '').replace(/\s+/g, ' ');   // stage directions the model writes
+
+// 1. gate: nobody sees the page without a session
+(async () => {
+  let r;
+  try { r = await fetch('/api/me'); } catch { return toLogin(); }
+  if (!r.ok) return toLogin();
+  try { user = (await r.json()).user || {}; } catch { user = {}; }
+  $('#greet').textContent = 'hey ' + (user.name || 'you');
+  show('pre');
+})();
+
+// 2. pre-call: camera choice and log out
+function setFacing(f) {
+  facing = f;
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.facing === f)));
+  $('#me').classList.toggle('mirror', f === 'user');
+}
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => setFacing(b.dataset.facing)));
+$('#logout').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+  location.href = '/';
+});
+
+// 3. join: token, then the LiveKit room
+async function join() {
+  if (room) return;
+  if (!LK) return fail("the call library didn't load. check your connection and reload.");
+  const btn = $('#join'); btn.disabled = true; $('#err').textContent = '';
+  let r, info = {};
+  try { r = await fetch('/api/token'); } catch { return fail("can't reach the server. is it running?"); }
+  if (r.status === 401) return toLogin();
+  try { info = await r.json(); } catch {}
+  if (!r.ok || !info.token) return fail(info.error || 'brodie is offline right now. try again in a minute.');
+
+  show('call'); $('#joining').hidden = false; $('#me').hidden = true; $('#captions').hidden = true; $('#note').hidden = true;
+  delete $('#coach').dataset.track; setMic(true);
+
+  room = new LK.Room({ adaptiveStream: true, dynacast: true });
+  room.on(LK.RoomEvent.TrackSubscribed, onTrack);
+  room.on(LK.RoomEvent.TrackUnsubscribed, (track, pub) => {
+    const v = $('#coach');
+    if (track.kind === 'video' && v.dataset.track === (pub?.trackName || '')) { track.detach(v); delete v.dataset.track; }
+  });
+  room.on(LK.RoomEvent.AudioPlaybackStatusChanged, () => { if (room && !room.canPlaybackAudio) note('tap anywhere to hear brodie', true); else $('#note').hidden = true; });
+  room.registerTextStreamHandler('lk.transcription', onTranscript);
+
+  try { await room.connect(info.url, info.token); }
+  catch (e) { console.error(e); room = null; return fail("couldn't join the call. try again in a moment."); }
+  room.on(LK.RoomEvent.Disconnected, () => endCall(true));
+  try { await room.startAudio(); } catch {}
+  btn.disabled = false;
+  try { await room.localParticipant.setMicrophoneEnabled(true); } catch { note('no microphone access: brodie can still see you'); }
+  await camera();
+}
+
+async function camera() {
+  if (!room) return;
+  try {
+    const pub = await room.localParticipant.setCameraEnabled(true, { facingMode: facing });
+    if (pub?.track) { pub.track.attach($('#me')); if (!$('#coach').dataset.track) $('#me').hidden = false; }
+  } catch { note('no camera access: brodie needs it to see you dance', true); }
+}
+
+function onTrack(track, pub, p) {
+  if (track.kind === 'video') {
+    // the lesson video wins when two arrive (the worker may also publish a face track)
+    const name = pub?.trackName || '', v = $('#coach');
+    if (name === 'coach-video' || v.dataset.track !== 'coach-video') { track.attach(v); v.dataset.track = name; }
+    $('#me').hidden = true;   // the coach's video already shows the caller bottom-right
+  } else if (track.kind === 'audio') {
+    const a = track.attach(); a.dataset.agent = p?.identity || ''; document.body.append(a);
+  }
+  $('#joining').hidden = true;
+}
+
+// captions: the agent's streamed transcript, last few words, gone after 4 s of silence
+async function onTranscript(reader, participant) {
+  const a = reader.info?.attributes || {}, me = room?.localParticipant;
+  const mine = !me || participant?.identity === me.identity
+    || [...me.trackPublications.values()].some((t) => t.trackSid === a['lk.transcribed_track_id']);
+  let raw = '';
+  for await (const chunk of reader) { raw += chunk; if (!mine) caption(raw); }
+}
+function caption(text) {
+  const el = $('#captions'), t = clean(text).trim();
+  if (!t) return;
+  el.textContent = t.split(' ').slice(-12).join(' '); el.hidden = false;
+  clearTimeout(capT); capT = setTimeout(() => { el.hidden = true; }, 4000);
+}
+function note(text, sticky) {
+  const n = $('#note'); n.textContent = text; n.hidden = false;
+  clearTimeout(noteT); if (!sticky) noteT = setTimeout(() => { n.hidden = true; }, 4000);
+}
+
+// 4. in-call controls
+function setMic(on) { micOn = on; const b = $('#mic'); b.textContent = on ? 'mute' : 'unmute'; b.classList.toggle('off', !on); }
+$('#mic').addEventListener('click', async () => {
+  if (!room) return; setMic(!micOn);
+  try { await room.localParticipant.setMicrophoneEnabled(micOn); } catch { note('no microphone access'); }
+});
+$('#flip').addEventListener('click', async (e) => {
+  if (!room) return; const b = e.currentTarget; b.disabled = true;
+  setFacing(facing === 'user' ? 'environment' : 'user');
+  try { await room.localParticipant.setCameraEnabled(false); } catch {}
+  await camera(); b.disabled = false;
+});
+$('#hangup').addEventListener('click', () => endCall());
+$('#call').addEventListener('click', () => { if (room && !room.canPlaybackAudio) room.startAudio().catch(() => {}); });
+$('#join').addEventListener('click', join);
+$('#again').addEventListener('click', join);
+for (const ev of ['beforeunload', 'pagehide']) addEventListener(ev, () => { room?.disconnect(); });
+
+// 5. end
+async function endCall(remote) {
+  if (!room) return;
+  const r = room; room = null;
+  if (!remote) { try { await r.disconnect(); } catch {} }
+  document.querySelectorAll('audio[data-agent]').forEach((a) => a.remove());
+  const v = $('#coach'); v.srcObject = null; delete v.dataset.track; $('#me').srcObject = null;
+  clearTimeout(capT); clearTimeout(noteT); $('#captions').hidden = true; $('#note').hidden = true; $('#join').disabled = false;
+  show('end');
+}
+</script>
+</body>
+</html>
