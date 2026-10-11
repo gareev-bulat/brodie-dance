@@ -1,5 +1,7 @@
 # Brodie starter
 
+> **Verity Agent** (our hackathon build on this starter) runs on this worker: `scripts/run_verity.sh verity` starts `facetime.worker --voice gemini` with a Verity persona, handlers and face. Setup, the FaceTime path, adding a character and the 60-second test script: [`verity/README.md`](verity/README.md).
+
 A real-time video coach in one Python process. Your phone joins a LiveKit room, the coach watches through the camera, counts reps, corrects form out loud, and talks between sets.
 
 You write the coaching. Perception is done for you.

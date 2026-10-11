@@ -21,3 +21,4 @@ models/
 
 !.env.example
 !assets/avatar/*.png
+!web/assets/**
