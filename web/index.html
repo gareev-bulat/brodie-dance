@@ -8,7 +8,7 @@
 <meta name="description" content="Brodie teaches you viral TikTok dances on a video call: watch the creator, learn it eight counts at a time, get scored on every part.">
 <link rel="icon" href="assets/brodie/brodie-pfp-square.png">
 <meta property="og:title" content="Brodie Dance">
-<meta property="og:description" content="Learn the dance eight counts at a time. Brodie watches, scores and coaches, on the web or on FaceTime.">
+<meta property="og:description" content="Learn the dance eight counts at a time. Brodie watches, scores and coaches, right in the browser.">
 <meta property="og:image" content="assets/brodie/brodie-pfp-square.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
@@ -73,10 +73,6 @@
   .bar-demo .fill { position: absolute; inset: 0 32% 0 0; background: linear-gradient(90deg, #E24B4B, #7FCB3D); }
   .bar-demo .mark { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 3px; background: var(--volt); }
 
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
-  .two img { width: 100%; max-width: 380px; justify-self: center; }
-  .num { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.4rem); letter-spacing: -0.02em; color: var(--volt); }
-
   footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--grey); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
   footer img { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }
 
@@ -109,7 +105,7 @@
   [hidden] { display: none !important; }
 
   @media (max-width: 820px) {
-    .hero, .two { grid-template-columns: 1fr; }
+    .hero { grid-template-columns: 1fr; }
     .hero .art { order: -1; }
     .steps { grid-template-columns: 1fr; }
     nav .links { display: none; }
@@ -125,7 +121,7 @@
   <nav>
     <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp.png" alt="Brodie">brodie dance</a>
     <div class="links">
-      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#facetime">facetime</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
+      <a href="#how">how it works</a><a href="#dances">dances</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
     </div>
     <span class="status" id="status"><i></i><span>checking</span></span>
     <span class="account" id="account"><a href="#" id="nav-login">log in</a></span>
@@ -143,7 +139,6 @@
       <p class="fine" id="wl-note">Brodie opens in a few hours. First on the list, first to dance.</p>
       <div class="cta" id="cta-row">
         <a class="btn ghost" id="cta-app" href="#signup">have access? sign up to dance</a>
-        <a class="btn ghost" id="cta-facetime" href="#facetime" hidden>call on facetime</a>
       </div>
       <p class="fine" id="cta-fine">Works in the browser on a phone or laptop: prop the phone up, step back so your whole body is in frame.</p>
     </div>
@@ -165,21 +160,6 @@
     <h2>dances brodie knows</h2>
     <div class="dances" id="dances-list"><div class="empty">Loading the lesson list…</div></div>
     <p class="fine">Each one is learned from the creator's own clip and slowed down so you can keep up. More dances land after launch.</p>
-  </section>
-
-  <section id="facetime">
-    <div class="two">
-      <div>
-        <h2>or just facetime him</h2>
-        <p>Brodie also answers on a FaceTime line through Chert. Same lesson, same scoring, no app: point the phone at yourself and dance.</p>
-        <p class="num" id="facetime-number">number coming soon</p>
-        <div class="cta">
-          <a class="btn ghost" id="btn-facetime" href="#" hidden>open facetime</a>
-          <a class="btn ghost" href="https://getbrodie.com/ivyhacks/slots">book a testing slot</a>
-        </div>
-      </div>
-      <img src="assets/brodie/brodie-sit-wave.png" alt="Brodie sitting and waving">
-    </div>
   </section>
 
   <section id="under">
@@ -226,11 +206,6 @@
     if (c.live) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
     else { st.lastElementChild.textContent = 'brodie is offline'; }
     if (c.fork) { document.getElementById('nav-fork').href = c.fork; document.getElementById('foot-fork').href = c.fork; }
-    if (c.facetime) {
-      const tel = c.facetime.replace(/[^+\d]/g, '');
-      document.getElementById('facetime-number').textContent = c.facetime;
-      for (const id of ['cta-facetime', 'btn-facetime']) { const a = document.getElementById(id); a.href = 'facetime:' + tel; a.hidden = false; }
-    }
   }).catch(() => { document.getElementById('status').lastElementChild.textContent = 'static page'; });
 
   // the lessons: from the server when it is reachable, else the list baked in at the last deploy

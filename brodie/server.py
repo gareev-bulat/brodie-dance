@@ -4,7 +4,7 @@
 Routes: /  landing (web/index.html)      /app  the call page (web/app.html, needs a login)
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
         GET /api/token   a LiveKit token for a fresh room "web-<user>-<id>" with AGENT_NAME dispatched into it (login required)
-        GET /api/config  what the landing page shows (FaceTime number, lesson, fork)   GET /api/dances   GET /api/health
+        GET /api/config  what the landing page shows (live status, fork)   GET /api/dances   GET /api/health
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
 import argparse, datetime, glob, json, os, secrets
