@@ -1,0 +1,31 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "brodie-web",
+      "runtimeExecutable": "wsl.exe",
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "-c",
+        "cd '/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter' && PORT=8099 HOST=127.0.0.1 bash scripts/demo_web.sh"
+      ],
+      "port": 8099
+    },
+    {
+      "name": "landing-preview",
+      "runtimeExecutable": "wsl.exe",
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "-c",
+        "cd '/mnt/s/Steven/Coding/IvyHacks hackathon/brodie-starter' && DANCE=sbbyj AGENT_NAME=brodie-dance BRODIE_DB=/tmp/brodie-preview.db ~/.venvs/brodie/bin/python -m brodie.server --port 8099"
+      ],
+      "port": 8099
+    }
+  ]
+}

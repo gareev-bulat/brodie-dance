@@ -1,0 +1,15 @@
+{
+  "_doc": "Reference clips (TikTok downloads, 576x1024 or 544x960, 30 fps). 'mirrored' = our best guess whether the clip is a mirrored front-camera recording; 'mirror_evidence' says how sure. Extraction outputs live in data/dance/pose/<stem>*.npz.",
+  "clips": {
+    "josh_king_o_1791679083441": {"source_file": "ssstik.io_@josh_king_o_1791679083441.mp4", "handle": "josh_king_o", "people": 2, "framing": "waist-to-knee, ankles out", "mirrored": true,  "mirror_evidence": "shirt text reversed", "dancers": {"main": "track 2 (front, woman)", "track1": "man behind, joins at the end"}},
+    "avyns_draft_979019":        {"source_file": "979019144b6b37ab6215f11729a04185.mp4", "handle": "avyns.draft", "people": 1, "framing": "waist up, knees out", "mirrored": true,  "mirror_evidence": "sweatshirt text reversed"},
+    "121sincere_ccea87":         {"source_file": "ccea87a03fbfcc103ab6572aa47f3604.mp4", "handle": "121.sincere", "people": 1, "framing": "full body, parking lot, camera moves/zooms", "mirrored": false, "mirror_evidence": "rear-camera style filming by another person; no text visible (guess)"},
+    "gavvanwie_e42691":          {"source_file": "e42691431674539ffdac4eb191e642bd.mp4", "handle": "gavvanwie", "people": 2, "framing": "knee up, hallway, camera moves at the end", "mirrored": true,  "mirror_evidence": "front-camera duo (guess)", "dancers": {"main": "track 2", "track1": "track 1"}},
+    "samyzgl_0729aa":            {"source_file": "0729aa530e1b6ba980d7530c304f04d9.mp4", "handle": "samyzgl", "people": 3, "framing": "knee up, hallway, 544x960", "mirrored": true,  "mirror_evidence": "front-camera group (guess)"},
+    "lina_summee_435de6":        {"source_file": "435de6404e0fd3b8134f266ae3501210.mp4", "handle": "lina.summee", "people": 1, "framing": "full body, static camera", "mirrored": true,  "mirror_evidence": "front-camera solo (guess)"},
+    "ab3lt_5d8bb1":              {"source_file": "5d8bb1ed5f2b554304f4b6e5724c78f8.mp4", "handle": "ab3l.t", "people": 4, "framing": "waist up, night", "mirrored": true,  "mirror_evidence": "front-camera group (guess)"},
+    "americaneagle_8d820a":      {"source_file": "8d820a024f5f43044e2d203199127136.mp4", "handle": "unknown (American Eagle shirt)", "people": 1, "framing": "full body, living room", "mirrored": true,  "mirror_evidence": "shirt text reversed"},
+    "sbbyj_a80421":              {"source_file": "a80421fe6fd084218934d91f46e0fa44.mp4", "handle": "sbbyj", "people": 1, "framing": "full body, kitchen", "mirrored": true,  "mirror_evidence": "front-camera solo (guess)"},
+    "phatboylandy_d2b6e7":       {"source_file": "d2b6e7b084e2176320cf2186ccccad3c.mp4", "handle": "phatboylandy", "people": 1, "framing": "full body, outdoors, enters from the left", "mirrored": true,  "mirror_evidence": "front-camera solo (guess)"}
+  }
+}

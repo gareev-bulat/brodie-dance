@@ -1,7 +1,7 @@
 // Rules for submissions (see .github/workflows/submissions.yml).
 const DEADLINE = new Date('2026-10-11T18:00:00-04:00');
 const MARK = '<!-- submission-bot -->';
-const PAGE = 'https://ivyhacks-brodie.vercel.app/submit/';
+const PAGE = 'https://getbrodie.com/ivyhacks/submit';
 const POST_HOSTS = ['instagram.com', 'tiktok.com', 'x.com', 'twitter.com', 'linkedin.com', 'youtube.com', 'youtu.be'];
 
 function field(body, name) {

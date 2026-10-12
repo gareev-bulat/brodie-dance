@@ -1,0 +1,38 @@
+{
+  "dance": "121sincere_ccea87",
+  "description": "Reference choreography from the @121.sincere TikTok (11.3 s of dancing before the TikTok end card). Solo dancer in a parking lot, full body, hand-held rear camera that pushes in around 4.3-5.0 s. Move boundaries from the wrist/elbow/knee/ankle trajectories and motion energy of data/dance/pose/121sincere_ccea87.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/121sincere_ccea87.npz",
+  "video": "data/dance/raw/121sincere_ccea87.mp4",
+  "mirrored": false,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 122,
+  "bpm_estimate_note": "Estimated from the pose data only (no audio): the left wrist pumps once per beat over 5.3-11.3 s (spectral peak 2.04 Hz) and the right-wrist pattern repeats every 4 beats (autocorrelation peak at 1.97 s), both giving 122 +/- 4 bpm.",
+  "count_in_s": 0.8,
+  "moves": [
+    {"id": "ready",              "name": "Ready pose: hands up gripping the hood at the sides of the head, still",                                            "t0": 0.0,  "t1": 0.8},
+    {"id": "drop_sweep_turn",    "name": "Hands drop from the hood and sweep across the chest as the body turns side-on to the left",                        "t0": 0.8,  "t1": 1.6},
+    {"id": "side_hold",          "name": "Side-on freeze: knees bent, left arm pushed forward with the palm open, hold",                                      "t0": 1.6,  "t1": 2.8},
+    {"id": "arms_up_leg_swing",  "name": "Turn back to face front, both arms shoot up into a W overhead while hopping on the left foot and swinging the right leg", "t0": 2.8,  "t1": 4.3},
+    {"id": "wide_bounce",        "name": "Arms drop to the sides and the body bounces in a wide stance with a forward lean",                                   "t0": 4.3,  "t1": 5.2},
+    {"id": "wings_to_chest",     "name": "Arms open out wide to both sides with a side lean, then the hands come in and cross at the chest",                  "t0": 5.2,  "t1": 6.3},
+    {"id": "chest_pumps_point",  "name": "Alternating hand pumps at chest height on every beat, ending with the right index finger pointed up beside the head", "t0": 6.3,  "t1": 7.8},
+    {"id": "chest_pumps_double", "name": "Alternating hand pumps at chest height, finishing with both index fingers raised beside the head",                   "t0": 7.8,  "t1": 9.7},
+    {"id": "cross_rise_finish",  "name": "Hands back to the chest and the arms cross, then both hands rise above the head to finish",                          "t0": 9.7,  "t1": 11.3}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Dancing ends at the last ok frame 340 (11.33 s); frames 341-460 are the TikTok end card (ok=False), so the last move ends at 11.3 s.",
+    "All 17 joints are visible in 100% of ok frames (ankles included), so the 'legs' fault can fire on this dance; the legs only do something distinctive in arms_up_leg_swing and wide_bounce.",
+    "The camera pushes in between about 4.3 and 5.0 s (torso length in pixels grows ~30%): use hip-centred, torso-scaled coordinates rather than pixel positions.",
+    "'ready' is padded to the 0.8 s minimum move length: the hands actually start dropping from the hood at about 0.5 s, but count_in_s is 0.8 so that it equals the t0 of drop_sweep_turn, the first danced move.",
+    "Clip is not mirrored (filmed by another person with the rear camera): the dancer's right hand is on the image left. The single-finger point-ups at ~6.4, 7.7, 10.7 s are with the right hand.",
+    "'ready' is the count-in: the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used."
+  ]
+}

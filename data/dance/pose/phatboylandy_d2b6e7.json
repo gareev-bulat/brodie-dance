@@ -1,0 +1,62 @@
+{
+  "video": "data/dance/raw/phatboylandy_d2b6e7.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 465,
+  "frames_probed": 465,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 3,
+  "member_ids": [
+    3
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    3
+  ],
+  "frames_with_dancer": 339,
+  "coverage": 0.729,
+  "first_frame": 6,
+  "last_frame": 344,
+  "gap_filled_frames": {},
+  "untracked_frames": 1,
+  "other_tracks": {},
+  "mean_keypoint_conf": {
+    "nose": 0.993,
+    "left_eye": 0.957,
+    "right_eye": 0.982,
+    "left_ear": 0.75,
+    "right_ear": 0.768,
+    "left_shoulder": 0.973,
+    "right_shoulder": 0.993,
+    "left_elbow": 0.944,
+    "right_elbow": 0.969,
+    "left_wrist": 0.942,
+    "right_wrist": 0.964,
+    "left_hip": 0.987,
+    "right_hip": 0.995,
+    "left_knee": 0.987,
+    "right_knee": 0.993,
+    "left_ankle": 0.962,
+    "right_ankle": 0.965
+  },
+  "weak_joints_frac_below_0.5": {},
+  "video_frames_written": 465,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/phatboylandy_d2b6e7.npz",
+    "csv": "data/dance/pose/phatboylandy_d2b6e7.csv",
+    "video": "data/dance/pose/phatboylandy_d2b6e7.pose.mp4"
+  }
+}

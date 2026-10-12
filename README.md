@@ -1,5 +1,7 @@
 # Brodie starter
 
+> **Brodie Dance** (our hackathon build on this starter): Brodie teaches TikTok dances on a video call. Website with accounts and the call page: `python -m brodie.server` (docs/HOSTING.md); the coach: `bash scripts/demo_worker.sh`; lesson flow in `starter/handlers.py`, the judge in `src/rtcoach/dance_judge.py`, references built with `scripts/make_dance_ref.sh`.
+
 A real-time video coach in one Python process. Your phone joins a LiveKit room, the coach watches through the camera, counts reps, corrects form out loud, and talks between sets.
 
 You write the coaching. Perception is done for you.

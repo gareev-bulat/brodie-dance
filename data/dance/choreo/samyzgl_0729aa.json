@@ -1,0 +1,37 @@
+{
+  "dance": "samyzgl_0729aa",
+  "description": "Reference choreography from the @samyzgl TikTok (17.9 s clip, dance content 0.4-13.2 s, then the dancer reaches for the phone and a TikTok end card follows). Trio in a hallway, hand-held camera that pans and ends close to the dancer; main dancer = tracker id 7 (blond, black tee, centre). Move boundaries from the wrist trajectories and motion energy of data/dance/pose/samyzgl_0729aa.npz (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema).",
+  "npz": "data/dance/pose/samyzgl_0729aa.npz",
+  "video": "data/dance/raw/samyzgl_0729aa.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 85,
+  "bpm_estimate_note": "Estimated from the fist-to-chin pattern, not from the audio: the 5-switch phrase repeats every 2.81 s (onsets 2.03, 4.90, 7.67, 10.47 s) and the three held switches are 0.67 s apart (autocorrelation peak), which reads as one 4-beat bar at ~85 bpm with the holds on the beat and the two quick switches on roughly half counts. Could equally be 170 bpm in double time.",
+  "count_in_s": 1.95,
+  "moves": [
+    {"id": "ready",          "name": "Ready: standing behind the front dancer, screen-left hand resting at the chest, then arms drop", "t0": 0.367, "t1": 1.95},
+    {"id": "chin_fists_1",   "name": "Fist up under the chin with the free arm hanging, head tilts away: screen-right fist, then screen-left, then screen-right, one count each", "t0": 1.95,  "t1": 4.0},
+    {"id": "quick_switch_1", "name": "Quick double switch: screen-left fist to the chin, then screen-right, half a count each",            "t0": 4.0,   "t1": 4.85},
+    {"id": "chin_fists_2",   "name": "Fist under the chin again, head tilting away: screen-left fist, then screen-right, then screen-left, one count each", "t0": 4.85,  "t1": 6.85},
+    {"id": "quick_switch_2", "name": "Quick double switch: screen-right fist to the chin, then screen-left",                                "t0": 6.85,  "t1": 7.7},
+    {"id": "chin_fists_3",   "name": "Fist under the chin, head tilting away: screen-right fist, then screen-left, then screen-right, one count each", "t0": 7.7,   "t1": 9.6},
+    {"id": "quick_switch_3", "name": "Quick double switch: screen-left fist to the chin, then screen-right",                                "t0": 9.6,   "t1": 10.45},
+    {"id": "chin_fists_4",   "name": "Same fist-under-chin switches while stepping toward the camera: screen-left, then screen-right, then screen-left", "t0": 10.45, "t1": 12.3},
+    {"id": "quick_switch_4", "name": "Final quick double switch close to the camera: screen-right fist to the chin, then screen-left",     "t0": 12.3,  "t1": 13.15}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Side convention in the names: 'screen-left'/'screen-right' are sides of the video as displayed (it is a mirrored front-camera clip, so the learner who mirrors the screen uses their own left for screen-left). In the npz the detector labelled the screen-left arm 'right_*' and the screen-right arm 'left_*' (xy == xy_raw, no un-mirroring applied), so 'screen-left fist' = right_wrist and 'screen-right fist' = left_wrist.",
+    "Each phrase is five fist-to-chin switches: three ~0.65 s holds followed by two ~0.4 s quick ones. The starting side alternates every phrase (screen-right, screen-left, screen-right, screen-left). The raised fist sits just under the chin with the elbow in front of the body, the free arm hangs straight, and the head tilts away from the raised fist.",
+    "'ready' is the count-in and starts at the first ok frame (11, 0.367 s; the main dancer has no track in frames 0-10): the judge's reference clock starts count_in_s after the first ok learner frame unless set_ref_clock is used. The front dancer (who starts the recording) walks back during the count-in and occludes the main dancer's screen-right arm until ~2.0 s (left_wrist is NaN before that).",
+    "Content ends at 13.15 s: from there the dancer leans in and reaches for the phone (last ok frame 413 = 13.77 s, with a 2-frame tracking gap at 13.57 s); the TikTok end card starts at ~14 s.",
+    "Hand-held camera: the hip x position drifts from 0.93 to 0.17 of the frame width over the clip, and from ~10 s the dancer walks toward the camera (nose-to-hip distance grows from 1.2 to 2.4 torso units). Ankles are visible in only ~25% of ok frames (knee-up framing), knees in ~80%."
+  ]
+}

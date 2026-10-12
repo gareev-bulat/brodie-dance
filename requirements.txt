@@ -18,4 +18,5 @@ livekit>=1.0
 livekit-api>=1.0
 livekit-agents==1.8.5   # facetime/worker.py: the LiveKit Agents worker the Chert CLI dispatches by name (pins openai<3; only facetime/cues_tts.py imports openai)
 livekit-plugins-google==1.8.5   # facetime/voice.py: Gemini Live (google.beta.realtime.RealtimeModel, voice Puck) for --voice gemini; same version as livekit-agents
+pillow   # livekit-agents encodes camera frames for Gemini with it; without it the agent can't see the caller
 sounddevice   # facetime/webcam_local.py speaker output (needs PortAudio; bundled in the macOS wheel)
