@@ -60,13 +60,44 @@
   .card .n { font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--volt); font-size: 2rem; line-height: 1; margin-bottom: 12px; }
   .card p { font-size: 0.98rem; color: #CFCBC3; margin: 0; }
 
-  .dances { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .dance { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
-  .dance b { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: 1.3rem; }
-  .dance .meta { font-size: 0.9rem; color: var(--grey); }
-  .dance ul { margin: 8px 0 0; padding-left: 18px; color: #CFCBC3; font-size: 0.92rem; }
+  .dances { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .dance { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 28px; align-items: center; }
+  .dance .stage { position: relative; aspect-ratio: 9 / 14; border-radius: 14px; overflow: hidden; background: radial-gradient(120% 60% at 50% 100%, rgba(217,255,61,0.16), transparent 60%), var(--ground); border: 1px solid var(--line); }
+  .dance .stage::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: 7%; height: 10px; border-radius: 50%; background: radial-gradient(closest-side, rgba(217,255,61,0.35), transparent); }
+  .dance canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .dance .stage img { position: absolute; inset: 0; margin: auto; width: 70%; }
+  .dance .timeline { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 4px; z-index: 1; }
+  .dance .timeline i { height: 4px; border-radius: 2px; background: #3A3D44; position: relative; overflow: hidden; }
+  .dance .timeline i b { position: absolute; inset: 0; width: 0; background: var(--volt); }
+  .dance .info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .dance .handle { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: clamp(1.6rem, 3.4vw, 2.3rem); line-height: 1; }
+  .dance .by { font-size: 0.95rem; color: #CFCBC3; }
+  .dance .meta { font-size: 0.92rem; color: var(--grey); }
   .dance .live { align-self: flex-start; background: var(--volt); color: var(--ink); font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; margin-bottom: 4px; }
+  .counts { display: flex; gap: 6px; margin: 14px 0 6px; }
+  .counts span { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 0.8rem; font-weight: 600; color: var(--grey); background: var(--ground); border: 1px solid var(--line); transition: background .08s, color .08s; }
+  .counts span.on { background: var(--volt); color: var(--ink); border-color: var(--volt); }
+  .parts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .parts li { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; transition: border-color .2s, background .2s; }
+  .parts li.on { border-color: var(--volt); background: rgba(217,255,61,0.06); }
+  .parts .label { font-size: 0.78rem; color: var(--grey); margin-bottom: 6px; }
+  .parts li.on .label { color: var(--volt); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips span { font-size: 0.85rem; color: #CFCBC3; background: var(--ground); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
   .empty { color: var(--grey); }
+  .soon-title { margin-top: 40px; }
+  .soon { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .soon a { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px; text-decoration: none; transition: border-color .15s, transform .15s; }
+  .soon a:hover { border-color: var(--volt); transform: translateY(-2px); }
+  .soon .pill { align-self: flex-start; font-size: 0.72rem; font-weight: 600; color: var(--grey); border: 1px solid var(--line); padding: 2px 9px; border-radius: 999px; margin-bottom: 10px; }
+  .soon b { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: 1.45rem; line-height: 1.05; }
+  .soon .song { font-size: 0.92rem; color: #CFCBC3; }
+  .soon .by { font-size: 0.82rem; color: var(--grey); }
+  .soon .eq { display: flex; align-items: flex-end; gap: 3px; height: 22px; margin-top: 12px; }
+  .soon .eq i { width: 4px; border-radius: 2px; background: #3A3D44; height: 30%; animation: eq 1s ease-in-out infinite alternate; }
+  .soon a:hover .eq i { background: var(--volt); }
+  @keyframes eq { to { height: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .soon .eq i { animation: none; height: 60%; } }
 
   .bar-demo { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 14px; max-width: 520px; font-size: 0.9rem; }
   .bar-demo .track { flex: 1; height: 12px; background: #3A3D44; border-radius: 6px; position: relative; overflow: hidden; }
@@ -108,6 +139,12 @@
     .hero { grid-template-columns: 1fr; }
     .hero .art { order: -1; }
     .steps { grid-template-columns: 1fr; }
+    .dance { grid-template-columns: minmax(0, 1fr); }
+    .soon { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .soon a { padding: 14px; }
+    .soon b { font-size: 1.15rem; }
+    .soon .song, .soon .by { font-size: 0.8rem; }
+    .dance .stage { width: min(100%, 300px); justify-self: center; }
     nav .links { display: none; }
     .waitlist { flex-direction: column; max-width: none; }
     .waitlist .btn { width: 100%; justify-content: center; }
@@ -131,16 +168,16 @@
     <div>
       <div class="eyebrow">a coach on your video call</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
-      <p class="lead">Brodie plays the creator's video, watches your camera, scores every part against the original and tells you the one thing to fix. Then the whole dance, with the song.</p>
+      <p class="lead">Brodie watches your camera, scores every part against the creator and tells you the one thing to fix.</p>
       <form class="waitlist" id="waitlist" autocomplete="on">
         <input type="email" id="wl-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
         <button class="btn primary" type="submit" id="wl-go">join the waitlist</button>
       </form>
-      <p class="fine" id="wl-note">Brodie opens in a few hours. First on the list, first to dance.</p>
+      <p class="fine" id="wl-note">First on the list, first to dance.</p>
       <div class="cta" id="cta-row">
         <a class="btn ghost" id="cta-app" href="#signup">have access? sign up to dance</a>
       </div>
-      <p class="fine" id="cta-fine">Works in the browser on a phone or laptop: prop the phone up, step back so your whole body is in frame.</p>
+      <p class="fine" id="cta-fine">Works in the browser on a phone or laptop.</p>
     </div>
     <div class="art"><img src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top"></div>
   </header>
@@ -148,26 +185,26 @@
   <section id="how">
     <h2>how a lesson goes</h2>
     <div class="steps">
-      <div class="card"><div class="n">1</div><h3>watch first</h3><p>The whole dance plays once with the song, the creator's moves on screen, you in the corner.</p></div>
-      <div class="card"><div class="n">2</div><h3>learn it in parts</h3><p>Each eight-count plays with the music. Brodie names the two or three moves, you dance along.</p></div>
-      <div class="card"><div class="n">3</div><h3>get your score</h3><p>Your poses are matched to the creator's. One chance per part: a cheer or one concrete tip, then the next part.</p></div>
+      <div class="card"><div class="n">1</div><h3>watch first</h3><p>The whole dance once, with the song.</p></div>
+      <div class="card"><div class="n">2</div><h3>learn it in parts</h3><p>Eight counts at a time. Brodie names the moves, you dance along.</p></div>
+      <div class="card"><div class="n">3</div><h3>get your score</h3><p>A cheer or one tip per part, then the next one.</p></div>
     </div>
     <div class="bar-demo"><span>accuracy</span><div class="track"><div class="fill"></div><div class="mark"></div></div><span>68%</span></div>
-    <p class="fine">The bar sits on top of the video during the lesson. The mark is the pass line.</p>
   </section>
 
   <section id="dances">
     <h2>dances brodie knows</h2>
     <div class="dances" id="dances-list"><div class="empty">Loading the lesson list…</div></div>
-    <p class="fine">Each one is learned from the creator's own clip and slowed down so you can keep up. More dances land after launch.</p>
+    <h3 class="soon-title">up next</h3>
+    <div class="soon" id="soon-list"></div>
   </section>
 
   <section id="under">
     <h2>under the hood</h2>
     <div class="steps">
-      <div class="card"><h3>pose at 10 fps</h3><p>MediaPipe body landmarks from your camera, inside Brodie's real-time coaching loop on LiveKit.</p></div>
-      <div class="card"><h3>a judge, not a guess</h3><p>Your last three seconds are aligned to the creator's reference with dynamic time warping; a small network trained on ten references scores the match and names the fault.</p></div>
-      <div class="card"><h3>a voice that coaches</h3><p>Gemini Live speaks between parts: the moves, one tip, the hype. The music and your score never wait on it.</p></div>
+      <div class="card"><h3>body tracking</h3><p>Your camera, tracked live. Nothing to install.</p></div>
+      <div class="card"><h3>a judge, not a guess</h3><p>Your moves are lined up with the creator's and scored.</p></div>
+      <div class="card"><h3>a voice that coaches</h3><p>Between parts: the moves, one tip, the hype.</p></div>
     </div>
   </section>
 
@@ -206,23 +243,99 @@
     if (c.live) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
     else { st.lastElementChild.textContent = 'brodie is offline'; }
     if (c.fork) { document.getElementById('nav-fork').href = c.fork; document.getElementById('foot-fork').href = c.fork; }
-  }).catch(() => { document.getElementById('status').lastElementChild.textContent = 'static page'; });
+  }).catch(() => { document.getElementById('status').hidden = true; });
 
   // the lessons: from the server when it is reachable, else the list baked in at the last deploy
   const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true}];
+  // the creator's poses per lesson, baked from data/dances by scripts/bake_landing_poses.py (13 points, 0-255 in the dancer's box)
+  const POSES = {"sbbyj":{"fps":10,"aspect":0.485,"parts":[0.91,8.18,15.45],"beat":0.9091,"f":"780fab29442ac34e354fcb70366f9e785a78a4b85cb8a7f362f07310a6293f2abd4d3050c3702f709d785979a5b85bb9a6f261f16d10a1293b2ab64e2a4fb870277199775678a5b75ab9a4f263f16a109f293929b34e264eb06f1f7197765477a3b75ab8a3f263f168109f293829b34f234eac70197196775277a1b85ab8a3f363f16910a02a3829b34f224eac70157095775177a0b959b8a4f362f16a10a12a382ab44f224eaf701570957751789fb959b9a3f361f16b10a12a392ab54f244fb36f1970967851789fb959b9a3f361f26c10a22a392ab74f264fb66e1f70967752789fb959b9a2f361f16d10a22a392ab84c284fbd682470967752789fb959b9a3f361f16d0fa12a3a2abc48294fcb5b256e957752789db959b9a3f360f16e0fa02a3c2abf46284fdb4d1f6c937851789cb859b9a2f25ef26f11a0293d2ac1452550e43e156b917951799cb959baa1f35df37012a2293d29c8412250e72f096b927b517b9dbb59bca0f45ef4700ba5263e27ce3e204fea24026c927b507b9dba59bc9ef461f57004a6243e24ce3f204eec20006c917b4f7b9dba59bc9df462f57108a5263d26ce3e204fea20006c917c4f7c9cba59bc9df462f5720ea5273e29cd3d2050e820016c937d517d9dbb5abd9ef360f4720ea6273f28cd3d1f50e721026b957d537ea0bb5bbda0f35af4720ea7274028cd3d204fe422036a977d557da0bb5cbda0f35bf4730fa7284029cc40214edb240a66977c557c9fba5bbba0f360f2730fa7294129ca43244bc32f225b987b567aa1ba5abaa2f360f17013a92a432ac6472c48a244474d9d7b597aa5bb59bba5f45ef06e18ab2e472dbd4d36478b536344a07d5d7ca8bc59bca6f35df16e1bac30482eba51384886566b41a27e5e7ea9be59bea6f35df17118ac2d472cc14d3548944f6142a07d5c7da7bf5ac0a5f15df17413aa2a462bcb443149b33f40449b7b597ba2bd5bbda3f15ef07711aa284729d2402e4ad02d1c47987a597a9fba5cbaa2f25df07910ab274928d43e2c4add220c48997b5a7aa0b85cb8a2f25bf17a0eab264927d03f2c48d0261b43997a5a79a2b75bb8a2f25bf2790cab264726c8432e46af36413e9b795979a4b75ab8a3f15df27613ad284727c04834479043613e9e7a5a79a8b85bb9a5f25cf27419ae2a4829be4a394784476b3ea07b5b7aaab95bbaa7f25cf2741aad2a472ac14937498d44663f9f7b5a7ba9ba5bbba6f25cf37514aa294529c646344aa93b50419b7a587aa4ba5cbba4f25cf27709a9244524c844314ac82f2f4396795679a0b95bb9a1f25df17705a9214521cc412e4ada251744967a5679a0b85db9a1f15df17704aa204521cd402e4ada211743977a577aa0b85cb8a1f15df17807aa244723c8432f49c9282b4097795778a0b859b79ff25ef1780dac274727c4463048ae364a3c9a785778a2b758b79ff25ff0770baf264825c4483546924269399c775876a5b657b6a1f15fef7708b1254923c14b3b45834877389d775876a6b757b7a2f05fef770cb0274826c44a38478a4474399d795779a4b959baa3f05ff1770eae284628cb463349a43b5f3b9b7a577ba1bb5bbca2f25ef27810ac284729cf43324bc12f3e3d997b587b9fba5bbaa1f35ef2790cac264827d340314bd9232441997b587ba1ba5aba9ff460f37a05ae234824d63f314be21d1d41997b587ba1ba59ba9df562f47b09ae254825d242324ad3232c3c987b577aa0ba59ba9ef461f37a0fad284828cb443349b42f4c3999795779a1b859b9a0f260f27810ad284728c64534479e3769379b775778a2b759b7a2f160f17710ac284729c5453448a43667379a775777a1b65ab7a2f060f07710ab284728c845324abd304a3999785878a0b65bb7a0f05fef7710ab274828cb45314ac42c3b3999785878a0b75cb7a0f05eef7610ac274728c8453249ad324d379a775877a2b65bb6a1f05fee7410ac284628c2463447973a68369b765776a2b558b6a3ef60ee7410ab284629c2463348a33866389a775777a1b758b7a2f060ef7610aa284628c845314bbf31493b98785779a0b959b9a0f25ff17610aa284728cd43304ac62d3f39987957799fb95ab9a0f35ff17511ab284629ca443247b13559369a785778a1b85ab8a1f25ef17311ac294628c3473546983e70369c775877a3b85ab8a3f25ef17411ad294728c0483646914075369d765876a5b759b6a3f15ef07511ac294629c5473447a03c6b379b775877a4b759b7a3f15ef07710aa294629cc45314abd314f3a99795779a1b85ab8a1f15ef0790bab264727d242324cd825323f977a577aa0b95cb99ef25ff17900ad224823d241334ce51e2242987b577ba3b85eb89df260f27900ad224822d042334bda22293f9a7a587aa4b85fb89ef25ff17a0bad264827cd433348bb2d48389c785a78a2b85db8a0f25ef07b10ae284729cc4434469f3868359f785c78a3b95cb8a1f25ef07b0fb1284928c84739458f407837a2785c78a6b95bb7a1f25ff07b0fb2284a27c6473b448e3f7c37a1785c78a6b95cb8a1f15ff17b10b0284928cb443746a23873369e795a79a2ba5cbaa2f15df17b10ae284929d0433549bb2f563b9a7a587a9dba5bbaa1f15df17c0fad284929d541364ccf273642977a567a9cb959b99ff25ff17c0fae274829d940364dd6232546967a547a9bb857b99df25ff17d0eae274729db3f364dd6212446967a547a9cb855b99ef15ff17d0fad274628da3e354cd3212745967a547a9cb855b99ef160f17e0fad274728d73f354bcf212a45967954799db856b99ef160f17e0fad284828d5413249cb262e43977855789eb757b89ef061f17d0fae2a4827d1452a44c730363f987757769fb75ab89ff060f17e0fae294826cd472641c238393d9a765875a0b75cb89ff15ef17e0fb0294826cc462842be3b373e9a765775a0b75db8a0f15df17f0fb1284826d0432a44b93b37419a765675a0b75cb7a0f15ef0810fb1274827d1422a45b63b3a439a7556759fb55ab6a0f05eef830fb2274827d0422a45b43a3d439b755774a0b45ab5a0ef5eee840fb2274927ce422a46b33b3e449b745774a0b55ab5a1ef5dee870fb3284a27ce442a46b33c3e449c745874a0b55cb5a1ef5def890eb4284b26d0462a45b53f40429e745a74a1b55db5a1ef5cef8a0eb5294c26d3472a44b84346409f755c74a3b55eb5a1f05cef8a0fb6294d27d6482c44ba454c3ea0755c75a4b55eb5a1f05def890eb7294e28d5482f47af454840a0765c76a4b65cb5a2f15ff0840eb5284f27c947354790413e439e775b76a4b65bb7a3f362f17f08b3245123b3423e46703738459b765976a5b75bb9a4f366f57b04af2152229f3e45475c31334599775977aab95bbba6f468f7780ca8245426933e494952312d4494795879aabc59bea8f568f8760fa42557278d3e4c4a4c2e2a458d7a5679a0bf55bfa7f767f7750ca52356248e3f4a4a4d2a28448c78547799be54bda6f766f6780ba82350249642434b57312444927955789ebc57bca8f569f77d0bab254b26a444384d6c3820489a7a597aa7bb5dbeabf36af8850db1274929bd422f4c8e352b49a17a5c7bacbd62c0aaf368f88b0fb6284c28d1423048af335042a7796279aebc66bea9f366f79111b92a5228d5443f43c9368039ab796779afb965baa9f466f59714ba2d5a29ce47523fe238a431ae7c6d7cb2bb64bbaaf667f59c12b82c5f26c54a603cef39b52bb07d727db5bd69bdabf768f69f10b52a6024bf49653bef37b827b17c767cb6bf70bfabf768f79f10b62a6024c149653bee36b726b17b767bb5c070c0abf868f89b13ba2d5f27cb4a5e3df035b028b07c717cb4be6cbdabf868f69417be305b2cd64a5043e2369c2fae7e6b7eb4be67beaaf869f78b17bf2f552eda483f4ab93b7839aa7f657eb1c063c0a8f76af8810ebd285229cc463b4c8d3d5044a47c5e7cabbf60bfa6f66cf57906b7235424af46464c673a36489c7a5a79a7bd5ebda6f66df5740cad25572695454f4c4a382947927b567aa5be5bbea8f76df8720fa52559268843504c413126478a7a537a9dbe56bea9f76bf7700ea1245a258241504b412d26468578517792bc52baa6f86af56d0fa024582584424f4b442d2544847751758cba52b8a3f869f46d10a22453268d43494d4d2d20448878517790ba52b9a5f86af5700ca7254c279b453f4e5c331e458e7a517a96bc54bca8f86af87604ad234825b045374f74372643967b537b9dbf58bfaaf86af97c09b3254826c844344d9434403f9e7b587ba5c05cc0aaf96af98309b6254a26d544354abd346837a67c5f7dabbf5fbfaaf968f88805b8254e25d4463849dd3b7f34ab7e657eb0c061bfabf867f88a08b9275027d6493b4be13e8136ad7e677fb2c264c1adf969f98b05bb255026d847394bca3c703aac7d667db2c267c1aef96bfb8c08bb264f26cf44344aa5374f41a87b617bb2bf69c0adf970fc8f10b8294d29c044324b8e343346a57c607db5be69c2aef874fd9115b52c4d2db845324f8c352646a57f6081b8c26ac8b1f874ff9115b62c4c2dc146335095352a46a4815f82b5c869ccb1fa74ff9111b82a4c2ad246344caa374b43a57e5f7eafc569c7aefa73fc910fb9284f27d7453d45c53b7a3ba87a637aaebf69c0acf971fa9310b8295326cf464d3fe13c9f32ab796879b0bd67bcabfa6ff99511b72b5826ca485b3cf33caf2aaf7c6e7bb3c069bfabfc6cfa9612b72b5a26c948633bf83bb125b47c747dbac171c1acfb6bfc9712b72a5b26c949643cf739b023b57b767dbcc176c2adfb6cfd9612b82a5926cb49633cf834b022b57c737dbbc374c3adfb6dfd9311ba2b5627d0495c3ff332a525b27d6e7db9c16dc1adfa6cfb8c0fbd2a5328d7484a45d733882fad7d667db4c065bfadf96af8850fbe295029d5453d4aa03a633aa77d5f7dadc361c2abf96af9810fbb275129bf433d4c6e3b4340a17c5b7ca7c160c0aaf96dfa7e0db5255527a540454d5a303042997b587ba3bf5bbeabf96cfa7c0cae2357269b3c4c4c58272745917b557b9ec055bfacf96cfa7b0da9235926983a4e4b562625468c7b547a98c155c0a9fa6dfb7a0ea7235a26953a4d4a532725438a7a557994c057bfa6fa6dfa7a09ab225625983e484b572f23448f7b557a98bf57bea7fa6cfa7c03b1225025a6413f4d6a3a2245977c567ca2c059c0acf86cfc8208b3254b28bb40354d8a352c449e7b597caac060c2aef86dfd890fb5284b29cf41304baa2d4640a57a607baebf68c1aef76efb8f11b9295029d7433c45c831763aad7b687bb1bf6cbfaff86cf99314ba2c5829d146533ee538a02fb37c717db6c16ec1b0fb6bfb9613b92d5d29ca4a633af53cb127b67d767dbac273c2b0fc6dfc9712b82c5f27c94a6639f93bb724b67b797cbcc178c1b1fc70fd9812bb2c6126cb496439fb37b924b67a797abdc07ac1b2fc71fd9814be2d6129d148633cff37b827b67b777cbfc078c0b3fb70fc9715c02e5f2bd5486042ff39b32eb67e747ec0c174c1b4fa6ffb9411c02b5a2ad9485346ec39a234b37e6f7fbdc170c2b3f96ffb8f0ebf2a542ad947424bc5377b3baf7e697fb8c16dc2b3f871fb8c0ebd29512ad4473a4fa2355044ab7e637fb8c06bc3b4f774fb"}};
+  const TITLES = { sbbyj: 'Chest Sweep Twist' };   // display names for lessons whose id is the creator's handle
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
+  const esc = (t) => String(t).replace(/[<>&"]/g, (c) => '&#' + c.charCodeAt(0) + ';');
+  const BONES = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];   // 0 head, 1/2 shoulders, 3/4 elbows, 5/6 wrists, 7/8 hips, 9/10 knees, 11/12 ankles
+  const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let stages = [];
   function renderDances(list) {
-    const box = document.getElementById('dances-list'); box.innerHTML = '';
+    const box = document.getElementById('dances-list'); box.innerHTML = ''; stages = [];
     for (const x of list) {
-      const el = document.createElement('div'); el.className = 'dance';
-      const steps = (x.steps || []).slice(0, 2).map((s) => '<li>' + s.split('|').map((t) => t.trim()).filter(Boolean).join(' · ') + '</li>').join('');
-      el.innerHTML = (x.live ? '<span class="live">live now</span>' : '') + '<b>' + credit(x.name) + '</b>'
-        + '<span class="meta">' + x.parts + ' parts · ' + x.seconds + ' s · ' + Math.round(x.bpm) + ' bpm' + (x.music ? ' · with the song' : '') + '</span>'
-        + (steps ? '<ul>' + steps + '</ul>' : '');
+      const P = POSES[x.name], el = document.createElement('div'); el.className = 'dance';
+      const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="chips">'
+        + s.split('|').map((t) => t.trim()).filter(Boolean).map((t) => '<span>' + esc(t) + '</span>').join('') + '</div></li>').join('');
+      el.innerHTML = '<div class="stage">' + (P ? '<canvas></canvas><div class="timeline">'
+          + Array.from({ length: P.parts.length - 1 }, () => '<i style="flex:1"><b></b></i>').join('') + '</div>' : '<img src="assets/brodie/brodie-flex.png" alt="">') + '</div>'
+        + '<div class="info">' + (x.live ? '<span class="live">live now</span>' : '') + '<div class="handle">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
+        + (TITLES[x.name] ? '<span class="by">dance by ' + esc(credit(x.name)) + '</span>' : '')
+        + '<span class="meta">' + x.parts + ' parts · ' + Math.round(x.seconds) + ' s' + (x.music ? ' · with the song' : '') + '</span>'
+        + (P ? '<div class="counts">' + [1, 2, 3, 4, 5, 6, 7, 8].map((n) => '<span>' + n + '</span>').join('') + '</div>' : '')
+        + (parts ? '<ul class="parts">' + parts + '</ul>' : '') + '</div>';
       box.append(el);
+      if (P) stages.push({ P, el, cv: el.querySelector('canvas'), bars: [...el.querySelectorAll('.timeline b')], counts: [...el.querySelectorAll('.counts span')],
+        rows: [...el.querySelectorAll('.parts li')], n: P.f.length / 52, trail: [] });
     }
+    if (STILL) for (const st of stages) draw(st, st.P.parts[1] + st.P.beat * 3);
+  }
+  function pose(st, t) {   // the 13 points at time t (s), blended between the 10 fps frames
+    const f = Math.min(t * st.P.fps, st.n - 1.001), i = Math.floor(f), a = f - i, s = st.P.f, out = [];
+    for (let j = 0; j < 13; j++) {
+      const p = (i * 13 + j) * 4, q = p + 52, v = (o) => parseInt(s.substr(o, 2), 16);
+      out.push([v(p) + (v(q) - v(p)) * a, v(p + 2) + (v(q + 2) - v(p + 2)) * a]);
+    }
+    return out;
+  }
+  function draw(st, t) {
+    const { P, cv } = st, dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth, H = cv.clientHeight;
+    if (!W) return;
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    const bh = H * 0.8, bw = bh * P.aspect, sc = Math.min(1, (W * 0.86) / bw), ox = (W - bw * sc) / 2, oy = H * 0.1;
+    const pts = pose(st, t).map(([x, y]) => [ox + x / 255 * bw * sc, oy + y / 255 * bh * sc]);
+    const lw = Math.max(3, bh * sc * 0.022);
+    st.trail.push([pts[5], pts[6]]); if (st.trail.length > 14) st.trail.shift();
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (let k = 1; k < st.trail.length; k++) for (const s of [0, 1]) {   // fading ribbons behind the hands
+      const a = st.trail[k - 1][s], b = st.trail[k][s]; g.strokeStyle = 'rgba(217,255,61,' + (k / st.trail.length * 0.35) + ')'; g.lineWidth = lw * (0.4 + k / st.trail.length);
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    }
+    g.fillStyle = 'rgba(217,255,61,0.1)'; g.beginPath(); for (const j of [1, 2, 8, 7]) g.lineTo(pts[j][0], pts[j][1]); g.fill();
+    g.strokeStyle = '#D9FF3D'; g.lineWidth = lw; g.shadowColor = 'rgba(217,255,61,0.6)'; g.shadowBlur = lw * 2.5;
+    g.beginPath(); for (const [a, b] of BONES) { g.moveTo(pts[a][0], pts[a][1]); g.lineTo(pts[b][0], pts[b][1]); } g.stroke();
+    const [n, l, r] = [pts[0], pts[1], pts[2]], neck = [(l[0] + r[0]) / 2, (l[1] + r[1]) / 2], hr = Math.hypot(l[0] - r[0], l[1] - r[1]) * 0.24 + lw * 0.5;
+    g.beginPath(); g.moveTo(neck[0], neck[1]); g.lineTo(n[0], n[1] + hr); g.stroke();
+    g.beginPath(); g.arc(n[0], n[1], hr, 0, 7); g.stroke();
+    g.shadowBlur = 0; g.fillStyle = '#0A0A0B';
+    for (let j = 1; j < 13; j++) { g.beginPath(); g.arc(pts[j][0], pts[j][1], lw * 0.55, 0, 7); g.fill(); }
+    const cut = P.parts, part = cut.findIndex((c, i) => i > 0 && t < c) - 1, beat = Math.floor((t - cut[0]) / P.beat);
+    st.bars.forEach((b, i) => { b.style.width = Math.max(0, Math.min(1, (t - cut[i]) / (cut[i + 1] - cut[i]))) * 100 + '%'; });
+    st.counts.forEach((c, i) => c.classList.toggle('on', beat >= 0 && beat % 8 === i));
+    st.rows.forEach((row, i) => row.classList.toggle('on', i === part));
+  }
+  if (!STILL) {
+    const t0 = performance.now();
+    (function tick(now) {
+      for (const st of stages) { const r = st.el.getBoundingClientRect(); if (r.bottom > 0 && r.top < innerHeight) draw(st, ((now - t0) / 1000) % st.P.parts.at(-1)); }
+      requestAnimationFrame(tick);
+    })(t0);
   }
   renderDances(FALLBACK_DANCES);
+  // viral dances queued for after launch (not in Brodie yet); a card takes you to the waitlist
+  const SOON = [
+    { name: 'Renegade', song: 'Lottery (Renegade)', artist: 'K CAMP', by: 'Jalaiah Harmon' },
+    { name: 'Savage', song: 'Savage', artist: 'Megan Thee Stallion', by: 'Keara Wilson' },
+    { name: 'Say So', song: 'Say So', artist: 'Doja Cat', by: 'Haley Sharpe' },
+    { name: 'Toosie Slide', song: 'Toosie Slide', artist: 'Drake' },
+    { name: 'Apple', song: 'Apple', artist: 'Charli xcx', by: 'Kelley Heyer' },
+    { name: 'Hot To Go!', song: 'HOT TO GO!', artist: 'Chappell Roan' },
+    { name: 'Blinding Lights', song: 'Blinding Lights', artist: 'The Weeknd' },
+    { name: 'Laxed', song: 'Laxed (Siren Beat)', artist: 'Jawsh 685' },
+  ];
+  document.getElementById('soon-list').innerHTML = SOON.map((d, k) => '<a href="#waitlist">'
+    + '<span class="pill">coming soon</span><b>' + esc(d.name) + '</b><span class="song">' + esc(d.song) + ' · ' + esc(d.artist) + '</span>'
+    + (d.by ? '<span class="by">dance by ' + esc(d.by) + '</span>' : '<span class="by">&nbsp;</span>')
+    + '<span class="eq" aria-hidden="true">' + Array.from({ length: 12 }, (_, i) => '<i style="animation-delay:-' + ((i * 7 + k * 3) % 10) / 10 + 's"></i>').join('') + '</span></a>').join('');
+  for (const a of document.querySelectorAll('#soon-list a')) a.addEventListener('click', (e) => {
+    e.preventDefault(); document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('wl-email')?.focus({ preventScroll: true });
+  });
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
 
   // ---- accounts: sign up or log in here, then the call page (/app) lets you in ----
@@ -244,12 +357,12 @@
     if (u) {
       $('account').innerHTML = '<b>hi ' + u.name.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
       $('nav-logout').onclick = async (e) => { e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }); showUser(null); };
-      cta.textContent = 'dance with brodie'; cta.href = APP; $('cta-fine').textContent = 'Prop the phone up, step back so your whole body is in frame, sound on.';
+      cta.textContent = 'dance with brodie'; cta.href = APP; $('cta-fine').textContent = 'Step back so your whole body is in frame, sound on.';
     } else {
       $('account').innerHTML = '<a href="#" id="nav-login">log in</a>';
       $('nav-login').onclick = (e) => { e.preventDefault(); openAuth('login'); };
       cta.textContent = 'sign up to dance'; cta.href = '#signup';
-      $('cta-fine').textContent = 'Free account, one minute to set up. Works in the browser on a phone or laptop: prop the phone up, step back so your whole body is in frame.';
+      $('cta-fine').textContent = 'Free account. Works in the browser on a phone or laptop.';
     }
   }
   cta.addEventListener('click', (e) => { if (!user) { e.preventDefault(); openAuth('signup'); } });
@@ -273,7 +386,7 @@
   // ---- waitlist (launch day) ----
   const wl = $('waitlist'), wlNote = $('wl-note');
   const people = (n, verb) => `${n} ${n === 1 ? 'person' : 'people'}${verb ? ' ' + (n === 1 ? verb[0] : verb[1]) : ''}`;
-  fetch(API + '/api/waitlist').then((r) => r.json()).then((d) => { if (d.count > 0) wlNote.textContent = `Brodie opens in a few hours. ${people(d.count, ['is', 'are'])} already in line.`; }).catch(() => {});
+  fetch(API + '/api/waitlist').then((r) => r.json()).then((d) => { if (d.count > 0) wlNote.textContent = `${people(d.count, ['is', 'are'])} already in line.`; }).catch(() => {});
   wl.addEventListener('submit', async (e) => {
     e.preventDefault(); $('wl-go').disabled = true;
     try {
