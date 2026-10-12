@@ -1,5 +1,24 @@
 # Hosting Brodie Dance
 
+## Handoff checklist (deploying the website on a remote host)
+
+1. Build from the repo root with the `Dockerfile` (`main` branch, Python 3.12 slim, `requirements-web.txt`; no torch, no MediaPipe).
+   The container listens on `PORT` (default 8765) and `HOST=0.0.0.0`.
+2. Set these environment variables on the host (values come from Steven privately, never from the repo):
+   `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `AGENT_NAME=brodie-dance`, `DANCE=sbbyj`,
+   `SESSION_SECRET` (any long random string), `ADMIN_KEY` (any string, for the waitlist CSV),
+   optional `FACETIME_NUMBER`, `FORK_URL=https://github.com/zxpeng2007/ivyhacks-brodie-dance`.
+3. Give the container a persistent disk and point `BRODIE_DB` at it (e.g. `/data/brodie.db`), or accounts and the
+   waitlist vanish on every redeploy. To carry over the signups collected so far, copy Steven's `brodie.db` file there
+   before the first start (or merge the CSV later).
+4. Check: `GET /api/health` returns `"livekit": true`; `GET /api/waitlist` returns the count; the landing page at `/`.
+5. Tell Steven the public https URL. The Vercel copy of the landing page posts its waitlist to whatever
+   `<meta name="brodie-api">` in `web/index.html` says; it must change from the temporary tunnel to the host URL
+   (one commit; Vercel redeploys itself). Once the host serves the landing page too, the Vercel copy is optional.
+6. The coach (the worker) keeps running on Steven's PC for now; it needs the organisers' data bundle and the models,
+   which are not in git. Moving it later: README steps 1-2 plus `bash scripts/demo_worker.sh` with the same
+   `LIVEKIT_*` and `AGENT_NAME`.
+
 Three pieces. Only the first two go on a hosting service.
 
 | Piece | What | Where |
