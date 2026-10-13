@@ -643,6 +643,28 @@ def worker_options(a):
                          initialize_process_timeout=90.0, job_memory_warn_mb=3000)
 
 
+def start_heartbeat(agent_name):
+    """Tell the web server this worker is up: POST {BRODIE_SERVER}/api/heartbeat every 20 s with BRODIE_HEARTBEAT_KEY.
+    Off unless both are set. The website shows "brodie is online" and hands out calls only while these arrive."""
+    url, key = os.environ.get('BRODIE_SERVER', '').rstrip('/'), os.environ.get('BRODIE_HEARTBEAT_KEY', '')
+    if not url or not key: return
+    import threading, urllib.request
+
+    def beat():
+        warned = False
+        while True:
+            try:
+                req = urllib.request.Request(url + '/api/heartbeat', data=json.dumps({'agent': agent_name}).encode(), method='POST',
+                                             headers={'Content-Type': 'application/json', 'X-Brodie-Key': key})
+                urllib.request.urlopen(req, timeout=5).read()
+                if warned: print('[worker] heartbeat: reaching the server again', flush=True); warned = False
+            except Exception as e:
+                if not warned: print(f'[worker] heartbeat to {url} failed: {e!r} (the website will show brodie as offline)', flush=True); warned = True
+            time.sleep(20)
+    threading.Thread(target=beat, name='brodie-heartbeat', daemon=True).start()
+    print(f'[worker] heartbeat -> {url}/api/heartbeat every 20 s', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     ap = build_parser(); a, rest = ap.parse_known_args(argv)
@@ -658,6 +680,7 @@ def main(argv=None):
           f'audio {"OFF (events only)" if a.events_only else "cue player"}; voice {a.voice}{" (" + (a.voice_model or "default model") + ", " + a.voice_name + ")" if a.voice != "off" else ""}; '
           f'handlers {a.handlers or "none"}; data channel {"on" if a.publish_data else "off"}; events -> {a.event_log}', flush=True)
     sys.argv = [sys.argv[0]] + rest                           # the LiveKit Agents CLI parses the rest (dev | start | connect | download-files)
+    if rest and rest[0] in ('dev', 'start'): start_heartbeat(a.agent_name)
     cli.run_app(worker_options(a))
     return 0
 

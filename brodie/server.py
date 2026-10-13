@@ -5,9 +5,10 @@ Routes: /  landing (web/index.html)      /app  the call page (web/app.html, need
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
         GET /api/token   a LiveKit token for a fresh room "web-<user>-<id>" with AGENT_NAME dispatched into it (login required)
         GET /api/config  what the landing page shows (live status, fork)   GET /api/dances   GET /api/health
+        POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "online" on the page comes from it
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
-import argparse, datetime, glob, json, os, secrets
+import argparse, datetime, glob, hmac, json, os, secrets, time
 from aiohttp import web
 from brodie import users
 
@@ -15,6 +16,20 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'bd_session'
 LIVEKIT_KEYS = ('LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')
+# Brodie's worker runs on another machine; it POSTs /api/heartbeat every ~20 s (facetime/worker.py, BRODIE_SERVER +
+# BRODIE_HEARTBEAT_KEY). With HEARTBEAT_KEY set here, "online" means a heartbeat in the last HEARTBEAT_TTL seconds.
+HEARTBEAT_TTL = float(os.environ.get('HEARTBEAT_TTL', '75'))
+_LAST_BEAT = {'t': 0.0, 'agent': ''}
+
+
+def _keys_ok():
+    return all(os.environ.get(k) and '<' not in os.environ.get(k, '') for k in LIVEKIT_KEYS)
+
+
+def worker_online():
+    """True / False when the worker heartbeat is configured (HEARTBEAT_KEY), None when it is not (unknown)."""
+    if not os.environ.get('HEARTBEAT_KEY'): return None
+    return time.time() - _LAST_BEAT['t'] < HEARTBEAT_TTL
 
 
 def _public(u):
@@ -84,19 +99,35 @@ async def token(req):
     if u is None: return web.json_response({'error': 'log in first'}, status=401)
     missing = [k for k in LIVEKIT_KEYS if not os.environ.get(k) or '<' in os.environ.get(k, '')]
     if missing: return web.json_response({'error': f'The server has no LiveKit keys yet ({", ".join(missing)}).'}, status=503)
+    if worker_online() is False:
+        return web.json_response({'error': "brodie is offline right now. try again in a little while."}, status=503)
     info = mint_call(u); users.bump_calls(u['id'])
     return web.json_response(info)
 
 
 async def health(_req):
+    beat = _LAST_BEAT['t']
     return web.json_response({'ok': True, 'agent_name': os.environ.get('AGENT_NAME', ''), 'dance': os.environ.get('DANCE', ''),
-                              'livekit': all(os.environ.get(k) and '<' not in os.environ.get(k, '') for k in LIVEKIT_KEYS),
-                              'users': users.count()})
+                              'livekit': _keys_ok(), 'users': users.count(), 'worker_online': worker_online(),
+                              'last_heartbeat_s_ago': round(time.time() - beat, 1) if beat else None})
+
+
+async def heartbeat(req):
+    """Brodie's worker says it is up: POST /api/heartbeat with header X-Brodie-Key: <HEARTBEAT_KEY>."""
+    key = os.environ.get('HEARTBEAT_KEY', '')
+    if not key or not hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key):
+        return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req)
+    _LAST_BEAT['t'] = time.time(); _LAST_BEAT['agent'] = str(b.get('agent', ''))[:64]
+    return web.json_response({'ok': True})
 
 
 async def config(_req):
-    """What the landing page needs to link up with the running system (all from env, nothing secret)."""
-    return web.json_response({'ok': True, 'live': all(os.environ.get(k) and '<' not in os.environ.get(k, '') for k in LIVEKIT_KEYS) and bool(os.environ.get('AGENT_NAME')),
+    """What the landing page needs to link up with the running system (all from env, nothing secret).
+    worker: True / False from the worker heartbeat, None when HEARTBEAT_KEY is not set (the page then shows no badge)."""
+    up = worker_online()
+    ready = _keys_ok() and bool(os.environ.get('AGENT_NAME'))
+    return web.json_response({'ok': True, 'live': ready and up is not False, 'worker': up if ready else False,
                               'agent_name': os.environ.get('AGENT_NAME', ''), 'facetime': os.environ.get('FACETIME_NUMBER', ''),
                               'dance': os.environ.get('DANCE', ''), 'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance'),
                               'app': '/app'})
@@ -162,7 +193,7 @@ def app():
     users.init()
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.get('/api/me', me),
-                  web.get('/api/token', token), web.get('/api/health', health), web.get('/api/config', config), web.get('/api/dances', dances),
+                  web.get('/api/token', token), web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
                   web.get('/api/waitlist/export', waitlist_export),
                   web.get('/', landing), web.get('/index.html', landing), web.get('/app', app_page), web.static('/', WEB)])
