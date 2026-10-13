@@ -233,15 +233,17 @@
   // The page is static; these two calls connect it to whatever is running behind it (see docs/HOSTING.md).
   const Q = new URLSearchParams(location.search);
   const API = (Q.get('api') || window.BRODIE_API || (document.querySelector('meta[name="brodie-api"]')?.content || '')).replace(/\/$/, '');   // '' = same origin
-  const REMOTE = API !== '';   // hosted apart from the server (Vercel): the waitlist posts across origins; accounts need the server's own origin
+  const REMOTE = API !== '' && new URL(API, location.href).origin !== location.origin;   // hosted apart from the server (Vercel): the waitlist posts across origins; accounts need the server's own origin (the server itself, even with brodie-api set to its own URL, is not remote)
   const APP = Q.get('app') || window.APP_URL || (REMOTE ? API + '/app' : '/app');
   document.getElementById('cta-app').href = APP;
   const pretty = (s) => s.replace(/_[0-9a-f]{6}$/, '').replace(/[_-]+/g, ' ');
 
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
     const st = document.getElementById('status');
-    if (c.live) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
-    else { st.lastElementChild.textContent = 'brodie is offline'; }
+    // worker: true / false from the worker's heartbeat, null when the server has no heartbeat configured (then no badge: we don't know)
+    if (c.worker === true) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
+    else if (c.worker === false) { st.lastElementChild.textContent = 'brodie is offline'; }
+    else { st.hidden = true; }
     if (c.fork) { document.getElementById('nav-fork').href = c.fork; document.getElementById('foot-fork').href = c.fork; }
   }).catch(() => { document.getElementById('status').hidden = true; });
 

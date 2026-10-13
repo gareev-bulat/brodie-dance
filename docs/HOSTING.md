@@ -38,6 +38,7 @@ Environment variables on the host:
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | from the LiveKit project (Settings, then Keys) |
 | `AGENT_NAME` | `brodie-dance` (must match the worker) |
 | `DANCE` | `sbbyj` (the lesson the worker runs; "live now" on the landing page) |
+| `HEARTBEAT_KEY` | any long random string, the same as the worker's `BRODIE_HEARTBEAT_KEY`; with it, "brodie is online" and new calls only while the worker's heartbeat arrives (unset: no badge, calls always handed out) |
 | `SESSION_SECRET` | any long random string, so logins survive a redeploy |
 | `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
 | `FACETIME_NUMBER` | the Chert FaceTime line (optional; the FaceTime buttons appear when set) |
@@ -55,6 +56,10 @@ On the machine that has the data bundle, with the same `LIVEKIT_*` and `AGENT_NA
 ```
 bash scripts/demo_worker.sh
 ```
+
+Add to that machine's `.env.local` so the website knows Brodie is up: `BRODIE_SERVER=https://<server>` and
+`BRODIE_HEARTBEAT_KEY=<the server's HEARTBEAT_KEY>`. The worker then POSTs `/api/heartbeat` every 20 s; when it stops (laptop
+closed, worker stopped) the page says "brodie is offline" within about a minute and `/api/token` refuses new calls with that message.
 
 LiveKit dispatches that worker into every room the website creates (`web-<user>-…`) and into the Chert FaceTime line. The
 worker's `DANCE` should match the website's.

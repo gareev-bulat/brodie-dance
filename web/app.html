@@ -110,7 +110,8 @@
 
 <script>
 const LK = window.LivekitClient, $ = (s) => document.querySelector(s);
-let user = null, room = null, facing = 'user', micOn = true, capT, noteT;
+let user = null, room = null, facing = 'user', micOn = true, capT, noteT, joinT;
+const JOIN_TIMEOUT_MS = 25000;   // no sign of Brodie by then: say so instead of 'joining…' forever
 const show = (name) => { for (const id of ['pre', 'call', 'end']) $('#' + id).hidden = id !== name; };
 const toLogin = () => location.replace('/?next=app');
 const fail = (text) => { $('#err').textContent = text; $('#join').disabled = false; show('pre'); };
@@ -165,6 +166,12 @@ async function join() {
   try { await room.connect(info.url, info.token); }
   catch (e) { console.error(e); room = null; return fail("couldn't join the call. try again in a moment."); }
   room.on(LK.RoomEvent.Disconnected, () => endCall(true));
+  clearTimeout(joinT);
+  joinT = setTimeout(async () => {
+    if (!room || $('#joining').hidden) return;               // Brodie's video or voice already arrived
+    await endCall();
+    fail("brodie didn't pick up. he may be offline right now: try again in a minute.");
+  }, JOIN_TIMEOUT_MS);
   try { await room.startAudio(); } catch {}
   btn.disabled = false;
   try { await room.localParticipant.setMicrophoneEnabled(true); } catch { note('no microphone access: brodie can still see you'); }
@@ -188,7 +195,7 @@ function onTrack(track, pub, p) {
   } else if (track.kind === 'audio') {
     const a = track.attach(); a.dataset.agent = p?.identity || ''; document.body.append(a);
   }
-  $('#joining').hidden = true;
+  $('#joining').hidden = true; clearTimeout(joinT);
 }
 
 // captions: the agent's streamed transcript, last few words, gone after 4 s of silence
@@ -231,6 +238,7 @@ for (const ev of ['beforeunload', 'pagehide']) addEventListener(ev, () => { room
 // 5. end
 async function endCall(remote) {
   if (!room) return;
+  clearTimeout(joinT);
   const r = room; room = null;
   if (!remote) { try { await r.disconnect(); } catch {} }
   document.querySelectorAll('audio[data-agent]').forEach((a) => a.remove());
