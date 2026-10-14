@@ -86,3 +86,11 @@ The landing page is static, so it can go up on Vercel in a minute while the serv
 
 The waitlist lives in the server's sqlite file: `GET /api/waitlist` is the public count, `GET /api/waitlist/export?key=<ADMIN_KEY>`
 is the CSV for the team (set `ADMIN_KEY` in the server's environment).
+
+## Stats
+
+Every call is logged (`call_log` table: who, when, which dance) from the moment this is deployed. Open `/stats.html` on the server
+or the Vercel link and enter `ADMIN_KEY`: waitlist, sign-ups, callers, calls, who came back on another day, D1/D3/D7 return and a
+per-day table (days in New York time). `GET /api/stats?key=<ADMIN_KEY>` is the same as JSON. Set `TEAM_EMAILS` (comma-separated)
+so the team's own test accounts are left out of every number. Keep the key out of the group chat: the page shows nothing personal,
+but the same key unlocks the waitlist CSV.
