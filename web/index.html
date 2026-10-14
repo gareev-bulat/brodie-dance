@@ -387,19 +387,17 @@
   if (location.hash === '#signup') openAuth('signup');
   // ---- waitlist (launch day) ----
   const wl = $('waitlist'), wlNote = $('wl-note');
-  const people = (n, verb) => `${n} ${n === 1 ? 'person' : 'people'}${verb ? ' ' + (n === 1 ? verb[0] : verb[1]) : ''}`;
-  fetch(API + '/api/waitlist').then((r) => r.json()).then((d) => { if (d.count > 0) wlNote.textContent = `${people(d.count, ['is', 'are'])} already in line.`; }).catch(() => {});
   wl.addEventListener('submit', async (e) => {
-    e.preventDefault(); $('wl-go').disabled = true;
+    e.preventDefault(); const go = $('wl-go'); go.disabled = true;
     try {
       const r = await fetch(API + '/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('wl-email').value }) });
       const d = await r.json();
       if (!r.ok) { wlNote.textContent = d.error || 'Something went wrong.'; return; }
       wl.classList.add('done');
-      wl.innerHTML = d.new ? `You're #${d.position} on the list. We'll email you the moment Brodie opens.` : `You're already on the list, #${d.position}. See you soon.`;
-      wlNote.textContent = `${people(d.count)} waiting to dance.`;
+      wl.innerHTML = d.new ? `You're on the list! We'll email you the moment Brodie opens.` : `You're already on the list. See you soon.`;
+      wlNote.hidden = true;
     } catch (err) { wlNote.textContent = 'Could not reach the waitlist server. Try again in a minute.'; }
-    finally { $('wl-go').disabled = false; }
+    finally { go.disabled = false; }
   });
   if (REMOTE) { $('account').hidden = true; $('cta-row').hidden = true; $('cta-fine').hidden = true; }
 </script>
