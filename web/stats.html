@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Brodie Stats</title>
+<link rel="icon" href="assets/brodie/brodie-pfp-square.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;900&family=Plus+Jakarta+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root { --ground:#0A0A0B; --panel:#1F2126; --line:#2C2F36; --cream:#EFE7DA; --volt:#D9FF3D; --grey:#8E9198; --tan:#C2A882; }
+* { box-sizing:border-box; margin:0; padding:0 }
+[hidden] { display:none !important }
+#body { display:flex; flex-direction:column; gap:28px; align-items:stretch }
+#body > .ghost { align-self:flex-start }
+body { background:var(--ground); color:var(--cream); font:16px/1.45 'Plus Jakarta Sans', Arial, sans-serif; padding:32px 16px 64px }
+main { max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:28px }
+header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap }
+h1 { font:900 32px/1 Archivo, Arial, sans-serif; text-transform:uppercase }
+h1 span { color:var(--volt) }
+h2 { font:700 13px/1 Archivo, Arial, sans-serif; letter-spacing:3px; text-transform:uppercase; color:var(--grey) }
+.meta { color:var(--grey); font-size:13px }
+.tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px }
+.tile { background:var(--panel); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:6px; min-width:0 }
+.tile b { font:900 40px/1 Archivo, Arial, sans-serif; font-variant-numeric:tabular-nums }
+.tile.hero b { color:var(--volt) }
+.tile small { color:var(--grey); font-size:13px }
+section { display:flex; flex-direction:column; gap:12px }
+.scroll { overflow-x:auto; background:var(--panel); border-radius:14px }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:15px }
+th, td { padding:10px 14px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line) }
+th:first-child, td:first-child { text-align:left }
+th { color:var(--grey); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:1px }
+tr:last-child td { border-bottom:0 }
+form { display:flex; gap:8px; flex-wrap:wrap }
+input { flex:1; min-width:0; background:var(--panel); color:var(--cream); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font:inherit }
+button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; padding:12px 18px; font:700 15px Archivo, Arial, sans-serif; cursor:pointer }
+.ghost { background:none; color:var(--grey); padding:6px 0; font:600 13px 'Plus Jakarta Sans', Arial, sans-serif; text-decoration:underline }
+.err { color:#FF8A7A }
+.note { color:var(--grey); font-size:13px }
+@media (max-width:640px) { .tiles { grid-template-columns:repeat(2, minmax(0,1fr)) } .tile b { font-size:32px } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Brodie <span>stats</span></h1>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <form id="login" hidden>
+    <input id="key" type="password" placeholder="admin key" autocomplete="off">
+    <button>show stats</button>
+  </form>
+  <p class="err" id="err" hidden></p>
+
+  <div id="body" hidden>
+    <section>
+      <h2>Totals</h2>
+      <div class="tiles" id="totals"></div>
+    </section>
+    <section>
+      <h2>Retention</h2>
+      <div class="tiles" id="retention"></div>
+      <p class="note">Came back = called Brodie on 2 or more different days. Dn = of the people whose first call was at least n days ago, how many called again within n days. Team accounts in TEAM_EMAILS are left out.</p>
+    </section>
+    <section>
+      <h2>By day</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Day</th><th>Waitlist</th><th>Sign-ups</th><th>Calls</th><th>Callers</th><th>First-time callers</th></tr></thead>
+        <tbody id="days"></tbody>
+      </table></div>
+    </section>
+    <button class="ghost" id="forget">forget key on this device</button>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || '').replace(/\/$/, '');
+const store = { get(){ try { return localStorage.getItem('brodie-admin-key') || '' } catch { return '' } },
+                set(v){ try { v ? localStorage.setItem('brodie-admin-key', v) : localStorage.removeItem('brodie-admin-key') } catch {} } };
+let key = Q.get('key') || store.get(), timer = null;
+if (Q.get('key')) { store.set(key); history.replaceState(null, '', location.pathname + (API ? '?api=' + encodeURIComponent(API) : '')); }
+
+const tile = (n, label, hero) => `<div class="tile${hero ? ' hero' : ''}"><b>${n ?? '–'}</b><small>${label}</small></div>`;
+const pct = r => r.pct == null ? '–' : r.pct + '%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function load() {
+  if (!key) { $('login').hidden = false; $('body').hidden = true; return; }
+  let r;
+  try { r = await fetch(API + '/api/stats?key=' + encodeURIComponent(key), { cache: 'no-store' }); }
+  catch { return fail("can't reach the server"); }
+  if (r.status === 403) { store.set(''); key = ''; $('login').hidden = false; $('body').hidden = true; return fail('wrong key'); }
+  if (!r.ok) return fail('server error ' + r.status);
+  const s = await r.json(), t = s.totals, ret = s.retention;
+  $('err').hidden = true; $('login').hidden = true; $('body').hidden = false;
+  $('totals').innerHTML = tile(t.waitlist, 'on the waitlist') + tile(t.signups, 'signed up') + tile(t.callers, 'called Brodie', true) + tile(t.calls, 'calls in total')
+    + tile(t.waitlist_signed_up, 'waitlisters who signed up') + tile(t.signed_up_never_called, 'signed up, never called');
+  $('retention').innerHTML = tile(t.came_back, 'came back on another day', true) + tile(t.came_back_pct == null ? '–' : t.came_back_pct + '%', 'of callers came back', true)
+    + tile(pct(ret.d1), `D1 return (${ret.d1.returned}/${ret.d1.eligible})`) + tile(pct(ret.d3), `D3 return (${ret.d3.returned}/${ret.d3.eligible})`) + tile(pct(ret.d7), `D7 return (${ret.d7.returned}/${ret.d7.eligible})`);
+  $('days').innerHTML = s.days.length ? s.days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.waitlist}</td><td>${d.signups}</td><td>${d.calls}</td><td>${d.callers}</td><td>${d.new_callers}</td></tr>`).join('')
+    : '<tr><td colspan="6">nothing yet</td></tr>';
+  $('meta').textContent = `updated ${new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} · days in ${s.tz}` + (s.excluded_team_accounts ? ` · ${s.excluded_team_accounts} team accounts hidden` : '');
+  clearTimeout(timer); timer = setTimeout(load, 60000);
+}
+function fail(msg) { $('err').textContent = msg; $('err').hidden = false; }
+$('login').addEventListener('submit', e => { e.preventDefault(); key = $('key').value.trim(); store.set(key); load(); });
+$('forget').addEventListener('click', () => { store.set(''); key = ''; clearTimeout(timer); load(); });
+load();
+</script>
+</body>
+</html>

@@ -101,7 +101,7 @@ async def token(req):
     if missing: return web.json_response({'error': f'The server has no LiveKit keys yet ({", ".join(missing)}).'}, status=503)
     if worker_online() is False:
         return web.json_response({'error': "brodie is offline right now. try again in a little while."}, status=503)
-    info = mint_call(u); users.bump_calls(u['id'])
+    info = mint_call(u); users.bump_calls(u['id'], os.environ.get('DANCE', ''))
     return web.json_response(info)
 
 
@@ -181,6 +181,14 @@ async def waitlist_export(req):
     return web.Response(text=body, content_type='text/csv')
 
 
+async def stats(req):
+    """Numbers for the team (stats page at /stats.html): GET /api/stats?key=<ADMIN_KEY>.
+    TEAM_EMAILS (comma-separated) are left out so our own test calls don't count."""
+    key = os.environ.get('ADMIN_KEY', '')
+    if not key or not hmac.compare_digest(req.query.get('key', ''), key): return web.json_response({'error': 'forbidden'}, status=403)
+    return web.json_response(users.stats(exclude=os.environ.get('TEAM_EMAILS', '').split(',')), headers={'Cache-Control': 'no-store'})
+
+
 async def landing(_req): return web.FileResponse(os.path.join(WEB, 'index.html'))
 
 
@@ -195,7 +203,7 @@ def app():
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.get('/api/me', me),
                   web.get('/api/token', token), web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
-                  web.get('/api/waitlist/export', waitlist_export),
+                  web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
                   web.get('/', landing), web.get('/index.html', landing), web.get('/app', app_page), web.static('/', WEB)])
     return a
 

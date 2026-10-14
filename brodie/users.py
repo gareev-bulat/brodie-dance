@@ -43,6 +43,7 @@ def init():
                   'pw_hash TEXT NOT NULL, salt TEXT NOT NULL, created REAL NOT NULL, calls INTEGER NOT NULL DEFAULT 0, last_call REAL)')
         c.execute('CREATE TABLE IF NOT EXISTS waitlist (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT "", '
                   'source TEXT NOT NULL DEFAULT "", created REAL NOT NULL)')
+        c.execute('CREATE TABLE IF NOT EXISTS call_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, t REAL NOT NULL, dance TEXT NOT NULL DEFAULT "")')
 
 
 # ---- waitlist (launch day: emails first, accounts when the lesson opens) ----
@@ -107,9 +108,65 @@ def get(uid):
         return _row(c.execute('SELECT * FROM users WHERE id = ?', (int(uid),)).fetchone())
 
 
-def bump_calls(uid):
+def bump_calls(uid, dance=''):
+    """One call started: the per-user counter plus a row in call_log (what the stats page counts)."""
+    now = time.time()
     with _db() as c:
-        c.execute('UPDATE users SET calls = calls + 1, last_call = ? WHERE id = ?', (time.time(), int(uid)))
+        c.execute('UPDATE users SET calls = calls + 1, last_call = ? WHERE id = ?', (now, int(uid)))
+        c.execute('INSERT INTO call_log (user_id, t, dance) VALUES (?, ?, ?)', (int(uid), now, (dance or '')[:40]))
+
+
+# ---- stats for the team: GET /api/stats?key=<ADMIN_KEY> ----
+def stats(tz='America/New_York', exclude=()):
+    """Totals, a per-day table and retention. Days are calendar days in tz. exclude: team emails left out of every number."""
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        zone = ZoneInfo(tz)
+    except Exception:   # no tz database on this machine (some slim images, Windows without tzdata): New York daylight time
+        zone, tz = datetime.timezone(datetime.timedelta(hours=-4)), 'UTC-4'
+    day = lambda t: datetime.datetime.fromtimestamp(t, zone).date().isoformat()
+    ex = {e.strip().lower() for e in exclude if e.strip()}
+    with _db() as c:
+        us = [dict(r) for r in c.execute('SELECT id, email, created FROM users').fetchall()]
+        wl = [dict(r) for r in c.execute('SELECT email, created FROM waitlist').fetchall()]
+        calls = [dict(r) for r in c.execute('SELECT user_id, t FROM call_log ORDER BY t').fetchall()]
+    team = {u['id'] for u in us if u['email'] in ex}
+    us = [u for u in us if u['id'] not in team]
+    wl = [w for w in wl if w['email'] not in ex]
+    calls = [k for k in calls if k['user_id'] not in team]
+    signed_up = {u['id']: day(u['created']) for u in us}
+    days_by_user = {}
+    for k in calls: days_by_user.setdefault(k['user_id'], set()).add(day(k['t']))
+    per = {}
+    def row(d): return per.setdefault(d, {'day': d, 'waitlist': 0, 'signups': 0, 'calls': 0, 'callers': set(), 'new_callers': 0})
+    for w in wl: row(day(w['created']))['waitlist'] += 1
+    for u in us: row(day(u['created']))['signups'] += 1
+    for k in calls:
+        r = row(day(k['t'])); r['calls'] += 1; r['callers'].add(k['user_id'])
+    for uid, ds in days_by_user.items(): row(min(ds))['new_callers'] += 1
+    table = [dict(r, callers=len(r['callers'])) for _, r in sorted(per.items(), reverse=True)]
+    wl_emails = {w['email'] for w in wl}
+    callers = set(days_by_user)
+    came_back = {u for u, ds in days_by_user.items() if len(ds) >= 2}
+    def back_within(n):
+        """Of the people whose first call was at least n days ago: how many called again within n days after it."""
+        today = datetime.datetime.now(zone).date()
+        elig = hit = 0
+        for ds in days_by_user.values():
+            first = datetime.date.fromisoformat(min(ds))
+            if (today - first).days < n: continue
+            elig += 1
+            hit += any(0 < (datetime.date.fromisoformat(d) - first).days <= n for d in ds)
+        return {'eligible': elig, 'returned': hit, 'pct': round(100 * hit / elig) if elig else None}
+    return {
+        'totals': {'waitlist': len(wl), 'signups': len(us), 'callers': len(callers), 'calls': len(calls),
+                   'came_back': len(came_back), 'came_back_pct': round(100 * len(came_back) / len(callers)) if callers else None,
+                   'waitlist_signed_up': sum(1 for u in us if u['email'] in wl_emails),
+                   'signed_up_never_called': sum(1 for u in signed_up if u not in callers)},
+        'retention': {'d1': back_within(1), 'd3': back_within(3), 'd7': back_within(7)},
+        'days': table, 'tz': tz, 'excluded_team_accounts': len(team),
+    }
 
 
 def count():
