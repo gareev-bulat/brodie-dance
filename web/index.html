@@ -106,6 +106,28 @@
 
   footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--grey); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
   footer img { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }
+  .social { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+  .social > span { color: var(--grey); font-size: 0.95rem; margin-right: 2px; }
+  .ico { display: inline-block; flex: none; width: 1.15em; height: 1.15em; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
+  .ico-tiktok { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/tiktok.svg); }
+  .ico-instagram { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/instagram.svg); }
+  .ico-youtube { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/youtube.svg); }
+  .social .pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; font-family: 'Archivo', 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 0.95rem; letter-spacing: -0.02em; transition: border-color .12s, background .12s, color .12s, transform .12s; }
+  .social .pill .ico { color: var(--volt); }
+  .social .pill:hover { border-color: var(--volt); transform: translateY(-1px); }
+  .social .pill > span { display: flex; flex-direction: column; line-height: 1.15; }
+  .social .pill small { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: 0.8rem; color: var(--grey); letter-spacing: 0; }
+  .social.big { margin-top: 24px; gap: 14px; }
+  .social.big .pill { gap: 16px; padding: 18px 24px 18px 20px; border-radius: 18px; font-size: 1.2rem; min-width: 220px; }
+  .social.big .pill .ico { width: 30px; height: 30px; }
+  .social.big .pill:hover { background: var(--volt); color: var(--ink); }
+  .social.big .pill:hover .ico, .social.big .pill:hover small { color: var(--ink); }
+  #follow .lead { max-width: 560px; }
+  .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .follow a { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .follow a .ico { color: var(--grey); width: 1em; height: 1em; }
+  .follow a:hover .ico { color: var(--volt); }
+  .follow a:hover { color: var(--volt); }
 
   .waitlist { display: flex; gap: 10px; margin-top: 26px; max-width: 520px; }
   .waitlist input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 1.05rem; }
@@ -149,6 +171,12 @@
     .waitlist { flex-direction: column; max-width: none; }
     .waitlist .btn { width: 100%; justify-content: center; }
     .status { display: none; }
+    .social.big .pill { flex: 1 1 100%; min-width: 0; }
+  }
+  @media (max-width: 480px) {
+    #follow-hero .pill { padding: 11px; }
+    #follow-hero .pill .ico { width: 1.3em; height: 1.3em; }
+    #follow-hero .pill > span { display: none; }
   }
   body { overflow-x: hidden; }
 </style>
@@ -158,7 +186,7 @@
   <nav>
     <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp.png" alt="Brodie">brodie dance</a>
     <div class="links">
-      <a href="#how">how it works</a><a href="#dances">dances</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
+      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#follow">follow</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
     </div>
     <span class="status" id="status"><i></i><span>checking</span></span>
     <span class="account" id="account"><a href="#" id="nav-login">log in</a></span>
@@ -174,6 +202,7 @@
         <button class="btn primary" type="submit" id="wl-go">join the waitlist</button>
       </form>
       <p class="fine" id="wl-note">First on the list, first to dance.</p>
+      <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok</span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram</span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube</span></a></div>
       <div class="cta" id="cta-row">
         <a class="btn ghost" id="cta-app" href="#signup">have access? sign up to dance</a>
       </div>
@@ -208,10 +237,17 @@
     </div>
   </section>
 
+  <section id="follow">
+    <h2>more dances on the way.</h2>
+    <p class="lead">Follow Brodie to hear first about new dances and the FaceTime number&nbsp;drop&nbsp;📞</p>
+    <div class="social big"><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok<small>@verityagent8</small></span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram<small>@brodie.dancity</small></span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube<small>@verityagent-o6t</small></span></a></div>
+  </section>
+
   <footer>
     <span><img src="assets/brodie/brodie-pfp-square.png" alt="">Built on the Brodie starter for IvyHacks 2026.</span>
     <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">source on GitHub</a>
     <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
+    <span class="follow"><span>follow us:</span><a href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i>TikTok</a><a href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i>Instagram</a><a href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i>YouTube</a></span>
   </footer>
 </div>
 
