@@ -13,6 +13,7 @@ import numpy as np
 _SIZE = os.environ.get('DANCE_VIDEO_SIZE', '540x960')      # portrait; the receiver scales it (720x1280 costs more CPU per frame)
 W, H = (int(v) for v in _SIZE.lower().split('x'))
 FPS_OUT = int(os.environ.get('DANCE_VIDEO_FPS', '24'))
+IDLE_PERIOD_S = 0.2                                           # 5 fps while the room waits for a caller (the video starts on join)
 KBPS = int(os.environ.get('DANCE_VIDEO_KBPS', '3000'))       # max bitrate of the coach video
 CODEC = os.environ.get('DANCE_VIDEO_CODEC', 'h264').lower()  # h264 decodes in hardware on phones; vp8 is the fallback
 K = W / 360                                                  # overlay scale: every position and font size below is in 360x640 units
@@ -199,7 +200,10 @@ class Screen:
     async def run(self, room, get_state, get_cam=lambda: None):
         """Publish the video track and push frames at FPS_OUT until the room closes. get_cam() -> (rgb, kp) or None."""
         from livekit import rtc
-        await asyncio.get_running_loop().run_in_executor(None, self.load)     # decoding the video must not block the call
+        # publish first, then decode the creator's video in the background: until it is ready, render() shows the
+        # "Step back so I can see your whole body" card on black, so the caller never stares at a gray screen
+        loading = asyncio.get_running_loop().run_in_executor(None, self.load)  # decoding the video must not block the call
+        loading.add_done_callback(lambda f: f.cancelled() or f.exception() is None or print(f'[dance] video load failed: {f.exception()!r}', flush=True))
         self.source = rtc.VideoSource(W, H)
         track = rtc.LocalVideoTrack.create_video_track('coach-video', self.source)
         codec = rtc.VideoCodec.H264 if CODEC == 'h264' else rtc.VideoCodec.VP8
@@ -209,10 +213,11 @@ class Screen:
         print(f'[dance] published video track coach-video: {W}x{H} @ {FPS_OUT} fps, {KBPS} kbps, {CODEC}', flush=True)
         period = 1.0 / FPS_OUT
         while True:
-            t0 = time.monotonic()
+            t0 = time.monotonic(); cam = get_cam(); st = get_state()
+            waiting = cam is None and st.get('state') == 'idle'       # a warm room with nobody in it yet: a still card is enough
             try:
-                img = self.render(get_state(), time.time(), get_cam())
+                img = self.render(st, time.time(), cam)
                 self.source.capture_frame(rtc.VideoFrame(W, H, rtc.VideoBufferType.RGB24, np.ascontiguousarray(img).tobytes()).convert(rtc.VideoBufferType.I420))
             except Exception as e:
                 print(f'[dance] screen frame failed: {e!r}', flush=True); await asyncio.sleep(1.0)
-            await asyncio.sleep(max(0.0, period - (time.monotonic() - t0)))
+            await asyncio.sleep(max(0.0, (IDLE_PERIOD_S if waiting else period) - (time.monotonic() - t0)))

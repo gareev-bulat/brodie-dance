@@ -283,6 +283,10 @@ class CoachJob:
             await self.room.local_participant.publish_track(self.player.track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
             self.player_task = asyncio.create_task(self.player.run())
             print(f'[worker] published audio track {AUDIO_TRACK_NAME}', flush=True)
+        on_room = getattr(getattr(self.voice, 'handlers', None), '__globals__', {}).get('on_room')
+        if callable(on_room):                                     # handlers that want the room before any caller (Brodie's video)
+            try: on_room(self.room)
+            except Exception as e: print(f'[worker] handlers on_room failed: {e!r}', flush=True)
         if getattr(a, 'avatar', None):                         # the old character face track was removed with the Verity agent
             print(f'[worker] --avatar {a.avatar!r} ignored: Brodie Dance publishes the lesson video instead (starter/dance/screen.py)', flush=True)
         if self.voice_mode:                                       # no Perception: the worker's own session/status events, logged the same way

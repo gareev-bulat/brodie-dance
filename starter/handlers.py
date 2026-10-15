@@ -67,7 +67,9 @@ print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
 S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False)
+         last_step_back=0.0, play=None, last_pct=None, screen=False, first_event=0.0, greeted=False)
+GREET_AFTER_S = 3.0      # nobody in full view this long after the call starts: Brodie says hi and asks them to step back
+STEP_BACK_EVERY_S = 12.0  # then repeats "Step back so I can see your whole body" this often until the whole body is in view
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
 
@@ -82,12 +84,20 @@ def _player():
     except Exception: return None
 
 
-def _ensure_screen():
-    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room)."""
+def on_room(room):
+    """Called by the worker as soon as it has joined a room (Chert's warm rooms too, before any caller): Brodie's portrait
+    video starts right away, so the very first frames the FaceTime bridge gets are already 9:16. Started only after the
+    caller showed up, the bridge had opened the call with a landscape picture and FaceTime kept that shape, so the
+    portrait lesson played as a small box in the middle of the phone."""
+    _ensure_screen(room)
+
+
+def _ensure_screen(room=None):
+    """Start Brodie's video once the worker's room is reachable (on_room, else through say_now -> VoiceLayer.job.room)."""
     if S['screen'] or not SHOW_VIDEO: return
     S['screen'] = True
     try:
-        room = S['say'].__self__.job.room
+        room = room or S['say'].__self__.job.room
         from starter.dance.screen import Screen
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
@@ -310,9 +320,25 @@ def finish():
 
 
 # ---- the events ----
+def _nudge_into_view():
+    """Before the lesson, while the caller is not fully in view: a spoken hello and a step-back hint, then the hint every
+    STEP_BACK_EVERY_S. Without it the call starts silent until the whole body is in frame, and callers don't know what to do."""
+    if S['state'] != 'idle' or S['visible']: return
+    now = time.time()
+    if not S['first_event']: S['first_event'] = now; return
+    if not S['greeted']:
+        if now - S['first_event'] < GREET_AFTER_S: return
+        S['greeted'] = True; S['last_step_back'] = now
+        _ask("A caller just joined the call but you can't see their whole body yet. In ONE short, friendly sentence: say hi, "
+             "you're Brodie their dance coach, and ask them to prop the phone up and step back until you can see them head to toe.")
+    elif now - S['last_step_back'] > STEP_BACK_EVERY_S:
+        S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = now
+
+
 def on_event(event, say_now, ask_voice):
     S['say'] = say_now; S['ask'] = ask_voice
     _ensure_screen()
+    _nudge_into_view()
     t = event['type']
     if t == 'pose':
         S['kp'] = event['kp'] if event.get('ok') else None       # the latest pose for the screen's skeleton overlay
