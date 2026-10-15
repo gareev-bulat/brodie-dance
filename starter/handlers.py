@@ -325,12 +325,18 @@ def _nudge_into_view():
     STEP_BACK_EVERY_S. Without it the call starts silent until the whole body is in frame, and callers don't know what to do."""
     if S['state'] != 'idle' or S['visible']: return
     now = time.time()
-    if not S['first_event']: S['first_event'] = now; return
+    if not S['first_event']:
+        # the very first frame of the call: speak AT ONCE with a recorded clip (no model round trip). Brodie's audio track
+        # sends nothing while he is silent, and Chert's bridge hangs up on an agent it hasn't heard from within ~5 s of
+        # connecting ("Agent failed", Oct 15 morning: every call dropped 4-7 s in, just before his first words).
+        S['first_event'] = now; S['last_step_back'] = now
+        S['say']('Step back so I can see your whole body', 'visibility'); return
     if not S['greeted']:
         if now - S['first_event'] < GREET_AFTER_S: return
         S['greeted'] = True; S['last_step_back'] = now
-        _ask("A caller just joined the call but you can't see their whole body yet. In ONE short, friendly sentence: say hi, "
-             "you're Brodie their dance coach, and ask them to prop the phone up and step back until you can see them head to toe.")
+        _ask("A caller just joined the call and you already asked them to step back, but you can't see their whole body yet. "
+             "In ONE short, friendly sentence: say hi, say you're Brodie their dance coach, and that the lesson starts as soon "
+             "as you can see them head to toe.")
     elif now - S['last_step_back'] > STEP_BACK_EVERY_S:
         S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = now
 
