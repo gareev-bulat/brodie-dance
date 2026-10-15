@@ -207,6 +207,13 @@ def prewarm(proc: JobProcess):
     if not a.events_only:
         from facetime.audio_out import CueBank
         proc.userdata['bank'] = CueBank()
+    if os.environ.get('DANCE') and os.environ.get('DANCE_VIDEO', '1') != '0':   # Brodie Dance: the lesson video decoded now, not during a call
+        try:
+            from starter.dance import reference, screen
+            t_v = time.time(); n = screen.preload(reference.load(os.environ['DANCE']).video_path)
+            print(f'[worker] prewarm: dance video ready ({n} frames in {time.time() - t_v:.1f} s)', flush=True)
+        except Exception as e:
+            print(f'[worker] prewarm: dance video not preloaded ({e!r}); it loads on the first call instead', flush=True)
     if perception_off(a):
         print(f'[worker] prewarm: loaded in {time.time() - t:.1f} s (perception OFF: no pose model, no session script; voice {a.voice}, vision {"on" if a.vision else "off"}, '
               f'floor {a.floor}, audio {"OFF (events only)" if a.events_only else "cue bank"})', flush=True)

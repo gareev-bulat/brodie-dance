@@ -76,6 +76,40 @@ def cam_panel(cam, pw, ph, dim=1.0):
     return panel
 
 
+_MEM = {}   # path -> (frames, fps): decoded once per process
+
+
+def cached_frames(path, fps=FPS_OUT):
+    """load_frames, but decoded only once: kept in memory for this process and on disk in data/tmp/screen_cache/ for the
+    next ones. Decoding the creator's video takes ~8 s of both CPUs on the server; done at call time it starved the call
+    (Brodie's video sent no frames) and Chert hung up with "Agent failed". From the cache it loads in well under a second."""
+    import pickle
+    st = os.stat(path)
+    key = (f'{os.path.splitext(os.path.basename(path))[0]}_{W}x{H}_{fps}fps_{"mirror" if MIRROR else "plain"}'
+           f'_{int(st.st_mtime)}_{st.st_size}.pkl')
+    if key in _MEM: return _MEM[key]
+    cdir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(path))), 'tmp', 'screen_cache')   # data/tmp/screen_cache
+    cpath = os.path.join(cdir, key)
+    try:
+        with open(cpath, 'rb') as f: _MEM[key] = pickle.load(f); return _MEM[key]
+    except Exception:
+        pass                                                  # no cache yet (or a broken one): decode and write it
+    out = load_frames(path, fps)
+    try:
+        os.makedirs(cdir, exist_ok=True); tmp = f'{cpath}.{os.getpid()}.tmp'
+        with open(tmp, 'wb') as f: pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, cpath)                                # atomic: another process never reads half a file
+    except Exception as e:
+        print(f'[dance] screen cache not written: {e!r}', flush=True)
+    _MEM[key] = out; return out
+
+
+def preload(video_path):
+    """Called from the worker's prewarm (before any call): the creator's video ready in this process. Returns the frame count."""
+    if not video_path or not os.path.exists(video_path): return 0
+    return len(cached_frames(video_path)[0])
+
+
 def load_frames(path, fps=FPS_OUT):
     """The video at `fps`, each frame letterboxed to W x H RGB. Returns (frames uint8 (N, H, W, 3), fps)."""
     import cv2
@@ -117,7 +151,7 @@ class Screen:
 
     def load(self):
         p = self.video_path
-        if p and os.path.exists(p): self.frames, self.fps = load_frames(p)
+        if p and os.path.exists(p): self.frames, self.fps = cached_frames(p)
         print(f'[dance] screen: {len(self.frames)} frames of the creator\'s video' + ('' if len(self.frames) else f' (none: put the video at {p})')
               + (', mirrored' if MIRROR and len(self.frames) else ''), flush=True)
 
