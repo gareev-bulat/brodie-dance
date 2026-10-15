@@ -84,20 +84,12 @@ def _player():
     except Exception: return None
 
 
-def on_room(room):
-    """Called by the worker as soon as it has joined a room (Chert's warm rooms too, before any caller): Brodie's portrait
-    video starts right away, so the very first frames the FaceTime bridge gets are already 9:16. Started only after the
-    caller showed up, the bridge had opened the call with a landscape picture and FaceTime kept that shape, so the
-    portrait lesson played as a small box in the middle of the phone."""
-    _ensure_screen(room)
-
-
-def _ensure_screen(room=None):
-    """Start Brodie's video once the worker's room is reachable (on_room, else through say_now -> VoiceLayer.job.room)."""
+def _ensure_screen():
+    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room)."""
     if S['screen'] or not SHOW_VIDEO: return
     S['screen'] = True
     try:
-        room = room or S['say'].__self__.job.room
+        room = S['say'].__self__.job.room
         from starter.dance.screen import Screen
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
@@ -348,6 +340,7 @@ def on_event(event, say_now, ask_voice):
         if S['visible'] and not was and S['state'] == 'idle':
             S['state'] = 'intro'
             say_now('Great, I can see you', 'visibility')
-            _ask(f'The caller is in view and ready. In two short sentences: say hi, say today we learn the {REF.name} dance '
+            hi = 'do NOT say hi again (you already greeted them), ' if S['greeted'] else 'say hi, '   # one hello per call
+            _ask(f'The caller is in view and ready. In two short sentences: {hi}say today we learn the {REF.name} dance '
                  f'in {REF.n_chunks} parts of eight counts, and that first they just watch the whole dance once.')
             when_quiet(start_preview, min_wait=max(4.0, REST_S))
