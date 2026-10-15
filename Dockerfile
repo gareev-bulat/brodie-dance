@@ -1,5 +1,5 @@
-# Web + token server for hosting (Render, Railway, Fly, Cloud Run): serves the landing page at /, accounts, the call page at /app,
-# mints LiveKit tokens and lists the lessons. Brodie's worker (the coach itself) runs elsewhere with the same LiveKit project.
+# The website for hosting (Render, Railway, Fly, Cloud Run): the landing page at /, email sign-in, Brodie's line (free / busy /
+# offline) and the lesson list. Lessons are FaceTime only: Brodie's worker (the coach itself) runs elsewhere on the Chert line.
 FROM python:3.12-slim
 WORKDIR /srv
 COPY requirements-web.txt .

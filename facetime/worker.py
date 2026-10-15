@@ -61,7 +61,6 @@ from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions,
 from facetime import DATA, AUDIO_TRACK_NAME
 from facetime.pipeline import FPS
 from facetime.perception import Perception, Config, add_arguments, build_pipeline, EVENT_SCHEMA_VERSION
-from facetime import line_client
 from facetime.coach_agent import frame_to_rgb              # the same frame conversion as the demo coach
 
 log = logging.getLogger('worker')
@@ -258,7 +257,6 @@ class CoachJob:
         self.end_reason = None; self.leave_task = None; self.ctx_shutdown_called = False; self.t_end = None
         self.session_state = None; self.probes_ignored = 0        # the probe (--latency-probe) never beeps or opens the floor during an active set
         self.voice_mode = perception_off(a)                       # --perception off: no Perception; the worker emits its own session/status events
-        self.line_task = None; self.line_held = False; self.line_refused = False; self.line_timers = []   # Brodie's one line (facetime/line_client.py)
         self.t0 = time.monotonic(); self.ev_seq = 0; self.vision = None; self.vision_logged = False; self.session_opened = False; self.open_task = None
 
     # ---- lifecycle ----
@@ -360,12 +358,6 @@ class CoachJob:
         self.closed = True; self.stop.set(); self.done.set(); t0 = time.monotonic()
         if self.t_end is None: self.t_end = t0
         if self.leave_task is not None: self.leave_task.cancel()
-        for h in self.line_timers: h.cancel()
-        if self.line_task is not None and not self.line_task.done(): self.line_task.cancel()
-        if self.line_held:                                        # the line's reset buffer starts now (bounded: never blocks the cleanup)
-            self.line_held = False
-            try: await asyncio.wait_for(asyncio.to_thread(line_client.end, self.room.name), line_client.TIMEOUT_S + 0.5)
-            except Exception as e: print(f'[line] WARNING: call end not reported ({e!r}): the server frees the line at the cap', flush=True)
         if getattr(self, 'avatar_task', None) is not None: self.avatar_task.cancel()
         if self.open_task is not None and not self.open_task.done(): self.open_task.cancel()
         for t in getattr(self, 'consumer_tasks', []): t.cancel()
@@ -433,44 +425,11 @@ class CoachJob:
         extra = getattr(self.event_writer, 'extra', None)                   # the JSONL lines carry the call id from the bind on (null before it)
         if isinstance(extra, dict): extra['call_id'] = self.call_id
         print(f'[worker] bound to {participant.identity!r} (call id {self.call_id or "n/a"}): {what}', flush=True)
-        if self.line_task is None and not self.closed:
-            self.line_task = asyncio.create_task(self._line_begin(), name='line-start')
         if self.voice_mode:
             if not self.session_opened and self.open_task is None:
                 self.open_task = asyncio.create_task(self._open_session(participant.identity), name='voice-start')
         elif self.voice is not None and self.voice.model is not None and not self.voice.started:
             asyncio.create_task(self.voice.on_caller(participant.identity, room=self.room), name='voice-start')
-
-    # ---- Brodie's one line: report the call, refuse it when busy, the 15-minute lesson clock ----
-    async def _line_begin(self):
-        ok, info = await asyncio.to_thread(line_client.start, self.room.name, self.call_id)
-        if self.closed: return
-        if not ok: return await self._line_refuse(info or {})
-        self.line_held = info is not None
-        for at, phase in line_client.timeline():
-            self.line_timers.append(self.loop.call_later(at, self._line_phase, phase))
-
-    async def _line_refuse(self, info):
-        """Busy: one short sentence with the minutes left, then hang up within ~5 s. The handlers never see this call."""
-        self.line_refused = True
-        text = line_client.busy_text(info.get('seconds_left'))
-        rec = self.player.say(text, 'other', dict(source='line')) if self.player is not None else None
-        if (rec is None or rec.get('status') == 'missing') and self.voice is not None and self.voice.floor is not None:
-            self.voice.floor.ask(f'Say exactly this and nothing else: "{text}"')        # no recorded clip: the voice model says it
-        await asyncio.sleep(4.5)
-        self.end('line busy')
-
-    def _line_phase(self, phase):
-        if self.closed: return
-        print(f'[line] {phase} ({(time.monotonic() - self.t0) / 60:.1f} min into the job)', flush=True)
-        if phase == 'hangup': return self.end('line cap reached')
-        hook = getattr(getattr(self.voice, 'handlers', None), '__globals__', {}).get('on_line')
-        if callable(hook):                                        # the lesson decides how to wrap up (starter/handlers.py)
-            try: return hook(phase)
-            except Exception as e: print(f'[line] handlers on_line({phase}) failed: {e!r}', flush=True)
-        if self.voice is not None and self.voice.floor is not None:
-            self.voice.floor.ask("In ONE short sentence tell the caller this is the last part of today's lesson." if phase == 'last_part'
-                                 else 'In two short sentences wrap up the lesson: how they did, and to call back for the next one.')
 
     async def _open_session(self, identity):
         """Voice mode: the model session (when there is one), then ONE session event {state: open, mode: voice} for the handlers."""
