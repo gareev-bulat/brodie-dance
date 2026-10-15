@@ -67,7 +67,7 @@ print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
 S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False, first_event=0.0, greeted=False)
+         last_step_back=0.0, play=None, last=False, wrap=False, last_pct=None, screen=False, first_event=0.0, greeted=False)
 GREET_AFTER_S = 3.0      # nobody in full view this long after the call starts: Brodie says hi and asks them to step back
 STEP_BACK_EVERY_S = 12.0  # then repeats "Step back so I can see your whole body" this often until the whole body is in view
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
@@ -248,6 +248,7 @@ def start_preview():
     print('[dance] preview: the whole dance', flush=True)
     def done(_wins):
         S['state'] = 'waiting'
+        if S['wrap']: return finish()
         _ask(f'They just watched the whole {REF.name} dance. In ONE short sentence say now we learn it part by part, starting with part 1.' + _describe(0))
         when_quiet(teach_part, min_wait=REST_S)
     play_parts(0, REF.n_chunks, False, done, preview=True)
@@ -256,6 +257,7 @@ def start_preview():
 def teach_part():
     """Count in and play the current part (after making sure the caller is in frame)."""
     if S['state'] in ('done', 'full'): return
+    if S['wrap']: return finish()
     if not S['visible']:
         if time.time() - S['last_step_back'] > 6:
             S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = time.time()
@@ -273,6 +275,9 @@ def on_result(res):
           f'worst {res.get("worst_part")} {res.get("details", "")}', flush=True)
     part = res.get('worst_part')
     tip = f' One concrete, upbeat tip about their {part}.' if part else ' One upbeat tip about matching the timing.'
+    if S['last'] or S['wrap']:                                  # the line's clock: that was the last part, straight to the scores
+        if score >= PASS: S['say'](random.choice(PRAISE))
+        return finish()
     if score >= PASS or S['tries'] >= MAX_TRIES:                # one chance per part by default: praise or a tip, then onwards
         if score >= PASS: S['say'](random.choice(PRAISE))
         if k + 1 >= REF.n_chunks:
@@ -291,6 +296,7 @@ def on_result(res):
 
 
 def start_full_run():
+    if S['wrap'] or S['last']: return finish()
     if not FULL_RUN or REF.n_chunks < 2:
         return finish()
     S['state'] = 'full'
@@ -309,6 +315,7 @@ def on_full_result(res):
 
 
 def finish():
+    if S['state'] == 'done': return
     S['state'] = 'done'
     learn = ', '.join(f'part {i + 1} {s}%' for i, s in sorted(S['scores'].items()))
     full = ''
@@ -317,6 +324,23 @@ def finish():
         full = f' In the full run they scored {avg}% overall (' + ', '.join(f'part {i + 1} {s}%' for i, s in sorted(S['full_scores'].items())) + ').'
     _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} In two short sentences, '
          f'celebrate, name their strongest part, and tell them they are ready to post it.')
+
+
+# ---- Brodie's one line (facetime/line_client.py): the worker calls this on the lesson clock ----
+def on_line(phase):
+    """last_part (13:00): say so; the part being taught (or the next one) is the last, then the scores.
+    wrap (14:30): stop teaching and give the scores now, or as soon as the part being played and judged is over (never
+    mid-part). The worker hangs up at 15:00 whatever happens."""
+    if S['state'] == 'done': return
+    if phase == 'last_part' and not S['last']:
+        S['last'] = True
+        print('[dance] line: last part', flush=True)
+        _ask("In ONE short sentence tell the caller we're almost out of time, so this is the last part for today.")
+    elif phase == 'wrap' and not S['wrap']:
+        S['wrap'] = True
+        print(f'[dance] line: wrap up (state {S["state"]})', flush=True)
+        if S['state'] not in ('dancing', 'full', 'preview'):     # mid-part: the result (or the preview's end) calls finish()
+            finish()
 
 
 # ---- the events ----
