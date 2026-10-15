@@ -40,6 +40,9 @@
   .seg { display: grid; grid-template-columns: 1fr 1fr; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
   .seg button { border: 0; border-radius: 9px; background: none; color: var(--grey); padding: 10px; font-size: 1rem; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+  .line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 10px; font-weight: 600; text-align: center; }
+  .line .timer { font-variant-numeric: tabular-nums; font-size: 1.3rem; font-weight: 800; }
+  .line[hidden] { display: none; }
   .err { color: var(--bad); font-size: 0.9rem; min-height: 1.4em; }
   .small { font-size: 0.85rem; color: var(--grey); }
 
@@ -75,6 +78,7 @@
       <button type="button" data-facing="user" aria-pressed="true">front camera</button>
       <button type="button" data-facing="environment" aria-pressed="false">back camera</button>
     </div>
+    <p class="line" id="line" aria-live="polite" hidden><span id="line-msg"></span><span class="timer" id="line-timer"></span></p>
     <button class="btn primary wide" id="join">dance with brodie</button>
     <p class="err" id="err" aria-live="polite"></p>
     <a class="small" id="logout" href="/">log out</a>
@@ -108,6 +112,7 @@
   </div>
 </section>
 
+<script src="line.js"></script>
 <script>
 const LK = window.LivekitClient, $ = (s) => document.querySelector(s);
 let user = null, room = null, facing = 'user', micOn = true, capT, noteT, joinT;
@@ -126,6 +131,12 @@ const clean = (t) => t.replace(/<[^>]*>?/g, '').replace(/\*/g, '').replace(/\s+/
   $('#greet').textContent = 'hey ' + (user.name || 'you');
   show('pre');
 })();
+
+// 1b. Brodie's one line (web/line.js): the status before the click; the join button only while the line is open
+const line = BrodieLine.watch('', (v) => {
+  $('#line').hidden = v.state === 'unknown'; $('#line-msg').textContent = v.text; $('#line-timer').textContent = v.timer;
+  $('#join').hidden = v.state === 'busy' || v.state === 'offline';
+});
 
 // 2. pre-call: camera choice and log out
 function setFacing(f) {
@@ -149,6 +160,7 @@ async function join() {
   try { r = await fetch('/api/token'); } catch { return fail("can't reach the server. is it running?"); }
   if (r.status === 401) return toLogin();
   try { info = await r.json(); } catch {}
+  if (r.status === 409) { line.busy(info.line || info); return fail(''); }   // the line is busy (an old tab): same message and timer
   if (!r.ok || !info.token) return fail(info.error || 'brodie is offline right now. try again in a minute.');
 
   show('call'); $('#joining').hidden = false; $('#me').hidden = true; $('#captions').hidden = true; $('#note').hidden = true;

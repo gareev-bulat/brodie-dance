@@ -52,6 +52,11 @@
   .btn.ghost { color: var(--text); border-color: var(--line); }
   .btn.ghost:hover { border-color: var(--volt); }
   .btn[hidden] { display: none; }
+  .line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 22px; font-weight: 600; }
+  .line .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--volt); flex: none; }
+  .line.busy .dot { background: #ffb020; } .line.offline .dot { background: #888; }
+  .line .timer { font-variant-numeric: tabular-nums; font-family: 'Archivo', monospace; font-size: 1.4rem; font-weight: 800; }
+  .line[hidden] { display: none; }
   .fine { font-size: 0.85rem; color: var(--grey); margin-top: 14px; }
 
   section { padding: 56px 0; border-top: 1px solid var(--line); }
@@ -220,6 +225,7 @@
       <div class="eyebrow">a coach on your video call</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
       <p class="lead">Brodie watches your camera, scores every part against the creator and tells you the one thing to fix.</p>
+      <div class="line" id="line" aria-live="polite" hidden><i class="dot"></i><span id="line-msg"></span><span class="timer" id="line-timer"></span></div>
       <div class="cta" id="cta-row"><a class="btn primary big" id="cta-app" href="#signup">sign up and dance →</a></div>
       <p class="fine" id="cta-fine">Free account. Works in the browser on a phone or laptop.</p>
       <div class="hero-actions">
@@ -296,6 +302,7 @@
   </form>
 </div>
 
+<script src="line.js"></script>
 <script>
   // The page is static; these two calls connect it to whatever is running behind it (see docs/HOSTING.md).
   const Q = new URLSearchParams(location.search);
@@ -467,6 +474,12 @@
     finally { go.disabled = false; }
   });
   if (REMOTE) { $('account').hidden = true; $('cta-row').hidden = true; $('cta-fine').hidden = true; }
+  // ---- Brodie's one line (web/line.js): open / busy with a live countdown / offline; the call button only while open ----
+  BrodieLine.watch(API, (v) => {
+    const box = $('line'); box.hidden = v.state === 'unknown'; box.className = 'line ' + v.state;
+    $('line-msg').textContent = v.text; $('line-timer').textContent = v.timer;
+    if (!REMOTE) { const open = v.state === 'open' || v.state === 'unknown'; $('cta-row').hidden = !open; $('cta-fine').hidden = !open; }
+  });
 </script>
 </body>
 </html>

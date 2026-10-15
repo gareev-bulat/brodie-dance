@@ -6,11 +6,13 @@ Routes: /  landing (web/index.html)      /app  the call page (web/app.html, need
         GET /api/token   a LiveKit token for a fresh room "web-<user>-<id>" with AGENT_NAME dispatched into it (login required)
         GET /api/config  what the landing page shows (live status, fork)   GET /api/dances   GET /api/health
         POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "online" on the page comes from it
+        GET /api/line  the one line: open | busy (seconds_left) | offline (brodie/line.py)
+        POST /api/line/start {room, call_id}   POST /api/line/end {room}   the worker reporting calls (X-Brodie-Key)
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
 import argparse, datetime, glob, hmac, json, os, secrets, time
 from aiohttp import web
-from brodie import users
+from brodie import line, users
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, 'web')
@@ -78,12 +80,19 @@ async def me(req):
     return web.json_response({'user': _public(u)})
 
 
-def mint_call(u):
+def room_name(u): return f'web-{u["id"]}-{secrets.token_hex(3)}'
+
+
+def _busy(st):
+    return web.json_response(dict(st, error="brodie's teaching someone right now.", line=st), status=409, headers={'Cache-Control': 'no-store'})
+
+
+def mint_call(u, room=None):
     """A token for the user in a fresh room, with Brodie's worker (AGENT_NAME) dispatched into it."""
     from livekit import api
     from livekit.protocol.agent_dispatch import RoomAgentDispatch
     from livekit.protocol.room import RoomConfiguration
-    room, identity = f'web-{u["id"]}-{secrets.token_hex(3)}', f'user-{u["id"]}'
+    room, identity = room or room_name(u), f'user-{u["id"]}'
     t = (api.AccessToken(os.environ['LIVEKIT_API_KEY'], os.environ['LIVEKIT_API_SECRET']).with_identity(identity).with_name(u['name'])
          .with_ttl(datetime.timedelta(hours=1))
          .with_grants(api.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True, can_publish_data=True,
@@ -101,7 +110,10 @@ async def token(req):
     if missing: return web.json_response({'error': f'The server has no LiveKit keys yet ({", ".join(missing)}).'}, status=503)
     if worker_online() is False:
         return web.json_response({'error': "brodie is offline right now. try again in a little while."}, status=503)
-    info = mint_call(u); users.bump_calls(u['id'], os.environ.get('DANCE', ''))
+    room = room_name(u)
+    ok, st = line.reserve(room)                               # one line: refused while someone is on a call (or its reset buffer)
+    if not ok: return _busy(st)
+    info = mint_call(u, room); users.bump_calls(u['id'], os.environ.get('DANCE', ''))
     return web.json_response(info)
 
 
@@ -120,6 +132,33 @@ async def heartbeat(req):
     b = await _body(req)
     _LAST_BEAT['t'] = time.time(); _LAST_BEAT['agent'] = str(b.get('agent', ''))[:64]
     return web.json_response({'ok': True})
+
+
+def _worker_ok(req):
+    key = os.environ.get('HEARTBEAT_KEY', '')
+    return bool(key) and hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key)
+
+
+async def line_status(_req):
+    return web.json_response(line.status(worker_online()), headers=dict(CORS, **{'Cache-Control': 'no-store'}))
+
+
+async def line_start(req):
+    """The worker bound a caller (web or FaceTime): 200 {ok} or 409 with the busy status (the worker then says so and hangs up)."""
+    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req); room = str(b.get('room', ''))[:128]
+    if not room: return web.json_response({'error': 'room required'}, status=400)
+    ok, st = line.start(room, str(b.get('call_id', '') or '')[:64])
+    print(f'[line] start {room!r}: {"ok" if ok else "BUSY " + str(st.get("seconds_left")) + " s left"}', flush=True)
+    return web.json_response({'ok': True, 'cap_s': line.cap_s()}) if ok else _busy(st)
+
+
+async def line_end(req):
+    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req); room = str(b.get('room', ''))[:128]
+    ended = line.end(room)
+    print(f'[line] end {room!r}: {"reset buffer " + str(line.buffer_s()) + " s" if ended else "not the line holder (ignored)"}', flush=True)
+    return web.json_response({'ok': True, 'ended': ended})
 
 
 async def config(_req):
@@ -198,10 +237,11 @@ async def app_page(req):
 
 
 def app():
-    users.init()
+    users.init(); line.init()
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.get('/api/me', me),
-                  web.get('/api/token', token), web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config), web.get('/api/dances', dances),
+                  web.get('/api/token', token), web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
+                  web.get('/api/line', line_status), web.post('/api/line/start', line_start), web.post('/api/line/end', line_end), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
                   web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
                   web.get('/', landing), web.get('/index.html', landing), web.get('/app', app_page), web.static('/', WEB)])
@@ -213,6 +253,6 @@ if __name__ == '__main__':
     ap.add_argument('--host', default=os.environ.get('HOST', '127.0.0.1'), help='0.0.0.0 on a hosting service')
     ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', '8765')), help='hosting services set PORT')
     a = ap.parse_args()
-    users.init()
+    users.init(); line.init()
     print(f'[brodie] web on http://{a.host}:{a.port}: landing at /, call page at /app, {users.count()} users in {users.DB}', flush=True)
     web.run_app(app(), host=a.host, port=a.port, print=None)
