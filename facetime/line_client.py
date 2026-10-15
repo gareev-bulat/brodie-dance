@@ -62,4 +62,4 @@ def timeline(cap=None):
 
 def busy_text(seconds_left):
     mins = max(1, int(round((seconds_left or 0) / 60.0)))
-    return f"Hey, it's Brodie! I'm teaching someone right now. Call back in about {mins} minute{'s' if mins != 1 else ''}."
+    return f"Brodie's in a session right now. Call back in about {mins} minute{'s' if mins != 1 else ''}."

@@ -310,11 +310,6 @@ class CoachJob:
         print(f'[worker] events (schema v{EVENT_SCHEMA_VERSION}) -> {a.event_log}' + (f' and data topic {a.data_topic!r}' if a.publish_data else ''), flush=True)
         if self.warm:
             print('[worker] warm job (chert_warm): no caller; staying joined, nothing is said until a participant publishes video' + (' or audio' if self.voice_mode else ''), flush=True)
-        if self.voice_mode and getattr(a, 'text', False) and self.room.name.startswith('web-'):   # web app: a caller may only type (mic and camera off)
-            def web_caller(p):
-                if self.bound is None and not self.closed and p.kind != AGENT_KIND: self.bind(p, 'web caller (typed chat; mic/camera optional)')
-            self.room.on('participant_connected', web_caller)
-            for p in list(self.room.remote_participants.values()): web_caller(p)
         if self.voice_mode:
             self.consumer_tasks = [asyncio.create_task(self._status_loop(), name='status-loop')]
         else:

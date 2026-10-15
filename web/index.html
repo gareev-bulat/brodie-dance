@@ -8,7 +8,7 @@
 <meta name="description" content="Brodie teaches you viral TikTok dances on a video call: watch the creator, learn it eight counts at a time, get scored on every part.">
 <link rel="icon" href="assets/brodie/brodie-pfp-square.png">
 <meta property="og:title" content="Brodie Dance">
-<meta property="og:description" content="Learn the dance eight counts at a time. Brodie watches, scores and coaches, right in the browser.">
+<meta property="og:description" content="Learn the dance eight counts at a time. FaceTime Brodie: he watches, scores and coaches you.">
 <meta property="og:image" content="assets/brodie/brodie-pfp-square.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
@@ -33,14 +33,14 @@
   nav .links { margin-left: auto; display: flex; gap: 22px; font-size: 0.95rem; }
   nav .links a { text-decoration: none; color: var(--grey); }
   nav .links a:hover { color: var(--text); }
-  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--grey); padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; }
-  .status i { width: 9px; height: 9px; border-radius: 50%; background: var(--grey); }
-  .status.on i { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
-  .status.on { color: var(--text); }
 
   .hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; padding: 48px 0 56px; }
   .hero .art { position: relative; display: flex; justify-content: center; }
-  .hero .art img { width: min(100%, 440px); filter: drop-shadow(0 30px 40px rgba(0,0,0,0.55)); }
+  .hero .art { align-items: flex-end; gap: 0; }
+  .hero .art img { width: min(100%, 360px); margin-left: -60px; filter: drop-shadow(0 30px 40px rgba(0,0,0,0.55)); }
+  .clip { position: relative; z-index: 1; flex: none; width: 220px; aspect-ratio: 9 / 16; border-radius: 22px; overflow: hidden; border: 3px solid var(--volt); background: #000 url(assets/hero/dance.jpg) center / cover; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+  .clip video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .clip-btn { position: absolute; right: 8px; bottom: 8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.8rem; cursor: pointer; }
   .hero .art::before { content: ''; position: absolute; inset: 10% 8% 2%; background: radial-gradient(closest-side, rgba(217,255,61,0.22), transparent 70%); z-index: 0; }
   .hero .art img { position: relative; z-index: 1; }
   .eyebrow { color: var(--volt); font-weight: 600; letter-spacing: 0.02em; font-size: 0.9rem; margin-bottom: 14px; }
@@ -52,11 +52,6 @@
   .btn.ghost { color: var(--text); border-color: var(--line); }
   .btn.ghost:hover { border-color: var(--volt); }
   .btn[hidden] { display: none; }
-  .line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 22px; font-weight: 600; }
-  .line .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--volt); flex: none; }
-  .line.busy .dot { background: #ffb020; } .line.offline .dot { background: #888; }
-  .line .timer { font-variant-numeric: tabular-nums; font-family: 'Archivo', monospace; font-size: 1.4rem; font-weight: 800; }
-  .line[hidden] { display: none; }
   .fine { font-size: 0.85rem; color: var(--grey); margin-top: 14px; }
 
   section { padding: 56px 0; border-top: 1px solid var(--line); }
@@ -162,32 +157,44 @@
   .waitlist input:focus { outline: 2px solid var(--volt); outline-offset: -1px; }
   .waitlist .btn { white-space: nowrap; }
   .waitlist.done { display: block; background: var(--panel); border: 1px solid var(--volt); border-radius: 12px; padding: 16px 18px; font-size: 1.05rem; }
-  .cta#cta-row .btn.ghost { font-size: 0.95rem; padding: 10px 16px; }
+  .start { margin-top: 26px; max-width: 520px; }
+  .start .waitlist { margin-top: 0; }
+  .start .fine { margin-top: 10px; }
+  .linebox { margin-top: 26px; max-width: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+  .linebox .state { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; line-height: 1.35; }
+  .linebox .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grey); flex: none; }
+  .linebox.open { border-color: var(--volt); }
+  .linebox.open .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
+  .linebox.busy .dot { background: #FFB020; }
+  .linebox .timer { display: block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .linebox .number { display: block; margin-top: 12px; font-size: 1.35rem; font-weight: 700; color: var(--text); text-decoration: none; }
+  .linebox .btn { margin-top: 12px; }
+  .linebox .fine { margin-top: 10px; }
   .account { font-size: 0.95rem; color: var(--grey); white-space: nowrap; }
   .account a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
   .account b { color: var(--text); font-weight: 600; margin-right: 10px; }
 
-  /* sign up / log in */
-  .veil { position: fixed; inset: 0; background: rgba(0,0,0,0.72); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
-  .veil.open { display: flex; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; width: min(420px, 100%); padding: 26px 24px 22px; position: relative; }
-  .panel h2 { font-size: 1.9rem; margin-bottom: 6px; }
-  .panel .sub { color: var(--grey); font-size: 0.95rem; margin-bottom: 18px; }
-  .panel .x { position: absolute; top: 14px; right: 16px; background: none; border: 0; color: var(--grey); font-size: 1.4rem; cursor: pointer; }
-  .tabs { display: flex; gap: 6px; background: var(--ground); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
-  .tabs button { flex: 1; border: 0; background: none; color: var(--grey); padding: 9px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; }
-  .tabs button.on { background: var(--panel); color: var(--text); }
-  .field { display: block; margin-bottom: 12px; }
-  .field span { display: block; font-size: 0.82rem; color: var(--grey); margin-bottom: 5px; }
-  .field input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--text); font: inherit; font-size: 1rem; }
-  .field input:focus { outline: 2px solid var(--volt); outline-offset: -1px; }
-  .panel .btn { width: 100%; justify-content: center; margin-top: 6px; }
   .err { color: #FF8A8A; font-size: 0.9rem; min-height: 1.2em; margin: 8px 0 0; }
   [hidden] { display: none !important; }
 
   @media (max-width: 820px) {
-    .hero { grid-template-columns: 1fr; }
-    .hero .art { order: -1; }
+    .hero { grid-template-columns: 1fr; gap: 10px; padding: 4px 0 36px; }
+    .hero .art { order: -1; justify-content: center; height: 124px; }
+    .hero .art::before { inset: 0 20%; }
+    .clip { width: 70px; border-radius: 14px; border-width: 2px; }
+    .clip-btn { width: 26px; height: 26px; right: 4px; bottom: 4px; font-size: 0.65rem; }
+    .hero .art img { width: auto; height: 124px; margin-left: -8px; }
+    .eyebrow { margin-bottom: 6px; font-size: 0.8rem; }
+    h1 { font-size: 2.3rem; margin-bottom: 10px; }
+    .lead { font-size: 0.98rem; line-height: 1.4; margin: 0; }
+    .start, .linebox { margin-top: 16px; }
+    .linebox { padding: 14px 16px; }
+    .linebox .state { font-size: 1rem; }
+    .linebox .timer { font-size: 1.8rem; margin-top: 6px; }
+    .linebox .number { font-size: 1.15rem; margin-top: 8px; }
+    .linebox .btn.big { padding: 14px 20px; margin-top: 10px; }
+    .linebox .fine, .start .fine { margin-top: 8px; }
+    .account b { display: none; }
     .steps { grid-template-columns: 1fr; }
     .dance { grid-template-columns: minmax(0, 1fr); }
     .soon { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -198,11 +205,9 @@
     nav .links { display: none; }
     .waitlist { flex-direction: column; max-width: none; }
     .waitlist .btn { width: 100%; justify-content: center; }
-    .status { display: none; }
     .social.big .pill { flex: 1 1 100%; min-width: 0; }
     .vote .btn { width: 100%; justify-content: center; }
     #vote-follow { width: 100%; justify-content: center; }
-    .cta#cta-row { display: block; }
     .btn.big { width: 100%; justify-content: center; }
   }
 
@@ -216,8 +221,7 @@
     <div class="links">
       <a href="#how">how it works</a><a href="#dances">dances</a><a href="#follow">follow</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
     </div>
-    <span class="status" id="status"><i></i><span>checking</span></span>
-    <span class="account" id="account"><a href="#" id="nav-login">log in</a></span>
+    <span class="account" id="account" hidden></span>
   </nav>
 
   <header class="hero">
@@ -225,9 +229,23 @@
       <div class="eyebrow">a coach on your video call</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
       <p class="lead">Brodie watches your camera, scores every part against the creator and tells you the one thing to fix.</p>
-      <div class="line" id="line" aria-live="polite" hidden><i class="dot"></i><span id="line-msg"></span><span class="timer" id="line-timer"></span></div>
-      <div class="cta" id="cta-row"><a class="btn primary big" id="cta-app" href="#signup">sign up and dance →</a></div>
-      <p class="fine" id="cta-fine">Free account. Works in the browser on a phone or laptop.</p>
+      <div class="start" id="start-box">
+        <form class="waitlist" id="start" autocomplete="on">
+          <input type="email" id="start-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
+          <button class="btn primary" type="submit" id="start-go">dance with brodie →</button>
+        </form>
+        <p class="err" id="start-err" aria-live="polite"></p>
+        <p class="fine">Enter your email to see if Brodie is free. Lessons are on FaceTime.</p>
+      </div>
+      <div class="linebox" id="line" aria-live="polite" hidden>
+        <p class="state"><i class="dot"></i><span id="line-msg"></span></p>
+        <span class="timer" id="line-timer" hidden></span>
+        <div id="line-call" hidden>
+          <a class="number" id="line-number" href="#"></a>
+          <a class="btn primary big" id="line-facetime" href="#">FaceTime Brodie</a>
+          <p class="fine">FaceTime needs an iPhone, iPad or Mac.</p>
+        </div>
+      </div>
       <div class="hero-actions">
         <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i></a></div>
       </div>
@@ -240,7 +258,15 @@
         <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
       </div>
     </div>
-    <div class="art"><img src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top"></div>
+    <div class="art">
+      <div class="clip">
+        <video id="hero-video" muted loop playsinline preload="none" poster="assets/hero/dance.jpg" aria-label="the dance Brodie teaches, playing on a loop">
+          <source src="assets/hero/dance.webm" type="video/webm">
+        </video>
+        <button type="button" class="clip-btn" id="hero-pause" aria-label="pause the video" hidden>❚❚</button>
+      </div>
+      <img class="brodie" src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top">
+    </div>
   </header>
 
   <section id="how">
@@ -288,38 +314,17 @@
   </footer>
 </div>
 
-<div class="veil" id="veil" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-  <form class="panel" id="auth" autocomplete="on">
-    <button type="button" class="x" id="auth-close" aria-label="close">×</button>
-    <h2 id="auth-title">sign up</h2>
-    <p class="sub" id="auth-sub">An account keeps your lessons and scores. Then you dance.</p>
-    <div class="tabs"><button type="button" id="tab-signup" class="on">sign up</button><button type="button" id="tab-login">log in</button></div>
-    <label class="field" id="f-name"><span>your name</span><input name="name" id="in-name" maxlength="40" autocomplete="name" placeholder="Sam"></label>
-    <label class="field"><span>email</span><input name="email" id="in-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-    <label class="field"><span>password</span><input name="password" id="in-password" type="password" autocomplete="current-password" required minlength="6" placeholder="at least 6 characters"></label>
-    <p class="err" id="auth-err"></p>
-    <button class="btn primary" type="submit" id="auth-go">create account and dance</button>
-  </form>
-</div>
-
 <script src="line.js"></script>
 <script>
   // The page is static; these two calls connect it to whatever is running behind it (see docs/HOSTING.md).
   const Q = new URLSearchParams(location.search);
   const API = (Q.get('api') || window.BRODIE_API || (document.querySelector('meta[name="brodie-api"]')?.content || '')).replace(/\/$/, '');   // '' = same origin
   const REMOTE = API !== '' && new URL(API, location.href).origin !== location.origin;   // hosted apart from the server (Vercel): the waitlist posts across origins; accounts need the server's own origin (the server itself, even with brodie-api set to its own URL, is not remote)
-  const APP = Q.get('app') || window.APP_URL || (REMOTE ? API + '/app' : '/app');
-  document.getElementById('cta-app').href = APP;
   const pretty = (s) => s.replace(/_[0-9a-f]{6}$/, '').replace(/[_-]+/g, ' ');
 
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
-    const st = document.getElementById('status');
-    // worker: true / false from the worker's heartbeat, null when the server has no heartbeat configured (then no badge: we don't know)
-    if (c.worker === true) { st.classList.add('on'); st.lastElementChild.textContent = 'brodie is online'; }
-    else if (c.worker === false) { st.lastElementChild.textContent = 'brodie is offline'; }
-    else { st.hidden = true; }
     if (c.fork) { document.getElementById('nav-fork').href = c.fork; document.getElementById('foot-fork').href = c.fork; }
-  }).catch(() => { document.getElementById('status').hidden = true; });
+  }).catch(() => {});
 
   // the lessons: from the server when it is reachable, else the list baked in at the last deploy
   const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true}];
@@ -414,51 +419,57 @@
   });
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
 
-  // ---- accounts: sign up or log in here, then the call page (/app) lets you in ----
+  // ---- step 1: one email field (a returning visitor with a session skips it); step 2: Brodie's live status ----
   const $ = (id) => document.getElementById(id);
-  const veil = $('veil'), cta = $('cta-app'); let mode = 'signup', user = null;
-  const NEXT = new URLSearchParams(location.search).get('next') === 'app';
-  function setMode(m) {
-    mode = m; $('tab-signup').classList.toggle('on', m === 'signup'); $('tab-login').classList.toggle('on', m === 'login');
-    $('f-name').hidden = m !== 'signup'; $('in-name').required = m === 'signup';
-    $('auth-title').textContent = m === 'signup' ? 'sign up' : 'log in';
-    $('auth-sub').textContent = m === 'signup' ? 'An account keeps your lessons and scores. Then you dance.' : 'Welcome back. Brodie remembers your scores.';
-    $('auth-go').textContent = m === 'signup' ? 'create account and dance' : 'log in and dance';
-    $('in-password').autocomplete = m === 'signup' ? 'new-password' : 'current-password'; $('auth-err').textContent = '';
-  }
-  function openAuth(m) { setMode(m); veil.classList.add('open'); ($('in-name').hidden ? $('in-email') : $('in-name')).focus(); }
-  function closeAuth() { veil.classList.remove('open'); }
-  function showUser(u) {
-    user = u;
+  // ---- the hero clip: muted and looping; pausable; with reduced motion (or a browser that can't play WebM) the poster stays ----
+  (() => {
+    const v = $('hero-video'), b = $('hero-pause');
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches || !v.canPlayType('video/webm');
+    if (still) return;
+    const set = () => { const p = v.paused; b.textContent = p ? '►' : '❚❚'; b.setAttribute('aria-label', p ? 'play the video' : 'pause the video'); };
+    v.addEventListener('play', set); v.addEventListener('pause', set);
+    b.onclick = () => (v.paused ? v.play() : v.pause());
+    v.play().then(() => { b.hidden = false; }).catch(() => { b.hidden = false; set(); });
+  })();
+  const dial = (n) => n.replace(/[^0-9+]/g, '');
+  let line = null;
+  const PREVIEW = Q.get('preview') ? '?preview=' + encodeURIComponent(Q.get('preview')) : '';   // dev only: the server ignores it unless DEV_PREVIEW=1
+  function signedIn(u) {
+    $('start-box').hidden = !!u;
     if (u) {
-      $('account').innerHTML = '<b>hi ' + u.name.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
-      $('nav-logout').onclick = async (e) => { e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }); showUser(null); };
-      cta.textContent = 'dance with brodie →'; cta.href = APP; $('cta-fine').textContent = 'Step back so your whole body is in frame, sound on.';
-    } else {
-      $('account').innerHTML = '<a href="#" id="nav-login">log in</a>';
-      $('nav-login').onclick = (e) => { e.preventDefault(); openAuth('login'); };
-      cta.textContent = 'sign up and dance →'; cta.href = '#signup';
-      $('cta-fine').textContent = 'Free account. Works in the browser on a phone or laptop.';
+      $('account').hidden = false;
+      $('account').innerHTML = '<b>' + u.email.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
+      $('nav-logout').onclick = async (e) => {
+        e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }).catch(() => {});
+        if (line) { line.stop(); line = null; }
+        $('line').hidden = true; signedIn(null);
+      };
+      if (!line) line = BrodieLine.watch(API, showLine, PREVIEW);
+    } else { $('account').hidden = true; $('account').innerHTML = ''; }
+  }
+  function showLine(v) {
+    if (v.state === 'signedout') { $('line').hidden = true; if (line) { line.stop(); line = null; } signedIn(null); return; }
+    $('line').hidden = false; $('line').className = 'linebox ' + v.state;
+    $('line-msg').textContent = v.text;
+    $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
+    const call = v.state === 'open' && !!v.facetime;               // the FaceTime button only while Brodie is free
+    $('line-call').hidden = !call;
+    if (call) {
+      $('line-number').textContent = v.facetime; $('line-number').href = 'tel:' + (v.dial || dial(v.facetime));
+      $('line-facetime').href = 'facetime:' + (v.dial || dial(v.facetime));
     }
   }
-  cta.addEventListener('click', (e) => { if (!user) { e.preventDefault(); openAuth('signup'); } });
-  $('tab-signup').onclick = () => setMode('signup'); $('tab-login').onclick = () => setMode('login');
-  $('auth-close').onclick = closeAuth; veil.addEventListener('click', (e) => { if (e.target === veil) closeAuth(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAuth(); });
-  $('auth').addEventListener('submit', async (e) => {
-    e.preventDefault(); $('auth-err').textContent = ''; $('auth-go').disabled = true;
-    const body = { name: $('in-name').value, email: $('in-email').value, password: $('in-password').value };
+  $('start').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('start-err').textContent = ''; $('start-go').disabled = true;
     try {
-      const r = await fetch(API + (mode === 'signup' ? '/api/signup' : '/api/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(API + '/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('start-email').value }) });
       const d = await r.json();
-      if (!r.ok) { $('auth-err').textContent = d.error || 'Something went wrong.'; if (r.status === 409) setMode('login'); return; }
-      showUser(d.user); closeAuth(); location.href = APP;
-    } catch (err) { $('auth-err').textContent = 'No connection to the server.'; }
-    finally { $('auth-go').disabled = false; }
+      if (!r.ok) { $('start-err').textContent = d.error || 'Something went wrong.'; return; }
+      signedIn(d.user);
+    } catch (err) { $('start-err').textContent = 'No connection to the server.'; }
+    finally { $('start-go').disabled = false; }
   });
-  fetch(API + '/api/me').then((r) => r.ok ? r.json() : { user: null }).then((d) => { showUser(d.user); if (NEXT && !d.user) openAuth('signup'); })
-    .catch(() => showUser(null));
-  if (location.hash === '#signup') openAuth('signup');
+  fetch(API + '/api/me' + PREVIEW).then((r) => r.ok ? r.json() : { user: null }).then((d) => signedIn(d.user)).catch(() => signedIn(null));
   // ---- waitlist (launch day) ----
   const wl = $('waitlist'), wlNote = $('wl-note');
   wl.addEventListener('submit', async (e) => {
@@ -473,13 +484,7 @@
     } catch (err) { wlNote.textContent = 'Could not reach the waitlist server. Try again in a minute.'; }
     finally { go.disabled = false; }
   });
-  if (REMOTE) { $('account').hidden = true; $('cta-row').hidden = true; $('cta-fine').hidden = true; }
-  // ---- Brodie's one line (web/line.js): open / busy with a live countdown / offline; the call button only while open ----
-  BrodieLine.watch(API, (v) => {
-    const box = $('line'); box.hidden = v.state === 'unknown'; box.className = 'line ' + v.state;
-    $('line-msg').textContent = v.text; $('line-timer').textContent = v.timer;
-    if (!REMOTE) { const open = v.state === 'open' || v.state === 'unknown'; $('cta-row').hidden = !open; $('cta-fine').hidden = !open; }
-  });
+  if (REMOTE) { $('account').hidden = true; $('start-box').hidden = true; }   // accounts need the server's own origin
 </script>
 </body>
 </html>

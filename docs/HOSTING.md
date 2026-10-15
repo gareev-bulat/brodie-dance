@@ -23,7 +23,7 @@ Three pieces. Only the first two go on a hosting service.
 
 | Piece | What | Where |
 | --- | --- | --- |
-| Website (`brodie/server.py`) | Landing page at `/`, accounts (`/api/signup`, `/api/login`), the call page at `/app`, `/api/token`, `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
+| Website (`brodie/server.py`) | Landing page at `/`, email sign-in (`/api/start`), Brodie's line (`/api/line`, `/api/line/start`, `/api/line/end`), `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
 | LiveKit Cloud | Rooms, media, agent dispatch | cloud.livekit.io (free project) |
 | Brodie's worker (`facetime.worker --dance`) | The coach: pose, judge, voice, the lesson video | A machine with the data bundle and the Python env (a laptop is fine); it connects out to LiveKit, no inbound port |
 
@@ -38,15 +38,22 @@ Environment variables on the host:
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | from the LiveKit project (Settings, then Keys) |
 | `AGENT_NAME` | `brodie-dance` (must match the worker) |
 | `DANCE` | `sbbyj` (the lesson the worker runs; "live now" on the landing page) |
-| `HEARTBEAT_KEY` | any long random string, the same as the worker's `BRODIE_HEARTBEAT_KEY`; with it, "brodie is online" and new calls only while the worker's heartbeat arrives (unset: no badge, calls always handed out) |
+| `HEARTBEAT_KEY` | any long random string, the same as the worker's `BRODIE_HEARTBEAT_KEY`; it turns on Brodie's line (free / `?preview=free`, `busy`, `offline`, `loggedout` with a countdown / offline) and lets the worker report sessions (unset: always shown as free) |
 | `SESSION_SECRET` | any long random string, so logins survive a redeploy |
 | `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
-| `FACETIME_NUMBER` | the Chert FaceTime line (optional; the FaceTime buttons appear when set) |
+| `FACETIME_NUMBER` | the Chert FaceTime line, e.g. `+16282892384` (any formatting is fine: the link uses the digits, the page shows `+1 (628) 289-2384`); shown only to signed-in visitors while Brodie is free |
+| `LINE_CAP_S` / `LINE_BUFFER_S` | session cap and reset buffer in seconds (optional, default 900 / 30) |
+| `DEV_PREVIEW` | never on the host. `1` on a dev machine turns on `?preview=free`, `busy`, `offline`, `loggedout` |
 | `FORK_URL` | the team's GitHub fork (optional) |
 | `HOST` / `PORT` | `0.0.0.0` and whatever the host assigns (the Dockerfile sets both; most hosts override `PORT`) |
 
-Accounts: users sign up on the landing page (name, email, password; PBKDF2 hashes in sqlite) and get a signed, HttpOnly session
-cookie. `/app` and `/api/token` need that cookie, so only signed-up users can start calls (which spend Gemini minutes).
+Accounts: visitors enter their email on the landing page (one field, `/api/start`) and get a signed, HttpOnly session cookie;
+a new email creates the account. Only signed-in visitors see Brodie's status and the FaceTime number (`/api/line`). Lessons
+are FaceTime only: the web call page and `/api/token` are gone.
+
+**Email-only sign-in has no check that the visitor owns the address** (anyone who types an email is signed into that account).
+That is acceptable only while accounts hold nothing but name, email and call count. Don't store anything personal on accounts
+(scores tied to a person, phone numbers, recordings) unless sign-in gets a real check, such as an emailed link or code.
 The cookie is marked Secure when the request arrives over https (directly or via `X-Forwarded-Proto`).
 
 ## 2. Run the worker
@@ -59,7 +66,10 @@ bash scripts/demo_worker.sh
 
 Add to that machine's `.env.local` so the website knows Brodie is up: `BRODIE_SERVER=https://<server>` and
 `BRODIE_HEARTBEAT_KEY=<the server's HEARTBEAT_KEY>`. The worker then POSTs `/api/heartbeat` every 20 s; when it stops (laptop
-closed, worker stopped) the page says "brodie is offline" within about a minute and `/api/token` refuses new calls with that message.
+closed, worker stopped) the page says "Brodie is `?preview=free`, `busy`, `offline`, `loggedout` right now" within about a minute. The worker also reports each FaceTime
+session's start and end (`/api/line/start`, `/api/line/end`): while one runs the page shows `?preview=free`, `busy`, `offline`, `loggedout` with a countdown, and another
+caller hears a short `?preview=free`, `busy`, `offline`, `loggedout` message and is hung up. If the worker can't reach the server, the session still runs but does not
+hold the line (a WARNING in the worker log).
 
 LiveKit dispatches that worker into every room the website creates (`web-<user>-…`) and into the Chert FaceTime line. The
 worker's `DANCE` should match the website's.

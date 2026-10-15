@@ -1,17 +1,15 @@
-"""Brodie's one line: one caller at a time, web or FaceTime. The server holds it; the worker reports calls starting and ending.
+"""Brodie's one line: one FaceTime session at a time. The server holds it; the worker reports sessions starting and ending.
 
     line.status(online)                  # {state: open|busy|offline, seconds_left, cap_s, buffer_s, enabled}
-    line.reserve(room)                   # /api/token, web call: (True, None) or (False, status) when the line is taken
-    line.start(room, call_id)            # the worker bound a caller: confirms a web reservation or takes the line (FaceTime)
-    line.end(room)                       # the worker's job ended: the line stays busy for the reset buffer, then opens
+    line.start(room, call_id)            # the worker has a caller: (True, None) takes the line, (False, status) when it is busy
+    line.end(room)                       # the session ended: busy for the reset buffer, then open
 
 One row in the same sqlite file as the accounts (users.DB), so the line survives a server restart. States:
-  pending  /api/token handed out a web call; released after PENDING_S unless the worker confirms that room (tab closed,
-           camera denied, never joined). Shown as busy with the worst case (cap + buffer) so the countdown never jumps up.
-  busy     a call in progress since t_start; expires on its own at t_start + cap + buffer if no end ever comes (a crash).
-  reset    the call ended at t_end; open again at t_end + buffer.
-The line is only on when HEARTBEAT_KEY is set (the worker can then report calls); otherwise status() is always open and
-nothing is ever refused, exactly as before. LINE_CAP_S (900) and LINE_BUFFER_S (30) are read from the environment.
+  busy     a session since t_start; expires on its own at t_start + cap + buffer if no end ever comes (a crash).
+  reset    the session ended at t_end; open again at t_end + buffer.
+seconds_left is the time until the line frees, never more than the cap (15:00): the page shows it as the countdown.
+The line is only on when HEARTBEAT_KEY is set (the worker can then report sessions); otherwise status() is always open and
+nothing is ever refused. LINE_CAP_S (900) and LINE_BUFFER_S (30) are read from the environment.
 """
 import os, time
 from brodie import users
@@ -21,7 +19,6 @@ now = time.time                      # tests replace this
 
 def cap_s(): return float(os.environ.get('LINE_CAP_S', '900'))
 def buffer_s(): return float(os.environ.get('LINE_BUFFER_S', '30'))
-def pending_s(): return float(os.environ.get('LINE_PENDING_S', '60'))
 def enabled(): return bool(os.environ.get('HEARTBEAT_KEY'))
 
 
@@ -34,20 +31,9 @@ def init():
 
 def _free_at(r):
     """When the stored row stops holding the line (0 = free now)."""
-    if r['state'] == 'pending': return r['t_start'] + pending_s()
     if r['state'] == 'busy': return r['t_start'] + cap_s() + buffer_s()
     if r['state'] == 'reset': return r['t_end'] + buffer_s()
     return 0.0
-
-
-def _shown_left(r, t):
-    """Seconds until the line frees as the page shows it: a pending web call shows the worst case, cap + buffer."""
-    if r['state'] == 'pending': return cap_s() + buffer_s()
-    return max(0.0, _free_at(r) - t)
-
-
-def _row(c):
-    return c.execute('SELECT * FROM line WHERE id = 1').fetchone()
 
 
 def _held(r, t):
@@ -56,7 +42,11 @@ def _held(r, t):
 
 def _status(r, t):
     if not _held(r, t): return {'state': 'open', 'seconds_left': 0}
-    return {'state': 'busy', 'seconds_left': int(round(_shown_left(r, t)))}
+    return {'state': 'busy', 'seconds_left': int(round(min(cap_s(), _free_at(r) - t)))}
+
+
+def _row(c):
+    return c.execute('SELECT * FROM line WHERE id = 1').fetchone()
 
 
 def status(online=None):
@@ -69,25 +59,13 @@ def status(online=None):
 
 
 def _tx():
-    c = users._db(); c.isolation_level = None; c.execute('BEGIN IMMEDIATE')   # one writer at a time: two clicks can't both take the line
+    c = users._db(); c.isolation_level = None; c.execute('BEGIN IMMEDIATE')   # one writer at a time: two callers can't both take it
     return c
 
 
-def reserve(room):
-    """Web call: take the line for `room` until the worker confirms it (start) or PENDING_S passes."""
-    if not enabled(): return True, None
-    c = _tx(); t = now()
-    try:
-        r = _row(c)
-        if _held(r, t): c.execute('ROLLBACK'); return False, dict(status(), **_status(r, t))
-        c.execute('UPDATE line SET state = "pending", room = ?, call_id = "", t_start = ?, t_end = 0 WHERE id = 1', (room, t))
-        c.execute('COMMIT'); return True, None
-    finally: c.close()
-
-
 def start(room, call_id=''):
-    """The worker has a caller in `room`. OK when the line is free or this room holds it (its web reservation, or a repeat);
-    otherwise (False, status) and the worker tells the caller the line is busy."""
+    """The worker has a caller in `room`. OK when the line is free (or this room already holds it); otherwise (False, status)
+    and the worker tells the caller the line is busy."""
     if not enabled(): return True, None
     c = _tx(); t = now()
     try:
@@ -100,12 +78,12 @@ def start(room, call_id=''):
 
 
 def end(room):
-    """The call in `room` ended: busy for the reset buffer, then open. An end for another room changes nothing."""
+    """The session in `room` ended: busy for the reset buffer, then open. An end for another room changes nothing."""
     if not enabled(): return False
     c = _tx(); t = now()
     try:
         r = _row(c)
-        if r['room'] != room or r['state'] not in ('busy', 'pending') or not _held(r, t): c.execute('ROLLBACK'); return False
+        if r['room'] != room or r['state'] != 'busy' or not _held(r, t): c.execute('ROLLBACK'); return False
         c.execute('UPDATE line SET state = "reset", t_end = ? WHERE id = 1', (t,))
         c.execute('COMMIT'); return True
     finally: c.close()

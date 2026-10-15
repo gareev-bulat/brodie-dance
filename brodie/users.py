@@ -94,6 +94,21 @@ def create(name, email, password):
         return _row(c.execute('SELECT * FROM users WHERE id = ?', (cur.lastrowid,)).fetchone())
 
 
+def by_email(email):
+    """NOTE: email-only sign-in, no check that the visitor owns the address: anyone who types an email is signed into that account.
+    Fine while an account holds only name, email and call count. Don't store anything personal on accounts (scores tied to a
+    person, phone numbers, recordings) unless sign-in gets a real check (an emailed link or code).
+    The landing page's one field: the account for this email, created on first use with no password (name = the part before @;
+    pw_hash empty, so no password ever matches it). Returns (user, created). ValueError on a bad email."""
+    email = (email or '').strip().lower()[:120]
+    if not EMAIL.match(email): raise ValueError('invalid: that does not look like an email address')
+    with _db() as c:
+        r = c.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        if r is not None: return _row(r), False
+        cur = c.execute('INSERT INTO users (name, email, pw_hash, salt, created) VALUES (?, ?, "", "", ?)', (email.split('@')[0][:40], email, time.time()))
+        return _row(c.execute('SELECT * FROM users WHERE id = ?', (cur.lastrowid,)).fetchone()), True
+
+
 def verify(email, password):
     email = (email or '').strip().lower()
     with _db() as c:

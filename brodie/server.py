@@ -1,37 +1,68 @@
-"""Brodie Dance on the web: the landing page, accounts, and the call page that joins a LiveKit room with Brodie's worker.
+"""Brodie Dance on the web: the landing page and accounts. Lessons happen over FaceTime only (Brodie's worker on the Chert line).
 
-  python -m brodie.server [--host 127.0.0.1] [--port 8765]     # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET, AGENT_NAME in env
-Routes: /  landing (web/index.html)      /app  the call page (web/app.html, needs a login)
+  python -m brodie.server [--host 127.0.0.1] [--port 8765]
+Routes: /  landing (web/index.html)
+        POST /api/start {email}  the landing page's one field: creates the account (no password) or signs into it
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
-        GET /api/token   a LiveKit token for a fresh room "web-<user>-<id>" with AGENT_NAME dispatched into it (login required)
-        GET /api/config  what the landing page shows (live status, fork)   GET /api/dances   GET /api/health
-        POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "online" on the page comes from it
-        GET /api/line  the one line: open | busy (seconds_left) | offline (brodie/line.py)
-        POST /api/line/start {room, call_id}   POST /api/line/end {room}   the worker reporting calls (X-Brodie-Key)
+        GET /api/line   signed in only: Brodie's one line, open | busy (seconds_left) | offline, plus the FaceTime number when open
+        GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
+        POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
+        POST /api/line/start {room, call_id}   POST /api/line/end {room}   the worker reporting sessions (X-Brodie-Key)
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
-import argparse, datetime, glob, hmac, json, os, secrets, time
+import argparse, datetime, glob, hmac, json, os, time
 from aiohttp import web
 from brodie import line, users
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'bd_session'
-LIVEKIT_KEYS = ('LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')
 # Brodie's worker runs on another machine; it POSTs /api/heartbeat every ~20 s (facetime/worker.py, BRODIE_SERVER +
 # BRODIE_HEARTBEAT_KEY). With HEARTBEAT_KEY set here, "online" means a heartbeat in the last HEARTBEAT_TTL seconds.
 HEARTBEAT_TTL = float(os.environ.get('HEARTBEAT_TTL', '75'))
 _LAST_BEAT = {'t': 0.0, 'agent': ''}
 
 
-def _keys_ok():
-    return all(os.environ.get(k) and '<' not in os.environ.get(k, '') for k in LIVEKIT_KEYS)
-
-
 def worker_online():
     """True / False when the worker heartbeat is configured (HEARTBEAT_KEY), None when it is not (unknown)."""
     if not os.environ.get('HEARTBEAT_KEY'): return None
     return time.time() - _LAST_BEAT['t'] < HEARTBEAT_TTL
+
+
+# ---- dev only: ?preview=free|busy|offline|loggedout shows each state of the landing page without a real call ----
+# Off unless DEV_PREVIEW=1 is set (never on the host): without it the parameter is ignored everywhere.
+PREVIEW_BUSY_S = 402                      # the busy preview counts down from 6:42, then turns free (the switch-over), then starts again
+_PREVIEW = {'t0': 0.0}
+
+
+def facetime_number():
+    """FACETIME_NUMBER as (shown, dialled): any formatting is stripped for the link (+16282892384); a US number is shown as
+    +1 (628) 289-2384, anything else as given. ('', '') when unset."""
+    raw = os.environ.get('FACETIME_NUMBER', '').strip()
+    digits = ''.join(ch for ch in raw if ch.isdigit())
+    if not digits: return raw, raw                       # an Apple ID email is dialled as is
+    dial = '+' + digits if raw.startswith('+') or len(digits) == 11 else digits
+    if len(digits) == 11 and digits[0] == '1': return f'+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}', '+' + digits
+    if len(digits) == 10: return f'+1 ({digits[:3]}) {digits[3:6]}-{digits[6:]}', '+1' + digits
+    return raw, dial
+
+
+def preview(req):
+    p = req.query.get('preview', '')
+    return p if os.environ.get('DEV_PREVIEW') == '1' and p in ('free', 'busy', 'offline', 'loggedout') else None
+
+
+def _preview_line(p):
+    st = {'enabled': True, 'cap_s': line.cap_s(), 'buffer_s': line.buffer_s(), 'preview': p}
+    if p == 'busy':
+        now = time.time()
+        if now - _PREVIEW['t0'] > PREVIEW_BUSY_S + 15: _PREVIEW['t0'] = now
+        left = PREVIEW_BUSY_S - (now - _PREVIEW['t0'])
+        if left > 0: return dict(st, state='busy', seconds_left=int(round(left)))
+        p = 'free'
+    if p == 'offline': return dict(st, state='offline', seconds_left=0)
+    shown, dial = facetime_number()
+    return dict(st, state='open', seconds_left=0, facetime=shown or '+1 (555) 010-0000', facetime_dial=dial or '+15550100000')
 
 
 def _public(u):
@@ -74,54 +105,32 @@ async def logout(_req):
     resp = web.json_response({'ok': True}); resp.del_cookie(COOKIE, path='/'); return resp
 
 
+async def start(req):
+    """One field: an email signs the visitor in (a new email creates the account). Then the page shows Brodie's line."""
+    b = await _body(req)
+    try: u, created = users.by_email(b.get('email', ''))
+    except ValueError as e: return web.json_response({'error': str(e).replace('invalid: ', '')}, status=400)
+    return _with_session(web.json_response({'ok': True, 'new': created, 'user': _public(u)}), req, u['id'])
+
+
 async def me(req):
+    p = preview(req)
+    if p == 'loggedout': return web.json_response({'error': 'not logged in'}, status=401)
+    if p: return web.json_response({'user': {'id': 0, 'name': 'preview', 'email': 'preview@example.com', 'calls': 0}})
     u = current_user(req)
     if u is None: return web.json_response({'error': 'not logged in'}, status=401)
     return web.json_response({'user': _public(u)})
 
 
-def room_name(u): return f'web-{u["id"]}-{secrets.token_hex(3)}'
-
-
-def _busy(st):
-    return web.json_response(dict(st, error="brodie's teaching someone right now.", line=st), status=409, headers={'Cache-Control': 'no-store'})
-
-
-def mint_call(u, room=None):
-    """A token for the user in a fresh room, with Brodie's worker (AGENT_NAME) dispatched into it."""
-    from livekit import api
-    from livekit.protocol.agent_dispatch import RoomAgentDispatch
-    from livekit.protocol.room import RoomConfiguration
-    room, identity = room or room_name(u), f'user-{u["id"]}'
-    t = (api.AccessToken(os.environ['LIVEKIT_API_KEY'], os.environ['LIVEKIT_API_SECRET']).with_identity(identity).with_name(u['name'])
-         .with_ttl(datetime.timedelta(hours=1))
-         .with_grants(api.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True, can_publish_data=True,
-                                      can_update_own_metadata=True))
-         .with_attributes({'brodie.uid': str(u['id']), 'brodie.name': u['name']}))
-    if os.environ.get('AGENT_NAME'):
-        t = t.with_room_config(RoomConfiguration(agents=[RoomAgentDispatch(agent_name=os.environ['AGENT_NAME'])]))
-    return {'url': os.environ['LIVEKIT_URL'], 'token': t.to_jwt(), 'room': room, 'identity': identity}
-
-
-async def token(req):
-    u = current_user(req)
-    if u is None: return web.json_response({'error': 'log in first'}, status=401)
-    missing = [k for k in LIVEKIT_KEYS if not os.environ.get(k) or '<' in os.environ.get(k, '')]
-    if missing: return web.json_response({'error': f'The server has no LiveKit keys yet ({", ".join(missing)}).'}, status=503)
-    if worker_online() is False:
-        return web.json_response({'error': "brodie is offline right now. try again in a little while."}, status=503)
-    room = room_name(u)
-    ok, st = line.reserve(room)                               # one line: refused while someone is on a call (or its reset buffer)
-    if not ok: return _busy(st)
-    info = mint_call(u, room); users.bump_calls(u['id'], os.environ.get('DANCE', ''))
-    return web.json_response(info)
-
-
-async def health(_req):
-    beat = _LAST_BEAT['t']
-    return web.json_response({'ok': True, 'agent_name': os.environ.get('AGENT_NAME', ''), 'dance': os.environ.get('DANCE', ''),
-                              'livekit': _keys_ok(), 'users': users.count(), 'worker_online': worker_online(),
-                              'last_heartbeat_s_ago': round(time.time() - beat, 1) if beat else None})
+async def health(req):
+    """Public: ok. With ?key=<ADMIN_KEY>: the worker's heartbeat and the line too (Brodie's status is for signed-in visitors)."""
+    out = {'ok': True, 'dance': os.environ.get('DANCE', '')}
+    key = os.environ.get('ADMIN_KEY', '')
+    if key and hmac.compare_digest(req.query.get('key', ''), key):
+        beat = _LAST_BEAT['t']
+        out.update(users=users.count(), worker_online=worker_online(), line=line.status(worker_online()),
+                   last_heartbeat_s_ago=round(time.time() - beat, 1) if beat else None)
+    return web.json_response(out)
 
 
 async def heartbeat(req):
@@ -139,8 +148,14 @@ def _worker_ok(req):
     return bool(key) and hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key)
 
 
-async def line_status(_req):
-    return web.json_response(line.status(worker_online()), headers=dict(CORS, **{'Cache-Control': 'no-store'}))
+async def line_status(req):
+    """Signed in only (logged out: 401 and nothing else). The FaceTime number is included only while Brodie is free."""
+    p = preview(req)
+    if p and p != 'loggedout': return web.json_response(_preview_line(p), headers={'Cache-Control': 'no-store'})
+    if p == 'loggedout' or current_user(req) is None: return web.json_response({'error': 'sign up first'}, status=401, headers={'Cache-Control': 'no-store'})
+    st = line.status(worker_online())
+    if st['state'] == 'open': st['facetime'], st['facetime_dial'] = facetime_number()
+    return web.json_response(st, headers={'Cache-Control': 'no-store'})
 
 
 async def line_start(req):
@@ -150,7 +165,8 @@ async def line_start(req):
     if not room: return web.json_response({'error': 'room required'}, status=400)
     ok, st = line.start(room, str(b.get('call_id', '') or '')[:64])
     print(f'[line] start {room!r}: {"ok" if ok else "BUSY " + str(st.get("seconds_left")) + " s left"}', flush=True)
-    return web.json_response({'ok': True, 'cap_s': line.cap_s()}) if ok else _busy(st)
+    if ok: return web.json_response({'ok': True, 'cap_s': line.cap_s()})
+    return web.json_response(dict(st, error='busy'), status=409)
 
 
 async def line_end(req):
@@ -162,14 +178,9 @@ async def line_end(req):
 
 
 async def config(_req):
-    """What the landing page needs to link up with the running system (all from env, nothing secret).
-    worker: True / False from the worker heartbeat, None when HEARTBEAT_KEY is not set (the page then shows no badge)."""
-    up = worker_online()
-    ready = _keys_ok() and bool(os.environ.get('AGENT_NAME'))
-    return web.json_response({'ok': True, 'live': ready and up is not False, 'worker': up if ready else False,
-                              'agent_name': os.environ.get('AGENT_NAME', ''), 'facetime': os.environ.get('FACETIME_NUMBER', ''),
-                              'dance': os.environ.get('DANCE', ''), 'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance'),
-                              'app': '/app'})
+    """Public settings for the landing page. No FaceTime number and no status here: those are for signed-in visitors (/api/line)."""
+    return web.json_response({'ok': True, 'dance': os.environ.get('DANCE', ''),
+                              'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance')})
 
 
 async def dances(_req):
@@ -231,20 +242,15 @@ async def stats(req):
 async def landing(_req): return web.FileResponse(os.path.join(WEB, 'index.html'))
 
 
-async def app_page(req):
-    if current_user(req) is None: raise web.HTTPFound('/?next=app')
-    return web.FileResponse(os.path.join(WEB, 'app.html'))
-
-
 def app():
     users.init(); line.init()
     a = web.Application(client_max_size=64 * 1024)
-    a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.get('/api/me', me),
-                  web.get('/api/token', token), web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
+    a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.post('/api/start', start), web.get('/api/me', me),
+                  web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
                   web.get('/api/line', line_status), web.post('/api/line/start', line_start), web.post('/api/line/end', line_end), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
                   web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
-                  web.get('/', landing), web.get('/index.html', landing), web.get('/app', app_page), web.static('/', WEB)])
+                  web.get('/', landing), web.get('/index.html', landing), web.static('/', WEB)])
     return a
 
 
