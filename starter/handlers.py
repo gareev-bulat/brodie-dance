@@ -84,12 +84,20 @@ def _player():
     except Exception: return None
 
 
-def _ensure_screen():
-    """Start Brodie's video once the worker's room is reachable (through say_now -> VoiceLayer.job.room)."""
+def on_room(room):
+    """Called by the worker as soon as it has joined a room (Chert's warm rooms too, before any caller): Brodie's video is
+    already running when the FaceTime bridge joins. Started only after the caller was bound, the bridge left 3-4 s into the
+    call and Chert logged "Agent failed" (Oct 15 morning); with the video already up (Oct 15, 1 AM) the call went through.
+    The video comes from the prewarm cache (screen.cached_frames), so starting it in every warm room costs no decode."""
+    _ensure_screen(room)
+
+
+def _ensure_screen(room=None):
+    """Start Brodie's video once the worker's room is reachable (on_room, else through say_now -> VoiceLayer.job.room)."""
     if S['screen'] or not SHOW_VIDEO: return
     S['screen'] = True
     try:
-        room = S['say'].__self__.job.room
+        room = room or S['say'].__self__.job.room
         from starter.dance.screen import Screen
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
