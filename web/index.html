@@ -86,6 +86,13 @@
   .chips span { font-size: 0.85rem; color: #CFCBC3; background: var(--ground); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
   .empty { color: var(--grey); }
   .soon-title { margin-top: 40px; }
+  .vote { display: flex; align-items: center; justify-content: space-between; gap: 18px 28px; flex-wrap: wrap; margin-top: 18px; padding: 22px 24px; border-radius: 16px; border: 1px dashed var(--volt); background: rgba(217,255,61,0.05); text-decoration: none; color: var(--text); transition: background .15s, transform .15s; }
+  .vote:hover { background: rgba(217,255,61,0.1); transform: translateY(-2px); }
+  .vote > span:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 280px; }
+  .vote b { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: 1.45rem; line-height: 1.1; }
+  .vote small { font-size: 0.95rem; color: #CFCBC3; }
+  .vote .btn { white-space: nowrap; }
+  #vote-follow { margin-top: 22px; }
   .soon { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
   .soon a { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px; text-decoration: none; transition: border-color .15s, transform .15s; }
   .soon a:hover { border-color: var(--volt); transform: translateY(-2px); }
@@ -117,6 +124,22 @@
   .social .pill:hover { border-color: var(--volt); transform: translateY(-1px); }
   .social .pill > span { display: flex; flex-direction: column; line-height: 1.15; }
   .social .pill small { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: 0.8rem; color: var(--grey); letter-spacing: 0; }
+  .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; margin-top: 26px; }
+  .hero-actions .cta { margin-top: 0; }
+  #follow-hero { margin-top: 0; gap: 8px; }
+  #follow-hero .pill { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  #follow-hero .pill .ico { width: 20px; height: 20px; }
+  #follow-hero .pill:hover { background: var(--volt); }
+  #follow-hero .pill:hover .ico { color: var(--ink); }
+  .textlink { color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.95rem; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
+  .textlink:hover { color: var(--volt); border-bottom-color: var(--volt); }
+  .btn.big { font-size: 1.2rem; padding: 18px 30px; border-radius: 14px; }
+  .later { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); max-width: 520px; }
+  .later-title { font-weight: 600; font-size: 0.95rem; margin: 0 0 10px; }
+  .waitlist.slim { margin-top: 0; }
+  .waitlist.slim input { padding: 11px 14px; font-size: 0.95rem; }
+  .waitlist.slim .btn { font-size: 0.95rem; padding: 10px 18px; background: transparent; color: var(--text); border-color: var(--line); cursor: pointer; }
+  .waitlist.slim .btn:hover { border-color: var(--volt); }
   .social.big { margin-top: 24px; gap: 14px; }
   .social.big .pill { gap: 16px; padding: 18px 24px 18px 20px; border-radius: 18px; font-size: 1.2rem; min-width: 220px; }
   .social.big .pill .ico { width: 30px; height: 30px; }
@@ -172,12 +195,12 @@
     .waitlist .btn { width: 100%; justify-content: center; }
     .status { display: none; }
     .social.big .pill { flex: 1 1 100%; min-width: 0; }
+    .vote .btn { width: 100%; justify-content: center; }
+    #vote-follow { width: 100%; justify-content: center; }
+    .cta#cta-row { display: block; }
+    .btn.big { width: 100%; justify-content: center; }
   }
-  @media (max-width: 480px) {
-    #follow-hero .pill { padding: 11px; }
-    #follow-hero .pill .ico { width: 1.3em; height: 1.3em; }
-    #follow-hero .pill > span { display: none; }
-  }
+
   body { overflow-x: hidden; }
 </style>
 </head>
@@ -197,16 +220,19 @@
       <div class="eyebrow">a coach on your video call</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
       <p class="lead">Brodie watches your camera, scores every part against the creator and tells you the one thing to fix.</p>
-      <form class="waitlist" id="waitlist" autocomplete="on">
-        <input type="email" id="wl-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
-        <button class="btn primary" type="submit" id="wl-go">join the waitlist</button>
-      </form>
-      <p class="fine" id="wl-note">First on the list, first to dance.</p>
-      <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok</span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram</span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube</span></a></div>
-      <div class="cta" id="cta-row">
-        <a class="btn ghost" id="cta-app" href="#signup">have access? sign up to dance</a>
+      <div class="cta" id="cta-row"><a class="btn primary big" id="cta-app" href="#signup">sign up and dance →</a></div>
+      <p class="fine" id="cta-fine">Free account. Works in the browser on a phone or laptop.</p>
+      <div class="hero-actions">
+        <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i></a></div>
       </div>
-      <p class="fine" id="cta-fine">Works in the browser on a phone or laptop.</p>
+      <div class="later">
+        <p class="later-title">new dances in your inbox</p>
+        <form class="waitlist slim" id="waitlist" autocomplete="on">
+          <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email">
+          <button class="btn ghost" type="submit" id="wl-go">notify me</button>
+        </form>
+        <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
+      </div>
     </div>
     <div class="art"><img src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top"></div>
   </header>
@@ -226,6 +252,10 @@
     <div class="dances" id="dances-list"><div class="empty">Loading the lesson list…</div></div>
     <h3 class="soon-title">up next</h3>
     <div class="soon" id="soon-list"></div>
+    <a class="vote" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">
+      <span><b>don't see your dance?</b><small>Tell us which one Brodie should teach next. The most requested get built first.</small></span>
+      <span class="btn primary">vote for the next dance →</span>
+    </a>
   </section>
 
   <section id="under">
@@ -240,6 +270,7 @@
   <section id="follow">
     <h2>more dances on the way.</h2>
     <p class="lead">Follow Brodie to hear first about new dances and the FaceTime number&nbsp;drop&nbsp;📞</p>
+    <a class="btn primary" id="vote-follow" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">vote for the next dance →</a>
     <div class="social big"><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok<small>@verityagent8</small></span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram<small>@brodie.dancity</small></span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube<small>@verityagent-o6t</small></span></a></div>
   </section>
 
@@ -395,11 +426,11 @@
     if (u) {
       $('account').innerHTML = '<b>hi ' + u.name.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
       $('nav-logout').onclick = async (e) => { e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }); showUser(null); };
-      cta.textContent = 'dance with brodie'; cta.href = APP; $('cta-fine').textContent = 'Step back so your whole body is in frame, sound on.';
+      cta.textContent = 'dance with brodie →'; cta.href = APP; $('cta-fine').textContent = 'Step back so your whole body is in frame, sound on.';
     } else {
       $('account').innerHTML = '<a href="#" id="nav-login">log in</a>';
       $('nav-login').onclick = (e) => { e.preventDefault(); openAuth('login'); };
-      cta.textContent = 'sign up to dance'; cta.href = '#signup';
+      cta.textContent = 'sign up and dance →'; cta.href = '#signup';
       $('cta-fine').textContent = 'Free account. Works in the browser on a phone or laptop.';
     }
   }
@@ -430,7 +461,7 @@
       const d = await r.json();
       if (!r.ok) { wlNote.textContent = d.error || 'Something went wrong.'; return; }
       wl.classList.add('done');
-      wl.innerHTML = d.new ? `You're on the list! We'll email you the moment Brodie opens.` : `You're already on the list. See you soon.`;
+      wl.innerHTML = d.new ? `You're in! We'll email you when a new dance drops.` : `You're already on the list. See you soon.`;
       wlNote.hidden = true;
     } catch (err) { wlNote.textContent = 'Could not reach the waitlist server. Try again in a minute.'; }
     finally { go.disabled = false; }
