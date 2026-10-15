@@ -61,7 +61,6 @@ from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions,
 from facetime import DATA, AUDIO_TRACK_NAME
 from facetime.pipeline import FPS
 from facetime.perception import Perception, Config, add_arguments, build_pipeline, EVENT_SCHEMA_VERSION
-from facetime import line_client
 from facetime.coach_agent import frame_to_rgb              # the same frame conversion as the demo coach
 
 log = logging.getLogger('worker')
@@ -124,7 +123,7 @@ def build_parser():
     ap.add_argument('--floor', default=os.environ.get('FLOOR') or None, choices=['gated', 'open'], help='gated = the voice speaks between sets only (the default with perception on); '
                                                                                                         'open = always allowed to speak, nothing is ever cut (the default with --perception off; env FLOOR)')
     ap.add_argument('--avatar', default=os.environ.get('AVATAR') or None, help='publish a face video track for this Verity character (verity/variants.py key; env AVATAR): Chert expects audio + video from the agent')
-    ap.add_argument('--text', action='store_true', default=truthy(os.environ.get('VOICE_TEXT')), help='with --voice gemini: typed chat in (lk.chat) and transcripts out (lk.transcription) on the room (env VOICE_TEXT=1)')
+    ap.add_argument('--text', action='store_true', default=truthy(os.environ.get('VOICE_TEXT')), help='with --voice gemini: typed chat in (lk.chat) and transcripts out (lk.transcription), for the web app (env VOICE_TEXT=1)')
     ap.add_argument('--vision', action='store_true', default=truthy(os.environ.get('VISION')), help='with --voice gemini: tee the caller\'s video into the model session at --vision-fps (env VISION=1)')
     ap.add_argument('--vision-fps', type=float, default=float(os.environ.get('VISION_FPS', '1') or 1), help='frames per second handed to the model with --vision (default 1, at most 2; JPEG per frame)')
     ap.add_argument('-h', '--help', action='store_true', help='show this help and exit')
@@ -258,7 +257,6 @@ class CoachJob:
         self.end_reason = None; self.leave_task = None; self.ctx_shutdown_called = False; self.t_end = None
         self.session_state = None; self.probes_ignored = 0        # the probe (--latency-probe) never beeps or opens the floor during an active set
         self.voice_mode = perception_off(a)                       # --perception off: no Perception; the worker emits its own session/status events
-        self.line_task = None; self.line_held = False; self.line_refused = False; self.line_timers = []; self.line_keepalive = None   # Brodie's one line (facetime/line_client.py)
         self.t0 = time.monotonic(); self.ev_seq = 0; self.vision = None; self.vision_logged = False; self.session_opened = False; self.open_task = None
 
     # ---- lifecycle ----
@@ -310,6 +308,11 @@ class CoachJob:
         print(f'[worker] events (schema v{EVENT_SCHEMA_VERSION}) -> {a.event_log}' + (f' and data topic {a.data_topic!r}' if a.publish_data else ''), flush=True)
         if self.warm:
             print('[worker] warm job (chert_warm): no caller; staying joined, nothing is said until a participant publishes video' + (' or audio' if self.voice_mode else ''), flush=True)
+        if self.voice_mode and getattr(a, 'text', False) and self.room.name.startswith('web-'):   # web app: a caller may only type (mic and camera off)
+            def web_caller(p):
+                if self.bound is None and not self.closed and p.kind != AGENT_KIND: self.bind(p, 'web caller (typed chat; mic/camera optional)')
+            self.room.on('participant_connected', web_caller)
+            for p in list(self.room.remote_participants.values()): web_caller(p)
         if self.voice_mode:
             self.consumer_tasks = [asyncio.create_task(self._status_loop(), name='status-loop')]
         else:
@@ -355,10 +358,6 @@ class CoachJob:
         self.closed = True; self.stop.set(); self.done.set(); t0 = time.monotonic()
         if self.t_end is None: self.t_end = t0
         if self.leave_task is not None: self.leave_task.cancel()
-        if self.line_task is not None and not self.line_task.done():    # a start still in flight may take the line on the server
-            try: await asyncio.wait_for(asyncio.shield(self.line_task), line_client.TIMEOUT_S + 0.5)
-            except BaseException as e: print(f'[line] start still pending at cleanup ({type(e).__name__})', flush=True)
-        await self._line_release(self.end_reason or 'job ended', wait=True)   # bounded: never blocks the cleanup for long
         if getattr(self, 'avatar_task', None) is not None: self.avatar_task.cancel()
         if self.open_task is not None and not self.open_task.done(): self.open_task.cancel()
         for t in getattr(self, 'consumer_tasks', []): t.cancel()
@@ -426,65 +425,11 @@ class CoachJob:
         extra = getattr(self.event_writer, 'extra', None)                   # the JSONL lines carry the call id from the bind on (null before it)
         if isinstance(extra, dict): extra['call_id'] = self.call_id
         print(f'[worker] bound to {participant.identity!r} (call id {self.call_id or "n/a"}): {what}', flush=True)
-        if self.line_task is None and not self.closed:
-            self.line_task = asyncio.create_task(self._line_begin(), name='line-start')
         if self.voice_mode:
             if not self.session_opened and self.open_task is None:
                 self.open_task = asyncio.create_task(self._open_session(participant.identity), name='voice-start')
         elif self.voice is not None and self.voice.model is not None and not self.voice.started:
             asyncio.create_task(self.voice.on_caller(participant.identity, room=self.room), name='voice-start')
-
-    # ---- Brodie's one line: report the call, refuse it when busy, the 15-minute lesson clock ----
-    async def _line_begin(self):
-        ok, info = await asyncio.to_thread(line_client.start, self.room.name, self.call_id)
-        self.line_held = ok and info is not None
-        if self.closed or (ok and self.bound is None):            # the caller was gone before the start came back: end it now
-            if self.line_held and not self.closed: await self._line_release('caller left before the start was confirmed')
-            return
-        if not ok: return await self._line_refuse(info or {})
-        for at, phase in line_client.timeline():
-            self.line_timers.append(self.loop.call_later(at, self._line_phase, phase))
-        if self.line_held: self.line_keepalive = asyncio.create_task(self._line_keepalive(), name='line-keepalive')
-
-    async def _line_keepalive(self):
-        """While the session holds the line: a keepalive every LINE_TOUCH_S, so a crashed or cut-off worker frees the line within
-        about a minute (the server's LINE_STALE_S) instead of at the 15-minute cap."""
-        while self.line_held and not self.closed:
-            await asyncio.sleep(line_client.touch_every_s())
-            if self.line_held and not self.closed: await asyncio.to_thread(line_client.touch, self.room.name)
-
-    async def _line_release(self, reason, wait=False):
-        """Report the end once: the timers and the keepalive stop, the server starts the reset buffer. Retried in line_client."""
-        for h in self.line_timers: h.cancel()
-        self.line_timers = []
-        ka = getattr(self, 'line_keepalive', None)
-        if ka is not None: ka.cancel(); self.line_keepalive = None
-        if not self.line_held: return
-        self.line_held = False; self.line_task = None             # a caller who rejoins starts a new session
-        job = asyncio.to_thread(line_client.end, self.room.name, reason)
-        if not wait: return await job
-        try: await asyncio.wait_for(job, line_client.TIMEOUT_S * 2 + 2)
-        except Exception as e: print(f'[line] WARNING: call end not confirmed ({e!r}): the keepalive stops, so the server frees the line within ~2 min', flush=True)
-
-    async def _line_refuse(self, info):
-        """Busy: one short sentence with the minutes left (a recorded clip, about 3 s), then hang up. The handlers never see this call."""
-        self.line_refused = True
-        text = line_client.busy_text(info.get('seconds_left'))
-        floor = self.voice.floor if self.voice is not None else None
-        await line_client.say_busy(self.player, floor, text, closed=lambda: self.closed)   # the recorded clip, else the live voice
-        self.end('line busy')                                     # hang up right after it was said
-
-    def _line_phase(self, phase):
-        if self.closed: return
-        print(f'[line] {phase} ({(time.monotonic() - self.t0) / 60:.1f} min into the job)', flush=True)
-        if phase == 'hangup': return self.end('line cap reached')
-        hook = getattr(getattr(self.voice, 'handlers', None), '__globals__', {}).get('on_line')
-        if callable(hook):                                        # the lesson decides how to wrap up (starter/handlers.py)
-            try: return hook(phase)
-            except Exception as e: print(f'[line] handlers on_line({phase}) failed: {e!r}', flush=True)
-        if self.voice is not None and self.voice.floor is not None:
-            self.voice.floor.ask("In ONE short sentence tell the caller this is the last part of today's lesson." if phase == 'last_part'
-                                 else 'In two short sentences wrap up the lesson: how they did, and to call back for the next one.')
 
     async def _open_session(self, identity):
         """Voice mode: the model session (when there is one), then ONE session event {state: open, mode: voice} for the handlers."""
@@ -550,8 +495,6 @@ class CoachJob:
         print(f'[worker] participant left: {p.identity}', flush=True)
         if p.identity == self.bound:
             self.bound = None
-            if self.line_held and not self.closed:                # the session is over for the line now, whether or not the job stays
-                asyncio.create_task(self._line_release('caller left'), name='line-end')
             if self.a.leave_grace_s is not None and self.a.leave_grace_s >= 0 and self.leave_task is None and not self.closed:
                 self.leave_task = asyncio.create_task(self._leave_grace(), name='leave-grace')
 

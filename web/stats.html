@@ -45,6 +45,13 @@ button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; pa
 .danger { background:#FF8A7A }
 .confirm { background:var(--panel); border:1px solid #FF8A7A; border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:12px }
 .confirm .ghost { padding:12px 6px }
+.big-state { font:900 56px/1 Archivo, Arial, sans-serif; text-transform:uppercase; font-variant-numeric:tabular-nums }
+.big-state small { font-size:24px; color:var(--cream); margin-left:10px; text-transform:none; font-weight:700 }
+.by { color:var(--grey); font-size:15px }
+.controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+.controls label { display:flex; gap:8px; align-items:center; color:var(--grey); font-size:14px }
+.controls input[type=number] { flex:none; width:76px; padding:10px 12px }
+.secondary { background:var(--panel); color:var(--cream); border:1px solid var(--line) }
 td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
 @media (max-width:640px) { .tiles { grid-template-columns:repeat(2, minmax(0,1fr)) } .tile b { font-size:32px } }
 </style>
@@ -65,14 +72,22 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
   <div id="body" hidden>
     <section id="line-sec">
       <h2>Brodie's line</h2>
-      <div class="tiles" id="line-tiles"></div>
-      <div class="row"><button class="danger" id="reset">Reset line</button><span class="note" id="reset-note"></span></div>
+      <p class="big-state" id="big-state">–</p>
+      <p class="by" id="line-by"></p>
+      <div class="controls">
+        <label>minutes <input type="number" id="busy-min" min="1" max="15" step="1" value="15"></label>
+        <button id="mark-busy">Mark busy</button>
+        <button class="secondary" id="add-5">Add 5 minutes</button>
+        <button class="danger" id="mark-free">Mark free</button>
+        <span class="note" id="line-note"></span>
+      </div>
       <div class="confirm" id="confirm" hidden>
         <p id="confirm-text"></p>
-        <div class="row"><button class="danger" id="confirm-yes">Reset anyway</button><button class="ghost" id="confirm-no" type="button">cancel</button></div>
+        <div class="row"><button class="danger" id="confirm-yes">Mark free</button><button class="ghost" id="confirm-no" type="button">cancel</button></div>
       </div>
+      <div class="tiles" id="line-tiles"></div>
       <div class="scroll"><table>
-        <thead><tr><th>Time</th><th>Event</th><th>Session</th><th>Reason</th><th>Before</th></tr></thead>
+        <thead><tr><th>Time</th><th>Event</th><th>By</th><th>Detail</th></tr></thead>
         <tbody id="line-log"></tbody>
       </table></div>
     </section>
@@ -127,45 +142,59 @@ async function load() {
   clearTimeout(timer); timer = setTimeout(load, 60000);
   loadLine();
 }
-// ---- Brodie's line: who holds it, time left, the worker's last report; an admin reset with an in-page confirm ----
-let lineInfo = null, lineTimer = null;
+// ---- Brodie's line: big status, who started the session; Mark busy / Add 5 minutes / Mark free (ADMIN_KEY on the server) ----
+let lineInfo = null, lineTimer = null, freeAt = 0;
 const ago = s => s == null ? '–' : s < 90 ? s + ' s ago' : Math.round(s / 60) + ' min ago';
-const mmss = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.round(s) % 60).padStart(2, '0');
+const mmss = s => { s = Math.max(0, Math.ceil(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 const when = t => new Date(t * 1000).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit' });
+function showLine(l) {
+  lineInfo = l; freeAt = Date.now() + (l.seconds_left || 0) * 1000;
+  $('line-by').textContent = l.busy ? `started by ${l.started_by || 'unknown'}, ${ago(l.started_s_ago)}` : (l.state === 'offline' ? "Brodie's worker is not sending its heartbeat" : 'nobody on the line');
+  $('line-tiles').innerHTML = tile(ago(l.heartbeat_s_ago), 'worker heartbeat') + tile(l.cap_s / 60 + ' min', 'session length');
+  $('line-log').innerHTML = l.log.length ? l.log.map(e => `<tr><td>${esc(when(e.t))}</td><td>${esc(e.event)}</td><td>${esc(e.actor || '–')}</td>`
+    + `<td class="l">${esc(e.detail || '')}</td></tr>`).join('') : '<tr><td colspan="4">nothing yet</td></tr>';
+  tick();
+}
+function tick() {
+  const l = lineInfo; if (!l) return;
+  const left = (freeAt - Date.now()) / 1000, busy = l.busy && left > 0;
+  const el = $('big-state');
+  el.className = 'big-state state-' + (busy ? 'busy' : l.state === 'offline' ? 'offline' : 'open');
+  el.innerHTML = busy ? `busy <small>${mmss(left)} left</small>` : (l.state === 'offline' ? 'offline' : 'free');
+  if (l.busy && left <= 0 && !lineInfo.refetching) { lineInfo.refetching = true; loadLine(); }
+}
+setInterval(tick, 500);
 async function loadLine() {
   clearTimeout(lineTimer);
   if (!key) return;
   let r; try { r = await fetch(API + '/api/admin/line?key=' + encodeURIComponent(key), { cache: 'no-store' }); } catch { return; }
-  if (!r.ok) return;
-  const l = lineInfo = await r.json();
-  const label = l.state === 'open' ? 'free' : l.state;
-  const session = l.held ? (l.phase === 'reset' ? 'reset buffer' : (l.call_id || l.room)) : '–';
-  $('line-tiles').innerHTML = `<div class="tile"><b class="state-${l.state}">${label}</b><small>line state</small></div>`
-    + `<div class="tile"><b class="sm">${esc(session)}</b><small>session holding it${l.room && l.call_id ? ' · ' + esc(l.room) : ''}</small></div>`
-    + tile(l.started_s_ago == null ? '–' : ago(l.started_s_ago), 'session started')
-    + tile(l.held ? mmss(l.raw_seconds_left) : '–', 'time left')
-    + tile(ago(l.heartbeat_s_ago), 'worker heartbeat')
-    + tile(ago(l.keepalive_s_ago), 'session keepalive');
-  $('line-log').innerHTML = l.log.length ? l.log.map(e => `<tr><td>${esc(when(e.t))}</td><td>${esc(e.event)}</td><td>${esc(e.call_id || e.room || '–')}</td>`
-    + `<td class="l">${esc(e.reason || '')}</td><td class="l">${esc(e.before || '')}</td></tr>`).join('') : '<tr><td colspan="5">no sessions yet</td></tr>';
+  if (r.ok) showLine(await r.json());
   lineTimer = setTimeout(loadLine, 5000);
 }
-function confirmText(l) {
-  if (!l || !l.held) return 'Line is free. Reset anyway? (Nothing to clear; it is logged.)';
-  if (l.phase === 'reset') return `Line is in its reset buffer (${mmss(l.raw_seconds_left)} left). Reset anyway?`;
-  return `Line is busy, session started ${ago(l.started_s_ago)}, ${mmss(l.raw_seconds_left)} left. `
-    + 'If that session is really still running, the next caller could overlap it. Reset anyway?';
-}
-$('reset').addEventListener('click', async () => { await loadLine(); $('confirm-text').textContent = confirmText(lineInfo); $('confirm').hidden = false; $('reset-note').textContent = ''; });
-$('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
-$('confirm-yes').addEventListener('click', async () => {
-  $('confirm-yes').disabled = true;
+async function act(path, label) {
+  $('line-note').textContent = '';
   try {
-    const r = await fetch(API + '/api/admin/line/reset?key=' + encodeURIComponent(key), { method: 'POST' });
-    $('reset-note').textContent = r.ok ? 'Line reset: free now.' : 'Reset failed (' + r.status + ').';
-  } catch { $('reset-note').textContent = "Reset failed: can't reach the server."; }
-  $('confirm-yes').disabled = false; $('confirm').hidden = true; loadLine();
+    const r = await fetch(API + '/api/admin/line/' + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key), { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 403) return fail('wrong key');
+    if (d.log) showLine(d);
+    $('line-note').textContent = r.ok ? label : (r.status === 409 ? 'The line is free: nothing to extend.' : 'Failed (' + r.status + ').');
+  } catch { $('line-note').textContent = "Failed: can't reach the server."; }
+}
+$('mark-busy').addEventListener('click', () => {
+  const m = Math.max(1, Math.min(15, Math.round(Number($('busy-min').value) || 15))); $('busy-min').value = m;
+  act('busy?minutes=' + m, `Marked busy for ${m} min.`);
 });
+$('add-5').addEventListener('click', () => act('extend?minutes=5', 'Added 5 minutes (at most 15 from now).'));
+$('mark-free').addEventListener('click', async () => {
+  await loadLine(); const l = lineInfo;
+  $('confirm-text').textContent = l && l.busy
+    ? `Line is busy (started by ${l.started_by}, ${ago(l.started_s_ago)}, ${mmss(l.seconds_left)} left). If someone is really still on a FaceTime call with Brodie, the next caller could overlap it. Mark free anyway?`
+    : 'Line is already free. Mark free anyway? (It is logged.)';
+  $('confirm').hidden = false;
+});
+$('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+$('confirm-yes').addEventListener('click', async () => { $('confirm').hidden = true; await act('free', 'Marked free.'); });
 
 function fail(msg) { $('err').textContent = msg; $('err').hidden = false; }
 $('login').addEventListener('submit', e => { e.preventDefault(); key = $('key').value.trim(); store.set(key); load(); });

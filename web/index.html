@@ -168,9 +168,15 @@
   .linebox.open { border-color: var(--volt); }
   .linebox.open .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
   .linebox.busy .dot { background: #FFB020; }
+  .linebox.mine { border-color: var(--volt); }
+  .linebox.mine .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
+  .linebox.mine .timer { font-size: 1rem; font-weight: 700; color: #D4D0C8; margin-top: 6px; }
+  .linebox.mine .timer::after { content: ' left in your session'; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 400; }
   .linebox .timer { display: block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
   .linebox .number { display: block; margin-top: 12px; font-size: 1.35rem; font-weight: 700; color: var(--text); text-decoration: none; }
   .linebox .btn { margin-top: 12px; }
+  .linebox #line-done { display: flex; margin-top: 14px; font-size: 0.95rem; padding: 10px 18px; cursor: pointer; background: none; }
+  .linebox #line-done[hidden] { display: none; }
   .linebox .fine { margin-top: 10px; }
   .account { font-size: 0.95rem; color: var(--grey); white-space: nowrap; }
   .account a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
@@ -243,9 +249,10 @@
         <p class="state"><i class="dot"></i><span id="line-msg"></span></p>
         <span class="timer" id="line-timer" hidden></span>
         <div id="line-call" hidden>
-          <a class="number" id="line-number" href="#"></a>
+          <span class="number" id="line-number"></span>
           <a class="btn primary big" id="line-facetime" href="#">FaceTime Brodie</a>
           <p class="fine">FaceTime needs an iPhone, iPad or Mac.</p>
+          <button type="button" class="btn ghost" id="line-done" hidden>I'm done dancing</button>
         </div>
       </div>
       <div class="hero-actions">
@@ -460,13 +467,37 @@
     $('line').hidden = false; $('line').className = 'linebox ' + v.state;
     $('line-msg').textContent = v.text;
     $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
-    const call = v.state === 'open' && !!v.facetime;               // the FaceTime button only while Brodie is free
-    $('line-call').hidden = !call;
+    const call = (v.state === 'open' || v.state === 'mine') && !!v.facetime;   // free, or the session is this visitor's
+    $('line-call').hidden = !call; $('line-done').hidden = v.state !== 'mine';
+    lineState = v.state;
     if (call) {
-      $('line-number').textContent = v.facetime; $('line-number').href = 'tel:' + (v.dial || dial(v.facetime));
+      $('line-number').textContent = v.facetime;
       $('line-facetime').href = 'facetime:' + (v.dial || dial(v.facetime));
     }
   }
+  // "FaceTime Brodie": take the line first (two clicks at once: the server gives it to the first), then open FaceTime
+  let lineState = '';
+  $('line-facetime').addEventListener('click', async (e) => {
+    if (lineState === 'mine') return;                              // the session is already theirs: straight to FaceTime
+    e.preventDefault();
+    const href = $('line-facetime').href;
+    try {
+      const r = await fetch(API + '/api/line/claim' + PREVIEW, { method: 'POST', credentials: 'same-origin' });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) return signedIn(null);
+      if (line && d.state) line.apply(d);
+      if (r.ok && d.state === 'mine') location.href = href;
+    } catch (err) { $('line-msg').textContent = 'No connection to the server. Try again in a moment.'; }
+  });
+  $('line-done').addEventListener('click', async () => {
+    $('line-done').disabled = true;
+    try {
+      const r = await fetch(API + '/api/line/done', { method: 'POST', credentials: 'same-origin' });
+      const d = await r.json().catch(() => ({}));
+      if (line && d.state) line.apply(d);
+    } catch (err) {}
+    finally { $('line-done').disabled = false; }
+  });
   $('start').addEventListener('submit', async (e) => {
     e.preventDefault(); $('start-err').textContent = ''; $('start-go').disabled = true;
     try {

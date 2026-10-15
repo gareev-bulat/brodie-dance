@@ -1,19 +1,16 @@
-"""Brodie's one line: one FaceTime session at a time. The server holds it; the worker reports sessions starting and ending.
+"""Brodie's one line, kept by the website: one FaceTime session at a time. Brodie's worker is not involved (it only sends
+its heartbeat, which decides online / offline).
 
-    line.status(online)                  # {state: open|busy|offline, seconds_left, cap_s, buffer_s, enabled}
-    line.start(room, call_id)            # the worker has a caller: (True, None) takes the line, (False, status) when it is busy
-    line.touch(room)                     # the worker's keepalive every ~20 s while the session runs
-    line.end(room, reason)               # the session ended: busy for the reset buffer, then open
-    line.reset(reason)                   # admin: free now (no buffer), the held session logged as ended with the reason
-    line.info(online), line.log()        # admin view: who holds the line since when, keepalive age; the recent events
+    line.claim(uid)                      # a signed-in visitor clicked "FaceTime Brodie": (True, view) or (False, view) when busy
+    line.done(uid)                       # that visitor clicked "I'm done dancing": the line is free for everyone
+    line.view(uid, online)               # what a visitor sees: open | busy (seconds_left) | mine (their own session) | offline
+    line.admin_busy(minutes) / admin_free() / admin_extend(minutes)   # the stats page's controls (ADMIN_KEY checked by the server)
+    line.info(online), line.log()        # the stats page: state, who started the session, time left; the recent events
 
-One row in the same sqlite file as the accounts (users.DB), so the line survives a server restart. States:
-  busy     a session since t_start. Frees on its own when the worker's keepalive stops for LINE_STALE_S (crash, network
-           gone: + the buffer), and at the latest at t_start + cap + buffer (an old worker that sends no keepalive).
-  reset    the session ended at t_end; open again at t_end + buffer.
-seconds_left is the time until the line frees, never more than the cap (15:00): the page shows it as the countdown.
-Every start, end and reset goes into line_log (and stdout). The line is only on when HEARTBEAT_KEY is set; otherwise
-status() is always open and nothing is ever refused. LINE_CAP_S (900), LINE_BUFFER_S (30), LINE_STALE_S (75).
+One row in the same sqlite file as the accounts (users.DB), so a session survives a server restart. A session runs from
+t_start to t_until (at most LINE_CAP_S, 15 minutes, from now) and frees on its own at t_until. source is 'visitor' (uid
+set) or 'admin'. Every claim, done, expiry and admin action goes into line_log (and stdout) with the time.
+The claim is one sqlite write transaction (BEGIN IMMEDIATE): two visitors clicking at once, the first gets the line.
 """
 import os, time
 from brodie import users
@@ -22,140 +19,136 @@ now = time.time                      # tests replace this
 
 
 def cap_s(): return float(os.environ.get('LINE_CAP_S', '900'))
-def buffer_s(): return float(os.environ.get('LINE_BUFFER_S', '30'))
-def stale_s(): return float(os.environ.get('LINE_STALE_S', '75'))
-def enabled(): return bool(os.environ.get('HEARTBEAT_KEY'))
 
 
 def init():
     with users._db() as c:
-        c.execute('CREATE TABLE IF NOT EXISTS line (id INTEGER PRIMARY KEY CHECK (id = 1), state TEXT NOT NULL DEFAULT "free", '
-                  'room TEXT NOT NULL DEFAULT "", call_id TEXT NOT NULL DEFAULT "", t_start REAL NOT NULL DEFAULT 0, t_end REAL NOT NULL DEFAULT 0)')
-        if 't_touch' not in {r[1] for r in c.execute('PRAGMA table_info(line)')}:
-            c.execute('ALTER TABLE line ADD COLUMN t_touch REAL NOT NULL DEFAULT 0')
+        cols = {r[1] for r in c.execute('PRAGMA table_info(line)')}
+        if cols and 'until' not in cols: c.execute('DROP TABLE line')        # the earlier worker-reported layout (never deployed)
+        c.execute('CREATE TABLE IF NOT EXISTS line (id INTEGER PRIMARY KEY CHECK (id = 1), source TEXT NOT NULL DEFAULT "", '
+                  'uid INTEGER, t_start REAL NOT NULL DEFAULT 0, until REAL NOT NULL DEFAULT 0)')
         c.execute('INSERT OR IGNORE INTO line (id) VALUES (1)')
         c.execute('CREATE TABLE IF NOT EXISTS line_log (id INTEGER PRIMARY KEY AUTOINCREMENT, t REAL NOT NULL, event TEXT NOT NULL, '
-                  'room TEXT NOT NULL DEFAULT "", call_id TEXT NOT NULL DEFAULT "", reason TEXT NOT NULL DEFAULT "", before TEXT NOT NULL DEFAULT "")')
+                  'actor TEXT NOT NULL DEFAULT "", detail TEXT NOT NULL DEFAULT "")')
+        cols = {r[1] for r in c.execute('PRAGMA table_info(line_log)')}
+        if 'actor' not in cols:                                             # the earlier log layout: start over
+            c.execute('DROP TABLE line_log')
+            c.execute('CREATE TABLE line_log (id INTEGER PRIMARY KEY AUTOINCREMENT, t REAL NOT NULL, event TEXT NOT NULL, '
+                      'actor TEXT NOT NULL DEFAULT "", detail TEXT NOT NULL DEFAULT "")')
 
 
-def _free_at(r):
-    """When the stored row stops holding the line (0 = free now)."""
-    if r['state'] == 'busy':
-        t = r['t_start'] + cap_s() + buffer_s()
-        if r['t_touch']: t = min(t, r['t_touch'] + stale_s() + buffer_s())     # keepalive stopped: the session is gone
-        return t
-    if r['state'] == 'reset': return r['t_end'] + buffer_s()
-    return 0.0
+def _row(c): return c.execute('SELECT * FROM line WHERE id = 1').fetchone()
+def _busy(r, t): return r['until'] > t
+def _left(r, t): return int(round(max(0.0, min(cap_s(), r['until'] - t))))
 
 
-def _planned_free_at(r):
-    """The countdown: when the line frees if the session runs to the cap (the keepalive only decides that it is still alive)."""
-    if r['state'] == 'busy': return r['t_start'] + cap_s() + buffer_s()
-    return _free_at(r)
+def _who(r):
+    if r['source'] == 'visitor':
+        u = users.get(r['uid'])
+        return f'visitor {u["email"] if u else "#" + str(r["uid"])}'
+    return r['source'] or ''
 
 
-def _held(r, t):
-    return r['state'] != 'free' and t < _free_at(r)
+def _log(c, t, event, actor='', detail=''):
+    c.execute('INSERT INTO line_log (t, event, actor, detail) VALUES (?, ?, ?, ?)', (t, event, actor, detail))
+    print(f'[line] {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))} {event} by {actor or "-"}' + (f': {detail}' if detail else ''), flush=True)
 
 
-def _status(r, t):
-    if not _held(r, t): return {'state': 'open', 'seconds_left': 0}
-    return {'state': 'busy', 'seconds_left': int(round(min(cap_s(), _planned_free_at(r) - t)))}
-
-
-def _row(c):
-    return c.execute('SELECT * FROM line WHERE id = 1').fetchone()
-
-
-def _describe(r, t):
-    """One line for the log: what the line was doing before an end or a reset."""
-    if not _held(r, t): return 'free'
-    if r['state'] == 'reset': return f'reset buffer, {_free_at(r) - t:.0f} s left'
-    alive = f'{t - r["t_touch"]:.0f} s ago' if r['t_touch'] else 'none'
-    return (f'busy: room {r["room"]!r} call {r["call_id"] or "-"}, started {t - r["t_start"]:.0f} s ago, '
-            f'{_status(r, t)["seconds_left"]} s left, keepalive {alive}')
-
-
-def _log(c, t, event, room='', call_id='', reason='', before=''):
-    c.execute('INSERT INTO line_log (t, event, room, call_id, reason, before) VALUES (?, ?, ?, ?, ?, ?)', (t, event, room, call_id, reason, before))
-    print(f'[line] {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))} {event} {room!r}' + (f' ({reason})' if reason else '')
-          + (f'; before: {before}' if before else ''), flush=True)
-
-
-def status(online=None):
-    """online: worker_online() (True / False / None when unknown). Offline wins over everything."""
-    base = {'enabled': enabled(), 'cap_s': cap_s(), 'buffer_s': buffer_s()}
-    if online is False: return dict(base, state='offline', seconds_left=0)
-    if not enabled(): return dict(base, state='open', seconds_left=0)
-    with users._db() as c: r = _row(c)
-    return dict(base, **_status(r, now()))
+def _expire(c, r, t):
+    """A session past its end: logged once as expired (the row is cleared)."""
+    if r['source'] and not _busy(r, t):
+        _log(c, r['until'], 'expired', _who(r), 'the session ran out its time')
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0 WHERE id = 1')
 
 
 def _tx():
-    c = users._db(); c.isolation_level = None; c.execute('BEGIN IMMEDIATE')   # one writer at a time: two callers can't both take it
+    c = users._db(); c.isolation_level = None; c.execute('BEGIN IMMEDIATE')   # one writer at a time: two clicks can't both win
     return c
 
 
-def start(room, call_id=''):
-    """The worker has a caller in `room`. OK when the line is free (or this room already holds it); otherwise (False, status)
-    and the worker tells the caller the line is busy."""
-    if not enabled(): return True, None
+def _state(r, t, uid=None):
+    if not _busy(r, t): return {'state': 'open', 'seconds_left': 0}
+    mine = r['source'] == 'visitor' and uid is not None and r['uid'] == uid
+    return {'state': 'mine' if mine else 'busy', 'seconds_left': _left(r, t)}
+
+
+def view(uid=None, online=None):
+    """What a visitor sees. online: the worker heartbeat (False = offline wins over everything; None = unknown, ignored)."""
+    if online is False: return {'state': 'offline', 'seconds_left': 0, 'cap_s': cap_s()}
+    with users._db() as c: r = _row(c)
+    return dict(_state(r, now(), uid), cap_s=cap_s())
+
+
+def claim(uid):
+    """The visitor clicked "FaceTime Brodie". Free: the line is theirs for the cap. Their own session: unchanged.
+    Someone else's: (False, busy view)."""
     c = _tx(); t = now()
     try:
-        r = _row(c)
-        if _held(r, t) and r['room'] != room: c.execute('ROLLBACK'); return False, dict(status(), **_status(r, t))
-        if _held(r, t) and r['state'] == 'busy':                                 # a repeat start keeps the clock
-            c.execute('UPDATE line SET t_touch = ? WHERE id = 1', (t,)); c.execute('COMMIT'); return True, None
-        c.execute('UPDATE line SET state = "busy", room = ?, call_id = ?, t_start = ?, t_end = 0, t_touch = ? WHERE id = 1', (room, call_id or '', t, t))
-        _log(c, t, 'start', room, call_id or '')
-        c.execute('COMMIT'); return True, None
+        r = _row(c); _expire(c, r, t); r = _row(c)
+        if _busy(r, t):
+            c.execute('COMMIT'); st = _state(r, t, uid); return st['state'] == 'mine', dict(st, cap_s=cap_s())
+        c.execute('UPDATE line SET source = "visitor", uid = ?, t_start = ?, until = ? WHERE id = 1', (uid, t, t + cap_s()))
+        r = _row(c); _log(c, t, 'busy', _who(r), f'clicked FaceTime Brodie: {cap_s() / 60:g} min')
+        c.execute('COMMIT'); return True, dict(_state(r, t, uid), cap_s=cap_s())
     finally: c.close()
 
 
-def touch(room):
-    """Keepalive: the session in `room` is still running. False when `room` does not hold the line."""
-    if not enabled(): return False
+def done(uid):
+    """The holder clicked "I'm done dancing": free for everyone. Anyone else: nothing changes (False)."""
     c = _tx(); t = now()
     try:
         r = _row(c)
-        if r['room'] != room or r['state'] != 'busy' or not _held(r, t): c.execute('ROLLBACK'); return False
-        c.execute('UPDATE line SET t_touch = ? WHERE id = 1', (t,)); c.execute('COMMIT'); return True
-    finally: c.close()
-
-
-def end(room, reason='ended'):
-    """The session in `room` ended: busy for the reset buffer, then open. An end for another room changes nothing."""
-    if not enabled(): return False
-    c = _tx(); t = now()
-    try:
-        r = _row(c)
-        if r['room'] != room or r['state'] != 'busy' or not _held(r, t): c.execute('ROLLBACK'); return False
-        c.execute('UPDATE line SET state = "reset", t_end = ? WHERE id = 1', (t,))
-        _log(c, t, 'end', room, r['call_id'], reason or 'ended', _describe(r, t))
+        if not (_busy(r, t) and r['source'] == 'visitor' and r['uid'] == uid): c.execute('ROLLBACK'); return False
+        _log(c, t, 'free', _who(r), f"I'm done dancing, {_left(r, t)} s were left")
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0 WHERE id = 1')
         c.execute('COMMIT'); return True
     finally: c.close()
 
 
-def reset(reason='admin reset'):
-    """Admin: the line is free now (no reset buffer). The session holding it, if any, is logged as ended with `reason`.
-    Returns the state before the reset (one line)."""
+def admin_busy(minutes=15):
+    """Mark busy: a session from now for `minutes` (1 to 15), replacing any session."""
+    m = max(1.0, min(cap_s() / 60, float(minutes)))
     c = _tx(); t = now()
     try:
-        r = _row(c); before = _describe(r, t)
-        c.execute('UPDATE line SET state = "free", t_end = ? WHERE id = 1', (t,))
-        _log(c, t, 'reset', r['room'] if _held(r, t) else '', r['call_id'] if _held(r, t) else '', reason, before)
+        r = _row(c); _expire(c, r, t); r = _row(c); before = f'{_who(r)} with {_left(r, t)} s left' if _busy(r, t) else 'free'
+        c.execute('UPDATE line SET source = "admin", uid = NULL, t_start = ?, until = ? WHERE id = 1', (t, t + m * 60))
+        _log(c, t, 'busy', 'admin', f'mark busy {m:g} min (before: {before})')
+        c.execute('COMMIT'); return m
+    finally: c.close()
+
+
+def admin_free():
+    """Mark free: the session ends now, whoever started it."""
+    c = _tx(); t = now()
+    try:
+        r = _row(c); _expire(c, r, t); r = _row(c); before = f'{_who(r)} with {_left(r, t)} s left' if _busy(r, t) else 'free'
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0 WHERE id = 1')
+        _log(c, t, 'free', 'admin', f'mark free (before: {before})')
         c.execute('COMMIT'); return before
     finally: c.close()
 
 
+def admin_extend(minutes=5):
+    """Add time to the running session, never past the cap from now. False when the line is free."""
+    c = _tx(); t = now()
+    try:
+        r = _row(c); _expire(c, r, t); r = _row(c)
+        if not _busy(r, t): c.execute('ROLLBACK'); return False
+        until = min(r['until'] + float(minutes) * 60, t + cap_s())
+        c.execute('UPDATE line SET until = ? WHERE id = 1', (until,))
+        _log(c, t, 'extend', 'admin', f'add {minutes:g} min: {_left(r, t)} s -> {int(round(until - t))} s left ({_who(r)})')
+        c.execute('COMMIT'); return True
+    finally: c.close()
+
+
 def info(online=None):
-    """Admin view of the line: the public status plus the session holding it."""
-    st = status(online)
+    """The stats page: the public state plus who or what started the session."""
     with users._db() as c: r = _row(c)
-    t = now(); held = _held(r, t)
-    return dict(st, held=held, phase=(r['state'] if held else 'free'), room=r['room'] if held else '', call_id=r['call_id'] if held else '',
-                t_start=r['t_start'] if held and r['state'] == 'busy' else None, started_s_ago=round(t - r['t_start']) if held and r['state'] == 'busy' else None,
-                keepalive_s_ago=round(t - r['t_touch']) if held and r['state'] == 'busy' and r['t_touch'] else None, raw_seconds_left=_status(r, t)['seconds_left'])
+    t = now(); busy = _busy(r, t)
+    state = 'offline' if online is False else ('busy' if busy else 'free')
+    return {'state': state, 'busy': busy, 'seconds_left': _left(r, t) if busy else 0, 'cap_s': cap_s(),
+            'source': r['source'] if busy else '', 'started_by': _who(r) if busy else '',
+            'started_s_ago': int(round(t - r['t_start'])) if busy else None}
 
 
 def log(limit=20):

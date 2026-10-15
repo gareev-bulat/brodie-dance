@@ -441,7 +441,7 @@ class GeminiModel:
         self.api_key = api_key or os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
         lang = language if language is not None else os.environ.get('GEMINI_LANGUAGE', DEFAULT_LANGUAGE)
         self.language = None if str(lang).strip().lower() in ('', 'off', 'none') else str(lang).strip()
-        self.on_turn = on_turn; self.temperature = temperature; self.text = text   # text: typed chat in + transcripts out on the room (--text)
+        self.on_turn = on_turn; self.temperature = temperature; self.text = text   # text: typed chat in + transcripts out (web app)
         self.last_caller_t = -1e9; self.last_coach_t = -1e9        # monotonic times of the last transcripts (the conversation hold reads them)
         self.rt = None; self.session = None; self.agent = None; self.sink = None; self.video = None; self.started = False; self.n_generate = 0; self.n_interrupt = 0
 
@@ -611,7 +611,7 @@ class VoiceLayer:
         elif change == 'open' and t in ('gesture', 'probe'):
             text = self.summary.text(t)
             if text: self._context(text)
-        if self.handlers is not None and not getattr(self.job, 'line_refused', False):   # a busy-line call: no lesson
+        if self.handlers is not None:
             try: self.handlers(ev, self.say_now, self.ask_voice)
             except Exception as e: log.warning('handler failed on %s: %r', ev.get('type'), e)
 

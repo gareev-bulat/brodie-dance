@@ -1,5 +1,6 @@
-"""The landing page's flow and Brodie's one line (brodie/line.py, facetime/line_client.py) end to end against the real aiohttp app,
-with a fake clock and a throwaway sqlite file. The worker's side is the real line_client over HTTP (a FaceTime session).
+"""The landing page's flow and Brodie's one line (brodie/line.py, website-only) end to end against the real aiohttp app, with a
+fake clock and a throwaway sqlite file. A session starts when a signed-in visitor clicks "FaceTime Brodie" (or an admin marks
+the line busy); Brodie's worker only sends its heartbeat.
 
     python scripts/test_line.py
 """
@@ -9,13 +10,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'src')]
 TMP = tempfile.mkdtemp(prefix='brodie-line-')
 NUMBER = '+1 (628) 289-2384'
-os.environ.update(BRODIE_DB=os.path.join(TMP, 'brodie.db'), SESSION_SECRET='test', HEARTBEAT_KEY='k3y', FACETIME_NUMBER=NUMBER,
-                  LINE_CAP_S='900', LINE_BUFFER_S='30', ADMIN_KEY='adm')
-for k in ('LINE_WARN_S', 'LINE_WRAP_S'): os.environ.pop(k, None)
+os.environ.update(BRODIE_DB=os.path.join(TMP, 'brodie.db'), SESSION_SECRET='test', HEARTBEAT_KEY='k3y', FACETIME_NUMBER='+16282892384',
+                  LINE_CAP_S='900', ADMIN_KEY='adm')
+os.environ.pop('DEV_PREVIEW', None)
 
 from aiohttp.test_utils import TestServer, TestClient
 from brodie import server, line
-from facetime import line_client
 
 CLOCK = [1_000_000.0]
 line.now = lambda: CLOCK[0]
@@ -31,185 +31,162 @@ def mmss(s): return f'{int(s) // 60:02d}:{int(s) % 60:02d}'
 def beat(): server._LAST_BEAT['t'] = time.time()
 
 
-def live(room, secs):
-    """A running session: the clock moves on with the worker's keepalive every 20 s."""
-    end = CLOCK[0] + secs
-    while CLOCK[0] < end: CLOCK[0] = min(end, CLOCK[0] + 20); line.touch(room)
+async def j(r):
+    try: return await r.json()
+    except Exception: return {}
 
 
 async def line_of(c):
-    r = await c.get('/api/line'); return r.status, await r.json()
+    r = await c.get('/api/line'); return r.status, await j(r)
 
 
-async def client(srv):
-    c = TestClient(srv); await c.start_server(); return c
+async def visitor(srv, email=None):
+    c = TestClient(srv); await c.start_server()
+    if email: assert (await c.post('/api/start', json={'email': email})).status == 200
+    return c
+
+
+async def admin(c, path, key='adm'):
+    r = await c.post(f'/api/admin/line/{path}' + ('&' if '?' in path else '?') + f'key={key}' if key else f'/api/admin/line/{path}')
+    return r.status, await j(r)
 
 
 async def main():
     srv = TestServer(server.app()); await srv.start_server()
-    os.environ['BRODIE_SERVER'] = str(srv.make_url('')).rstrip('/'); os.environ['BRODIE_HEARTBEAT_KEY'] = 'k3y'
-    worker = lambda fn, *args: asyncio.to_thread(fn, *args)            # the worker's real HTTP client
     beat()
 
     print('\n1. logged out: no number, no status anywhere')
-    anon = await client(srv)
+    anon = await visitor(srv)
     code, d = await line_of(anon); check('GET /api/line is 401 with nothing in it', code == 401 and set(d) == {'error'}, d)
+    r = await anon.post('/api/line/claim'); check('a logged-out click cannot take the line (401)', r.status == 401)
     leaks = []
     for path in ('/api/config', '/api/health', '/api/dances', '/', '/index.html', '/line.js'):
-        r = await anon.get(path); body = await r.text()
+        body = await (await anon.get(path)).text()
         if '289-2384' in body or '2892384' in body or 'worker_online' in body or '"state":' in body: leaks.append(path)
     check('the number and the status appear in no public response', not leaks, leaks or 'config, health, dances, page, line.js')
 
-    print('\n2. email sign-up shows the status')
+    print('\n2. email sign-up, returning visitor')
     r = await anon.post('/api/start', json={'email': 'not-an-email'}); check('a bad email is refused', r.status == 400)
-    r = await anon.post('/api/start', json={'email': 'Ana@Example.com'}); d = await r.json()
-    check('one field: the email creates the account', r.status == 200 and d['new'] and d['user']['email'] == 'ana@example.com', d)
-    code, d = await line_of(anon)
-    check('signed in: Brodie is free, with the FaceTime number from FACETIME_NUMBER', code == 200 and d['state'] == 'open' and d['facetime'] == NUMBER, d)
-    r = await anon.post('/api/login', json={'email': 'ana@example.com', 'password': 'anything'})
-    check('an email-only account cannot be logged into with a guessed password', r.status == 401)
-
-    print('\n3. returning visitor skips sign-up')
-    r = await anon.get('/api/me'); check('the session cookie is remembered (GET /api/me)', r.status == 200 and (await r.json())['user']['email'] == 'ana@example.com')
-    other = await client(srv)
-    r = await other.post('/api/start', json={'email': 'ana@example.com'}); d = await r.json()
-    check('the same email on a new device signs in, no second account', r.status == 200 and d['new'] is False, d)
-    r = await anon.post('/api/logout'); code, _ = await line_of(anon); check('after log out the status is hidden again', code == 401)
-    await anon.post('/api/start', json={'email': 'ana@example.com'}); ana = anon
-
-    print('\n4. free -> FaceTime session -> busy with a countdown <= 15:00 -> second caller hears busy -> early end -> free')
-    ok, _ = await worker(line_client.start, 'chert-room-1', 'call-1'); check('the worker takes the line for a FaceTime caller', ok)
+    ana = await visitor(srv, 'Ana@Example.com'); ben = await visitor(srv, 'ben@example.com'); cy = await visitor(srv, 'cy@example.com')
     code, d = await line_of(ana)
-    check('busy at the start: countdown <= 15:00 and no number', d['state'] == 'busy' and 0 < d['seconds_left'] <= 900 and 'facetime' not in d, mmss(d['seconds_left']))
-    live('chert-room-1', 42)
-    code, d = await line_of(ana)
-    check('42 s later: the real time left, counting down', d['seconds_left'] == 900 + 30 - 42, mmss(d['seconds_left']))
-    ok, d2 = await worker(line_client.start, 'chert-room-2', 'call-2')
-    msg = line_client.busy_text(d2.get('seconds_left'))
-    check('a second FaceTime caller is refused with the minutes left', not ok and msg.startswith("Brodie's in a session right now. Call back in about 15 minutes"), msg)
-    live('chert-room-1', 300)
-    await worker(line_client.end, 'chert-room-1')
-    code, d = await line_of(ana); check('session ends early: only the 30 s reset buffer left', d['state'] == 'busy' and d['seconds_left'] == 30, mmss(d['seconds_left']))
-    CLOCK[0] += 30
-    code, d = await line_of(ana); check('free again right after the buffer, number back', d['state'] == 'open' and d['facetime'] == NUMBER, d['state'])
+    check('signed in: Brodie is free, with the number (+1 (628) 289-2384, dialled +16282892384)', code == 200 and d['state'] == 'open'
+          and d['facetime'] == NUMBER and d['facetime_dial'] == '+16282892384', d)
+    r = await ana.get('/api/me'); check('returning visitor: the session cookie skips sign-up', r.status == 200 and (await r.json())['user']['email'] == 'ana@example.com')
+    again = await visitor(srv); r = await again.post('/api/start', json={'email': 'ana@example.com'})
+    check('the same email on a new device signs into the same account', (await r.json())['new'] is False)
+    r = await ana.post('/api/login', json={'email': 'ana@example.com', 'password': 'guess'}); check('no password login into an email-only account', r.status == 401)
 
-    print('\n5. a session that never reports its end (worker still alive) frees at the cap')
-    await worker(line_client.start, 'chert-room-3', 'call-3'); live('chert-room-3', 899)
-    code, d = await line_of(ana); check('still busy just before the cap', d['state'] == 'busy', mmss(d['seconds_left']))
-    CLOCK[0] += 31
-    code, d = await line_of(ana); check('no end ever reported: free after the cap + buffer', d['state'] == 'open', d['state'])
+    print('\n3. a click on "FaceTime Brodie" starts a 15-minute session')
+    r = await ana.post('/api/line/claim'); d = await j(r)
+    check('Ana clicks: the line is hers (mine), number kept, 15:00', r.status == 200 and d['state'] == 'mine' and d['facetime'] == NUMBER and d['seconds_left'] == 900, mmss(d.get('seconds_left', 0)))
+    CLOCK[0] += 42
+    code, d = await line_of(ben)
+    check('everyone else: busy, real time left (14:18), no number', d['state'] == 'busy' and d['seconds_left'] == 900 - 42 and 'facetime' not in d, mmss(d['seconds_left']))
+    code, d = await line_of(ana); check('Ana still sees her session, the number and the countdown', d['state'] == 'mine' and d['facetime'] == NUMBER, mmss(d['seconds_left']))
+    r = await ben.post('/api/line/claim'); d = await j(r)
+    check('Ben clicks while Ana is on: 409 busy, no number', r.status == 409 and d['state'] == 'busy' and 'facetime' not in d, r.status)
+    r = await ana.post('/api/line/claim'); d = await j(r)
+    check('Ana clicks again: still hers, the clock is not restarted', r.status == 200 and d['seconds_left'] == 900 - 42, mmss(d['seconds_left']))
+    r = await ben.post('/api/line/done'); d = await j(r); code, d2 = await line_of(cy)
+    check('"I\'m done dancing" from someone else changes nothing', d['freed'] is False and d2['state'] == 'busy')
 
-    print('\n6. the line survives a server restart')
-    await worker(line_client.start, 'chert-room-4', 'call-4'); live('chert-room-4', 100)
-    _, before = await line_of(ana)
-    srv2 = TestServer(server.app()); await srv2.start_server(); c2 = await client(srv2)
-    await c2.post('/api/start', json={'email': 'ana@example.com'}); _, after = await line_of(c2)
+    print('\n4. "I\'m done dancing" frees the line for everyone at once')
+    CLOCK[0] += 300
+    r = await ana.post('/api/line/done'); d = await j(r)
+    code, b = await line_of(ben); code, c = await line_of(cy)
+    check('Ana is done: free for Ana, Ben and Cy right away, number back', d['freed'] and d['state'] == 'open' and b['state'] == 'open' and c['facetime'] == NUMBER, b['state'])
+
+    print('\n5. two clicks at the same moment: the first gets the line')
+    rs = await asyncio.gather(ben.post('/api/line/claim'), cy.post('/api/line/claim'))
+    states = sorted([(r.status, (await j(r))['state']) for r in rs])
+    check('one 200 mine, one 409 busy', states == [(200, 'mine'), (409, 'busy')], states)
+    holder = ben if rs[0].status == 200 else cy
+    await holder.post('/api/line/done')
+
+    print('\n6. the 15 minutes run out: free on its own')
+    await ana.post('/api/line/claim'); CLOCK[0] += 899
+    code, d = await line_of(ben); check('busy one second before the end', d['state'] == 'busy' and d['seconds_left'] == 1, mmss(d['seconds_left']))
+    CLOCK[0] += 1
+    code, d = await line_of(ben); check('at 15:00: free, number shown, no reload needed (the page polls)', d['state'] == 'open' and d['facetime'] == NUMBER, d['state'])
+    r = await ben.post('/api/line/claim'); check('and the next visitor can take it', r.status == 200)
+    log = (await j(await ben.get('/api/admin/line?key=adm')))['log']
+    check('the expiry is logged at the end time', any(e['event'] == 'expired' and e['t'] == CLOCK[0] for e in log), [e['event'] for e in log[:3]])
+    await ben.post('/api/line/done')
+
+    print('\n7. a session survives a server restart')
+    await ana.post('/api/line/claim'); CLOCK[0] += 100
+    _, before = await line_of(ben)
+    srv2 = TestServer(server.app()); await srv2.start_server(); c2 = await visitor(srv2, 'ben@example.com')
+    _, after = await line_of(c2)
     check('busy with the same time left on a fresh server', after['state'] == 'busy' and after['seconds_left'] == before['seconds_left'], mmss(after['seconds_left']))
-    await worker(line_client.end, 'chert-room-4'); CLOCK[0] += 31; await c2.close(); await srv2.close()
+    await c2.close(); await srv2.close(); await ana.post('/api/line/done')
 
-    print('\n7. offline, the web call is gone, worker auth, the lesson clock')
+    print('\n8. the coach goes offline (worker heartbeat stops)')
     server._LAST_BEAT['t'] = 0
-    code, d = await line_of(ana); check('no heartbeat: offline, no number', d['state'] == 'offline' and 'facetime' not in d, d['state'])
+    code, d = await line_of(ana); check('offline: no number, no button', d['state'] == 'offline' and 'facetime' not in d, d['state'])
+    r = await ana.post('/api/line/claim'); check('no session can start while offline (503)', r.status == 503)
     beat()
-    for path in ('/app', '/api/token'):
-        r = await ana.get(path); check(f'{path} is gone (404)', r.status == 404, r.status)
-    r = await ana.post('/api/line/start', json={'room': 'x'}); check('line start without the worker key is refused', r.status == 403)
-    tl = line_client.timeline(900); check('lesson clock: last part 13:00, wrap 14:30, hang up 15:00', tl == [(780, 'last_part'), (870, 'wrap'), (900, 'hangup')], tl)
-    print('\n7b. the FaceTime number: any formatting in, digits in the link, +1 (628) 289-2384 on the page')
-    for raw in ('+16282892384', '+1 (628) 289-2384', '628-289-2384'):
-        os.environ['FACETIME_NUMBER'] = raw
-        code, d = await line_of(ana)
-        check(f'FACETIME_NUMBER={raw!r}', d.get('facetime') == '+1 (628) 289-2384' and d.get('facetime_dial') == '+16282892384', (d.get('facetime'), d.get('facetime_dial')))
-    os.environ['FACETIME_NUMBER'] = NUMBER
 
-    print('\n7c. the landing page only describes the FaceTime flow')
+    print('\n9. admin controls on the stats page (ADMIN_KEY on the server)')
+    before = (await j(await ana.get('/api/admin/line?key=adm')))['log'][0]['id']
+    results = []
+    for path in ('busy?minutes=10', 'free', 'extend?minutes=5', 'reset'):
+        for key in (None, 'wrong'):
+            code, _ = await admin(ana, path, key); results.append(code)
+    code_get = (await ana.get('/api/admin/line')).status
+    code, d = await line_of(ana); after = (await j(await ana.get('/api/admin/line?key=adm')))['log'][0]['id']
+    check('without the key (or a wrong one) every control is 403 and nothing changes', set(results) == {403} and code_get == 403 and d['state'] == 'open' and after == before, results)
+
+    code, a = await admin(ana, 'busy?minutes=10'); code, b = await line_of(ben)
+    check('Mark busy 10 min: everyone sees busy 10:00, started by admin', code == 200 and a['busy'] and a['seconds_left'] == 600 and a['started_by'] == 'admin'
+          and b['state'] == 'busy' and b['seconds_left'] == 600, (a['started_by'], mmss(b['seconds_left'])))
+    code, a = await admin(ana, 'busy'); check('Mark busy default: 15 min', a['seconds_left'] == 900, mmss(a['seconds_left']))
+    code, a = await admin(ana, 'busy?minutes=40'); check('Mark busy is capped at 15 min', a['seconds_left'] == 900, mmss(a['seconds_left']))
+    CLOCK[0] += 600
+    code, a = await admin(ana, 'extend?minutes=5'); check('Add 5 minutes: 05:00 -> 10:00', code == 200 and a['seconds_left'] == 600, mmss(a['seconds_left']))
+    code, a = await admin(ana, 'extend?minutes=5'); code, a = await admin(ana, 'extend?minutes=5')
+    check('Add 5 minutes never goes past 15 minutes from now', a['seconds_left'] == 900, mmss(a['seconds_left']))
+    code, a = await admin(ana, 'free'); code, b = await line_of(ben)
+    check('Mark free: free for everyone at once', code == 200 and not a['busy'] and b['state'] == 'open')
+    code, a = await admin(ana, 'extend?minutes=5'); check('Add 5 minutes on a free line: 409, nothing changes', code == 409 and not a['busy'])
+    await ana.post('/api/line/claim')
+    code, a = await admin(ana, 'reset'); code, b = await line_of(ben)
+    check('Mark free (reset) clears a visitor\'s stuck session', not a['busy'] and b['state'] == 'open')
+    log = (await j(await ana.get('/api/admin/line?key=adm')))['log']
+    admin_events = [e for e in log if e['actor'] == 'admin']
+    details = ' | '.join(e['detail'] for e in admin_events)
+    check('every admin action is logged with the time (busy 10, busy 15, add 5 min, mark free)',
+          all(x in details for x in ('mark busy 10 min', 'mark busy 15 min', 'add 5 min: 300 s -> 600 s left', 'mark free (before: visitor ana@example.com'))
+          and all(e['t'] > 0 for e in admin_events) and len(admin_events) >= 8, f'{len(admin_events)} admin entries')
+    check('the visitor click is logged with who clicked', any(e['event'] == 'busy' and e['actor'] == 'visitor ana@example.com' for e in log))
+    a = await j(await ana.get('/api/admin/line?key=adm'))
+    await ana.post('/api/line/claim'); a = await j(await ana.get('/api/admin/line?key=adm'))
+    check('the stats page shows who started the session (a visitor click)', a['started_by'] == 'visitor ana@example.com' and a['source'] == 'visitor', a['started_by'])
+    await admin(ana, 'free')
+
+    print('\n10. the web call is gone; the landing page only describes the FaceTime flow')
+    for path in ('/app', '/api/token', '/api/line/start', '/api/line/end'):
+        r = await ana.get(path) if path in ('/app', '/api/token') else await ana.post(path)
+        check(f'{path} is gone (404/405)', r.status in (404, 405), r.status)
     page = await (await ana.get('/')).text(); low = page.lower()
-    old = ['href="/app', "'/app", '"/app', '/api/token', 'in the browser', 'in your browser', 'works in the browser', 'nothing to install',
-           'body tracking', 'your camera', 'livekit', 'phone_test', 'mint_token', 'web call', 'dance with your camera']
+    old = ['href="/app', "'/app", '"/app', '/api/token', 'in the browser', 'in your browser', 'nothing to install', 'body tracking',
+           'your camera', 'livekit', 'phone_test', 'mint_token', 'web call']
     hits = [p for p in old if p in low]
     check('no link to /app and none of the old browser-call phrases', not hits, hits or 'clean')
-    check('how it works: sign up -> see if brodie is free -> facetime brodie -> learn the dance',
-          all(x in low for x in ('<h3>sign up</h3>', '<h3>see if brodie is free</h3>', '<h3>facetime brodie</h3>', '<h3>learn the dance</h3>')))
+    hero = page[page.index('<header class="hero">'):page.index('</header>')]; nav = page[page.index('<nav'):page.index('</nav>')]
+    check('one email field in the hero; FaceTime label; github not in the nav; "I\'m done dancing" button',
+          hero.count('type="email"') == 1 and 'FaceTime Brodie, your dance coach' in hero and 'github' not in nav.lower() and "I'm done dancing" in hero)
 
-    hero = page[page.index('<header class="hero">'):page.index('</header>')]
-    nav = page[page.index('<nav'):page.index('</nav>')]
-    check('the hero has exactly one email field; the new-dance emails are in the footer', hero.count('type="email"') == 1 and 'id="waitlist"' in page[page.index('<footer'):])
-    check('the label above the headline names FaceTime; github is not in the top nav', 'FaceTime Brodie, your dance coach' in hero and 'github' not in nav.lower())
-
-    print('\n8. the dev preview switch is off unless DEV_PREVIEW=1')
-    os.environ.pop('DEV_PREVIEW', None)
-    for q in ('free', 'busy', 'offline'):
-        r = await other.get('/api/line?preview=' + q); r2 = await other.get('/api/me?preview=' + q)
-        d = await r.json() if r.status == 200 else {}
-        check(f'?preview={q} ignored on the live site (no fake status, no fake sign-in)', 'preview' not in d and r2.status == 200 and (await r2.json())['user']['email'] == 'ana@example.com', r.status)
-    r = await anon.post('/api/logout'); r = await anon.get('/api/line?preview=busy')
-    check('logged out + ?preview=busy: still 401, nothing shown', r.status == 401)
+    print('\n11. the dev preview switch is off unless DEV_PREVIEW=1')
+    for q in ('free', 'busy', 'mine', 'offline'):
+        r = await ben.get('/api/line?preview=' + q); d = await j(r)
+        check(f'?preview={q} ignored on the live site', 'preview' not in d)
     os.environ['DEV_PREVIEW'] = '1'
-    r = await anon.get('/api/line?preview=busy'); d = await r.json()
-    check('with DEV_PREVIEW=1: the busy preview counts down from 6:42', r.status == 200 and d['state'] == 'busy' and d['seconds_left'] <= 402, d.get('seconds_left'))
+    d = await j(await anon.get('/api/line?preview=busy'))
+    check('with DEV_PREVIEW=1: the busy preview', d.get('state') == 'busy', d.get('seconds_left'))
     os.environ.pop('DEV_PREVIEW')
 
-    print('\n9. admin reset (stats page) and the keepalive')
-    await worker(line_client.start, 'chert-room-9', 'call-9'); live('chert-room-9', 180)
-    r = await other.post('/api/admin/line/reset'); r2 = await other.post('/api/admin/line/reset?key=wrong')
-    code, d = await line_of(other)
-    check('reset without the key (or a wrong one): 403 and the line stays busy', r.status == 403 and r2.status == 403 and d['state'] == 'busy', (r.status, r2.status, d['state']))
-    r = await other.get('/api/admin/line?key=adm'); a = await r.json()
-    check('admin view: session, started 3 min ago, time left, heartbeat', a['held'] and a['call_id'] == 'call-9' and a['started_s_ago'] == 180
-          and a['raw_seconds_left'] == 900 + 30 - 180 and a['heartbeat_s_ago'] is not None, {k: a[k] for k in ('call_id', 'started_s_ago', 'raw_seconds_left', 'heartbeat_s_ago')})
-    r = await other.post('/api/admin/line/reset?key=adm'); d = await r.json()
-    code, s = await line_of(other)
-    check('reset with the key: free at once (no 30 s buffer)', r.status == 200 and s['state'] == 'open', s['state'])
-    log = (await (await other.get('/api/admin/line?key=adm')).json())['log']
-    check('the reset is logged with the time, "admin reset" and the state before', log[0]['event'] == 'reset' and log[0]['reason'] == 'admin reset'
-          and log[0]['call_id'] == 'call-9' and 'started 180 s ago' in log[0]['before'] and log[0]['t'] == CLOCK[0], log[0])
-    await worker(line_client.end, 'chert-room-9'); code, s = await line_of(other)
-    check('the reset session\'s late end does not re-busy the line', s['state'] == 'open', s['state'])
-
-    await worker(line_client.start, 'chert-room-10', 'call-10')
-    for _ in range(5): CLOCK[0] += 20; await worker(line_client.touch, 'chert-room-10')
-    code, s = await line_of(other); check('keepalive every 20 s: still busy after 100 s', s['state'] == 'busy', mmss(s['seconds_left']))
-    CLOCK[0] += 74; code, s = await line_of(other); check('keepalive stops (crash / network): still busy within LINE_STALE_S', s['state'] == 'busy', mmss(s['seconds_left']))
-    CLOCK[0] += 31; code, s = await line_of(other)
-    check('keepalive stopped 105 s ago: free (not at the 15-minute cap)', s['state'] == 'open', s['state'])
-    await worker(line_client.start, 'chert-room-11', 'call-11'); CLOCK[0] += 30
-    await worker(line_client.end, 'chert-room-11', 'caller left')
-    log = (await (await other.get('/api/admin/line?key=adm')).json())['log']
-    check('an end is logged with its reason', log[0]['event'] == 'end' and log[0]['reason'] == 'caller left', log[0]['reason'])
-    print('\n10. busy callers: the recorded clip, hang up right after it (live voice when the clip is missing)')
-    from facetime.cues_tts import vocabulary
-    vocab = set(vocabulary()); texts = line_client.busy_texts()
-    check('15 busy sentences (1 to 15 minutes) are in the cue vocabulary to pre-record', len(texts) == 15 and all(t in vocab for t in texts),
-          f'{texts[0]!r} ... {texts[-1]!r}')
-    check('the minutes match the time left', line_client.busy_text(402) == "Brodie's in a session right now. Call back in about 7 minutes."
-          and line_client.busy_text(30) == texts[0], line_client.busy_text(402))
-
-    class Mix:
-        active = False; cleared = 0
-        def clear(self): self.cleared += 1
-
-    class Player:
-        def __init__(self, bank): self.bank = bank; self.mix = Mix(); self.said = []
-        def say_now(self, text, intent, meta=None):
-            self.said.append(text)
-            if text not in self.bank: return dict(text=text, status='missing')
-            rec = dict(text=text, status='urgent', duration_s=self.bank[text], t_done=None)
-            asyncio.get_running_loop().call_later(self.bank[text], lambda: rec.update(t_done=time.time(), status='played'))
-            return rec
-
-    class Floor:
-        def __init__(self): self.asked = []
-        def ask(self, p): self.asked.append(p)
-
-    text = line_client.busy_text(402); p = Player({text: 0.6}); f = Floor(); t0 = time.monotonic()
-    how = await line_client.say_busy(p, f, text); dt = time.monotonic() - t0
-    check('with the clip: plays it (cutting anything else) and returns right after it ends, not at a fixed 4.5 s',
-          how == 'clip' and p.said == [text] and p.mix.cleared == 1 and not f.asked and 0.6 <= dt < 1.2, f'{dt:.2f} s for a 0.6 s clip')
-    p = Player({}); f = Floor(); t0 = time.monotonic()
-    how = await line_client.say_busy(p, f, text, max_voice_s=2.5); dt = time.monotonic() - t0
-    check('clip missing: the live voice says the same sentence (fallback), bounded wait', how == 'voice' and len(f.asked) == 1 and text in f.asked[0] and dt <= 2.7,
-          f'{dt:.2f} s')
-    for c in (ana, other): await c.close()
+    for c in (anon, ana, ben, cy, again): await c.close()
     await srv.close()
 
 

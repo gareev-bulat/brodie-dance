@@ -4,10 +4,13 @@
 Routes: /  landing (web/index.html)
         POST /api/start {email}  the landing page's one field: creates the account (no password) or signs into it
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
-        GET /api/line   signed in only: Brodie's one line, open | busy (seconds_left) | offline, plus the FaceTime number when open
+        GET /api/line   signed in only: Brodie's line, open | busy (seconds_left) | mine | offline, the FaceTime number when open or mine
+        POST /api/line/claim   the visitor clicked "FaceTime Brodie": a 15-minute session is theirs, or 409 busy
+        POST /api/line/done    "I'm done dancing": the visitor's session ends, the line is free for everyone
         GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
         POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
-        POST /api/line/start {room, call_id}   POST /api/line/end {room}   the worker reporting sessions (X-Brodie-Key)
+        GET /api/admin/line   POST /api/admin/line/busy?minutes=N | /free | /extend?minutes=5   the stats page (?key=ADMIN_KEY)
+The line is website-only (brodie/line.py): Brodie's worker reports nothing but its heartbeat.
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
 import argparse, datetime, glob, hmac, json, os, time
@@ -49,16 +52,19 @@ def facetime_number():
 
 def preview(req):
     p = req.query.get('preview', '')
-    return p if os.environ.get('DEV_PREVIEW') == '1' and p in ('free', 'busy', 'offline', 'loggedout') else None
+    return p if os.environ.get('DEV_PREVIEW') == '1' and p in ('free', 'busy', 'mine', 'offline', 'loggedout') else None
 
 
 def _preview_line(p):
-    st = {'enabled': True, 'cap_s': line.cap_s(), 'buffer_s': line.buffer_s(), 'preview': p}
-    if p == 'busy':
+    st = {'cap_s': line.cap_s(), 'preview': p}
+    if p in ('busy', 'mine'):
         now = time.time()
         if now - _PREVIEW['t0'] > PREVIEW_BUSY_S + 15: _PREVIEW['t0'] = now
         left = PREVIEW_BUSY_S - (now - _PREVIEW['t0'])
-        if left > 0: return dict(st, state='busy', seconds_left=int(round(left)))
+        if left > 0 and p == 'busy': return dict(st, state='busy', seconds_left=int(round(left)))
+        if left > 0:
+            shown, dial = facetime_number()
+            return dict(st, state='mine', seconds_left=int(round(left)), facetime=shown or '+1 (555) 010-0000', facetime_dial=dial or '+15550100000')
         p = 'free'
     if p == 'offline': return dict(st, state='offline', seconds_left=0)
     shown, dial = facetime_number()
@@ -128,7 +134,7 @@ async def health(req):
     key = os.environ.get('ADMIN_KEY', '')
     if key and hmac.compare_digest(req.query.get('key', ''), key):
         beat = _LAST_BEAT['t']
-        out.update(users=users.count(), worker_online=worker_online(), line=line.status(worker_online()),
+        out.update(users=users.count(), worker_online=worker_online(), line=line.info(worker_online()),
                    last_heartbeat_s_ago=round(time.time() - beat, 1) if beat else None)
     return web.json_response(out)
 
@@ -143,45 +149,41 @@ async def heartbeat(req):
     return web.json_response({'ok': True})
 
 
-def _worker_ok(req):
-    key = os.environ.get('HEARTBEAT_KEY', '')
-    return bool(key) and hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key)
+def _line_view(u):
+    """What this visitor sees, with the FaceTime number when the line is free or the session is theirs."""
+    st = line.view(u['id'], worker_online())
+    if st['state'] in ('open', 'mine'): st['facetime'], st['facetime_dial'] = facetime_number()
+    return st
+
+
+NO_STORE = {'Cache-Control': 'no-store'}
 
 
 async def line_status(req):
-    """Signed in only (logged out: 401 and nothing else). The FaceTime number is included only while Brodie is free."""
+    """Signed in only (logged out: 401 and nothing else)."""
     p = preview(req)
-    if p and p != 'loggedout': return web.json_response(_preview_line(p), headers={'Cache-Control': 'no-store'})
-    if p == 'loggedout' or current_user(req) is None: return web.json_response({'error': 'sign up first'}, status=401, headers={'Cache-Control': 'no-store'})
-    st = line.status(worker_online())
-    if st['state'] == 'open': st['facetime'], st['facetime_dial'] = facetime_number()
-    return web.json_response(st, headers={'Cache-Control': 'no-store'})
+    if p and p != 'loggedout': return web.json_response(_preview_line(p), headers=NO_STORE)
+    u = None if p == 'loggedout' else current_user(req)
+    if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
+    return web.json_response(_line_view(u), headers=NO_STORE)
 
 
-async def line_start(req):
-    """The worker bound a caller (web or FaceTime): 200 {ok} or 409 with the busy status (the worker then says so and hangs up)."""
-    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
-    b = await _body(req); room = str(b.get('room', ''))[:128]
-    if not room: return web.json_response({'error': 'room required'}, status=400)
-    ok, st = line.start(room, str(b.get('call_id', '') or '')[:64])
-    if not ok: print(f'[line] start {room!r} refused: busy, {st.get("seconds_left")} s left', flush=True)
-    if ok: return web.json_response({'ok': True, 'cap_s': line.cap_s()})
-    return web.json_response(dict(st, error='busy'), status=409)
+async def line_claim(req):
+    """The visitor clicked "FaceTime Brodie": the line is theirs for 15 minutes (200 with the number), or 409 busy (no number).
+    Offline: 503. Two clicks at once: one sqlite write transaction, the first wins."""
+    u = current_user(req)
+    if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
+    if worker_online() is False: return web.json_response(dict(line.view(u['id'], False), error='offline'), status=503, headers=NO_STORE)
+    ok, _ = line.claim(u['id'])
+    return web.json_response(_line_view(u), status=200 if ok else 409, headers=NO_STORE)
 
 
-async def line_end(req):
-    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
-    b = await _body(req); room = str(b.get('room', ''))[:128]
-    ended = line.end(room, str(b.get('reason', '') or 'ended')[:80])
-    if not ended: print(f'[line] end {room!r}: not the line holder (ignored)', flush=True)
-    return web.json_response({'ok': True, 'ended': ended})
-
-
-async def line_touch(req):
-    """The worker's keepalive while a session runs: when it stops (crash, network gone) the line frees within LINE_STALE_S."""
-    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
-    b = await _body(req)
-    return web.json_response({'ok': True, 'held': line.touch(str(b.get('room', ''))[:128])})
+async def line_done(req):
+    """ "I'm done dancing": the visitor's own session ends at once; the line is free for everyone."""
+    u = current_user(req)
+    if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
+    freed = line.done(u['id'])
+    return web.json_response(dict(_line_view(u), freed=freed), headers=NO_STORE)
 
 
 def _admin_ok(req):
@@ -189,21 +191,44 @@ def _admin_ok(req):
     return bool(key) and hmac.compare_digest(req.query.get('key', ''), key)
 
 
-async def admin_line(req):
-    """The stats page's line panel: GET /api/admin/line?key=<ADMIN_KEY>. The session holding the line, its age and time left,
-    the worker's last heartbeat and keepalive, and the recent starts, ends and resets."""
-    if not _admin_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+def _forbidden(): return web.json_response({'error': 'forbidden'}, status=403)
+
+
+def _admin_view():
     beat = _LAST_BEAT['t']
-    return web.json_response(dict(line.info(worker_online()), heartbeat_s_ago=round(time.time() - beat) if beat else None, log=line.log(20)),
-                             headers={'Cache-Control': 'no-store'})
+    return dict(line.info(worker_online()), heartbeat_s_ago=round(time.time() - beat) if beat else None, log=line.log(25))
 
 
-async def admin_line_reset(req):
-    """POST /api/admin/line/reset?key=<ADMIN_KEY>: the line is free now (no reset buffer); the held session is logged as ended
-    ("admin reset"). Without the key: 403 and nothing changes."""
-    if not _admin_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
-    before = line.reset('admin reset')
-    return web.json_response({'ok': True, 'before': before, 'line': line.info(worker_online())}, headers={'Cache-Control': 'no-store'})
+async def admin_line(req):
+    """The stats page: GET /api/admin/line?key=<ADMIN_KEY>: the state, who started the session, time left, the log."""
+    if not _admin_ok(req): return _forbidden()
+    return web.json_response(_admin_view(), headers=NO_STORE)
+
+
+def _minutes(req, default):
+    try: return float(req.query.get('minutes', default))
+    except ValueError: return float(default)
+
+
+async def admin_busy(req):
+    """Mark busy: POST /api/admin/line/busy?key=…&minutes=N (1 to 15, default 15): a session from now, replacing any other."""
+    if not _admin_ok(req): return _forbidden()
+    line.admin_busy(_minutes(req, 15))
+    return web.json_response(_admin_view(), headers=NO_STORE)
+
+
+async def admin_free(req):
+    """Mark free: POST /api/admin/line/free?key=…: the session ends now, whoever started it."""
+    if not _admin_ok(req): return _forbidden()
+    line.admin_free()
+    return web.json_response(_admin_view(), headers=NO_STORE)
+
+
+async def admin_extend(req):
+    """Add time: POST /api/admin/line/extend?key=…&minutes=5: never past 15 minutes from now. 409 when the line is free."""
+    if not _admin_ok(req): return _forbidden()
+    ok = line.admin_extend(_minutes(req, 5))
+    return web.json_response(_admin_view(), status=200 if ok else 409, headers=NO_STORE)
 
 
 async def config(_req):
@@ -276,8 +301,9 @@ def app():
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.post('/api/start', start), web.get('/api/me', me),
                   web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
-                  web.get('/api/line', line_status), web.post('/api/line/start', line_start), web.post('/api/line/end', line_end), web.post('/api/line/touch', line_touch),
-                  web.get('/api/admin/line', admin_line), web.post('/api/admin/line/reset', admin_line_reset), web.get('/api/dances', dances),
+                  web.get('/api/line', line_status), web.post('/api/line/claim', line_claim), web.post('/api/line/done', line_done),
+                  web.get('/api/admin/line', admin_line), web.post('/api/admin/line/busy', admin_busy), web.post('/api/admin/line/free', admin_free),
+                  web.post('/api/admin/line/reset', admin_free), web.post('/api/admin/line/extend', admin_extend), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
                   web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
                   web.get('/', landing), web.get('/index.html', landing), web.static('/', WEB)])

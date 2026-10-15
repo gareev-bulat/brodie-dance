@@ -23,7 +23,7 @@ Three pieces. Only the first two go on a hosting service.
 
 | Piece | What | Where |
 | --- | --- | --- |
-| Website (`brodie/server.py`) | Landing page at `/`, email sign-in (`/api/start`), Brodie's line (`/api/line`, `/api/line/start`, `/api/line/end`), `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
+| Website (`brodie/server.py`) | Landing page at `/`, email sign-in (`/api/start`), Brodie's line (`/api/line`, `/api/line/claim`, `/api/line/done`), the stats page's line controls (`/api/admin/line`), `/api/config`, `/api/dances` | Any Docker host: Render, Railway, Fly, Cloud Run |
 | LiveKit Cloud | Rooms, media, agent dispatch | cloud.livekit.io (free project) |
 | Brodie's worker (`facetime.worker --dance`) | The coach: pose, judge, voice, the lesson video | A machine with the data bundle and the Python env (a laptop is fine); it connects out to LiveKit, no inbound port |
 
@@ -38,13 +38,13 @@ Environment variables on the host:
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | from the LiveKit project (Settings, then Keys) |
 | `AGENT_NAME` | `brodie-dance` (must match the worker) |
 | `DANCE` | `sbbyj` (the lesson the worker runs; "live now" on the landing page) |
-| `HEARTBEAT_KEY` | any long random string, the same as the worker's `BRODIE_HEARTBEAT_KEY`; it turns on Brodie's line (free / `?preview=free`, `busy`, `offline`, `loggedout` with a countdown / offline) and lets the worker report sessions (unset: always shown as free) |
+| `HEARTBEAT_KEY` | any long random string, the same as the worker's `BRODIE_HEARTBEAT_KEY`: the worker's heartbeat decides online / offline on the page (unset: never shown as offline) |
 | `SESSION_SECRET` | any long random string, so logins survive a redeploy |
 | `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
 | `FACETIME_NUMBER` | the Chert FaceTime line, e.g. `+16282892384` (any formatting is fine: the link uses the digits, the page shows `+1 (628) 289-2384`); shown only to signed-in visitors while Brodie is free |
-| `LINE_CAP_S` / `LINE_BUFFER_S` | session cap and reset buffer in seconds (optional, default 900 / 30) |
-| `LINE_STALE_S` | a session whose worker keepalive (every 20 s) stops this long is treated as ended (optional, default 75). Admins can also free the line at once from `/stats.html` (Reset line, needs `ADMIN_KEY`) |
-| `DEV_PREVIEW` | never on the host. `1` on a dev machine turns on `?preview=free`, `busy`, `offline`, `loggedout` |
+| `LINE_CAP_S` | session length in seconds (optional, default 900 = 15 minutes) |
+| `ADMIN_KEY` on `/stats.html` | the stats page also shows Brodie's line and has Mark busy (1 to 15 minutes), Add 5 minutes and Mark free; all need the key |
+| `DEV_PREVIEW` | never on the host. `1` on a dev machine turns on `?preview=free`, `busy`, `mine`, `offline`, `loggedout` |
 | `FORK_URL` | the team's GitHub fork (optional) |
 | `HOST` / `PORT` | `0.0.0.0` and whatever the host assigns (the Dockerfile sets both; most hosts override `PORT`) |
 
@@ -67,20 +67,18 @@ bash scripts/demo_worker.sh
 
 Add to that machine's `.env.local` so the website knows Brodie is up: `BRODIE_SERVER=https://<server>` and
 `BRODIE_HEARTBEAT_KEY=<the server's HEARTBEAT_KEY>`. The worker then POSTs `/api/heartbeat` every 20 s; when it stops (laptop
-closed, worker stopped) the page says "Brodie is `?preview=free`, `busy`, `offline`, `loggedout` right now" within about a minute. The worker also reports each FaceTime
-session's start and end (`/api/line/start`, `/api/line/end`): while one runs the page shows `?preview=free`, `busy`, `offline`, `loggedout` with a countdown, and another
-caller hears a short `?preview=free`, `busy`, `offline`, `loggedout` message and is hung up. If the worker can't reach the server, the session still runs but does not
-hold the line (a WARNING in the worker log).
+closed, worker stopped) the page says "Brodie is offline right now" within about a minute.
 
-The busy sentence ("Brodie's in a session right now. Call back in about N minutes.", N = 1 to 15) plays from recorded clips in
-Brodie's voice, then the worker hangs up as soon as it ends. Render them once on the worker machine (it has the Gemini key;
-only the missing clips are rendered, about 15 short clips):
+### Brodie's line (website only)
 
-```
-python -m facetime.cues_tts --backend gemini
-```
+The worker is not involved beyond its heartbeat. A session starts when a signed-in visitor clicks "FaceTime Brodie" on the
+landing page: the line is theirs for 15 minutes (they keep the number, the button and an "I'm done dancing" button), and
+every other visitor sees "Brodie is in a session with another person right now" with a live countdown and no number. The
+session ends when that visitor clicks "I'm done dancing", when the 15 minutes run out, or from the stats page (Mark free).
+Two clicks at once: the first gets the line. Sessions are stored in the sqlite file (`BRODIE_DB`), so they survive a restart.
 
-Without the clips the live voice says the sentence instead (slower to start; the log says `no recorded clip`).
+The line follows clicks, not calls: someone who calls the number without clicking (or after their session ran out) is not
+seen by it. The stats page's Mark busy / Add 5 minutes / Mark free correct it by hand; every change is logged there.
 
 LiveKit dispatches that worker into the Chert FaceTime line's rooms (the website creates no rooms). The
 worker's `DANCE` should match the website's.
