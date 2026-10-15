@@ -467,14 +467,12 @@ class CoachJob:
         except Exception as e: print(f'[line] WARNING: call end not confirmed ({e!r}): the keepalive stops, so the server frees the line within ~2 min', flush=True)
 
     async def _line_refuse(self, info):
-        """Busy: one short sentence with the minutes left, then hang up within ~5 s. The handlers never see this call."""
+        """Busy: one short sentence with the minutes left (a recorded clip, about 3 s), then hang up. The handlers never see this call."""
         self.line_refused = True
         text = line_client.busy_text(info.get('seconds_left'))
-        rec = self.player.say(text, 'other', dict(source='line')) if self.player is not None else None
-        if (rec is None or rec.get('status') == 'missing') and self.voice is not None and self.voice.floor is not None:
-            self.voice.floor.ask(f'Say exactly this and nothing else: "{text}"')        # no recorded clip: the voice model says it
-        await asyncio.sleep(4.5)
-        self.end('line busy')
+        floor = self.voice.floor if self.voice is not None else None
+        await line_client.say_busy(self.player, floor, text, closed=lambda: self.closed)   # the recorded clip, else the live voice
+        self.end('line busy')                                     # hang up right after it was said
 
     def _line_phase(self, phase):
         if self.closed: return

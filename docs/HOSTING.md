@@ -72,6 +72,16 @@ session's start and end (`/api/line/start`, `/api/line/end`): while one runs the
 caller hears a short `?preview=free`, `busy`, `offline`, `loggedout` message and is hung up. If the worker can't reach the server, the session still runs but does not
 hold the line (a WARNING in the worker log).
 
+The busy sentence ("Brodie's in a session right now. Call back in about N minutes.", N = 1 to 15) plays from recorded clips in
+Brodie's voice, then the worker hangs up as soon as it ends. Render them once on the worker machine (it has the Gemini key;
+only the missing clips are rendered, about 15 short clips):
+
+```
+python -m facetime.cues_tts --backend gemini
+```
+
+Without the clips the live voice says the sentence instead (slower to start; the log says `no recorded clip`).
+
 LiveKit dispatches that worker into the Chert FaceTime line's rooms (the website creates no rooms). The
 worker's `DANCE` should match the website's.
 

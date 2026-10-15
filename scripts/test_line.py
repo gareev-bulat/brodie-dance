@@ -176,6 +176,39 @@ async def main():
     await worker(line_client.end, 'chert-room-11', 'caller left')
     log = (await (await other.get('/api/admin/line?key=adm')).json())['log']
     check('an end is logged with its reason', log[0]['event'] == 'end' and log[0]['reason'] == 'caller left', log[0]['reason'])
+    print('\n10. busy callers: the recorded clip, hang up right after it (live voice when the clip is missing)')
+    from facetime.cues_tts import vocabulary
+    vocab = set(vocabulary()); texts = line_client.busy_texts()
+    check('15 busy sentences (1 to 15 minutes) are in the cue vocabulary to pre-record', len(texts) == 15 and all(t in vocab for t in texts),
+          f'{texts[0]!r} ... {texts[-1]!r}')
+    check('the minutes match the time left', line_client.busy_text(402) == "Brodie's in a session right now. Call back in about 7 minutes."
+          and line_client.busy_text(30) == texts[0], line_client.busy_text(402))
+
+    class Mix:
+        active = False; cleared = 0
+        def clear(self): self.cleared += 1
+
+    class Player:
+        def __init__(self, bank): self.bank = bank; self.mix = Mix(); self.said = []
+        def say_now(self, text, intent, meta=None):
+            self.said.append(text)
+            if text not in self.bank: return dict(text=text, status='missing')
+            rec = dict(text=text, status='urgent', duration_s=self.bank[text], t_done=None)
+            asyncio.get_running_loop().call_later(self.bank[text], lambda: rec.update(t_done=time.time(), status='played'))
+            return rec
+
+    class Floor:
+        def __init__(self): self.asked = []
+        def ask(self, p): self.asked.append(p)
+
+    text = line_client.busy_text(402); p = Player({text: 0.6}); f = Floor(); t0 = time.monotonic()
+    how = await line_client.say_busy(p, f, text); dt = time.monotonic() - t0
+    check('with the clip: plays it (cutting anything else) and returns right after it ends, not at a fixed 4.5 s',
+          how == 'clip' and p.said == [text] and p.mix.cleared == 1 and not f.asked and 0.6 <= dt < 1.2, f'{dt:.2f} s for a 0.6 s clip')
+    p = Player({}); f = Floor(); t0 = time.monotonic()
+    how = await line_client.say_busy(p, f, text, max_voice_s=2.5); dt = time.monotonic() - t0
+    check('clip missing: the live voice says the same sentence (fallback), bounded wait', how == 'voice' and len(f.asked) == 1 and text in f.asked[0] and dt <= 2.7,
+          f'{dt:.2f} s')
     for c in (ana, other): await c.close()
     await srv.close()
 

@@ -8,7 +8,7 @@ Off unless BRODIE_SERVER and BRODIE_HEARTBEAT_KEY are set (the same pair as the 
 the call goes ahead (fail open) and a WARNING says the line is NOT held: a second FaceTime caller could get in at the same time.
 Blocking urllib calls: run them off the event loop (asyncio.to_thread).
 """
-import json, os, time, urllib.error, urllib.request
+import asyncio, json, os, time, urllib.error, urllib.request
 
 TIMEOUT_S = 3.0
 
@@ -73,6 +73,41 @@ def timeline(cap=None):
     if cap <= 0: return []
     warn, wrap = float(os.environ.get('LINE_WARN_S', '120')), float(os.environ.get('LINE_WRAP_S', '30'))
     return [(max(0.0, cap - warn), 'last_part'), (max(0.0, cap - wrap), 'wrap'), (cap, 'hangup')]
+
+
+def busy_texts():
+    """Every busy sentence the worker can say (1 to 15 minutes): pre-recorded with the cues (facetime/cues_tts.py vocabulary)."""
+    return [busy_text(n * 60) for n in range(1, 16)]
+
+
+async def say_busy(player, floor, text, closed=lambda: False, max_voice_s=7.0):
+    """Tell a busy caller, then return as soon as it has been said (the worker hangs up right after).
+    The recorded clip (cue bank) first: it cuts anything playing, and we wait for its playout (t_done). No clip (bank not
+    rendered yet): the live voice says it, and we wait until its audio has been quiet for a moment (at most max_voice_s).
+    Returns 'clip' | 'voice' | 'none'."""
+    rec = None
+    if player is not None:
+        mix = getattr(player, 'mix', None)
+        if mix is not None: mix.clear()                                  # the voice model never talks over the busy message
+        rec = player.say_now(text, 'line_busy', dict(source='line'))
+    if rec is not None and rec.get('status') != 'missing':
+        deadline = time.monotonic() + float(rec.get('duration_s') or 4.0) + 3.0
+        while not rec.get('t_done') and rec.get('status') not in ('cut', 'error', 'dropped') and time.monotonic() < deadline and not closed():
+            await asyncio.sleep(0.05)
+        await asyncio.sleep(0.3)                                         # the far end's jitter buffer: the last word arrives
+        print(f'[line] busy clip played ({float(rec.get("duration_s") or 0):.1f} s): {text!r}', flush=True)
+        return 'clip'
+    print(f'[line] no recorded clip for {text!r}: the live voice says it (render the clips: python -m facetime.cues_tts --backend gemini)', flush=True)
+    if floor is None: return 'none'
+    floor.ask(f'Say exactly this and nothing else: "{text}"')
+    mix = getattr(player, 'mix', None) if player is not None else None
+    t0 = time.monotonic(); last = t0
+    while time.monotonic() - t0 < max_voice_s and not closed():
+        await asyncio.sleep(0.1)
+        now = time.monotonic()
+        if mix is not None and mix.active: last = now
+        if now - t0 >= 1.5 and now - last >= 0.8 and (mix is None or last > t0): break   # spoken and quiet again
+    return 'voice'
 
 
 def busy_text(seconds_left):
