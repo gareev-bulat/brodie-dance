@@ -56,6 +56,7 @@
 
   section { padding: 56px 0; border-top: 1px solid var(--line); }
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .steps.four { grid-template-columns: repeat(4, 1fr); }
   .card { background: var(--panel); border-radius: 16px; padding: 22px 22px 18px; border: 1px solid var(--line); }
   .card .n { font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--volt); font-size: 2rem; line-height: 1; margin-bottom: 12px; }
   .card p { font-size: 0.98rem; color: #CFCBC3; margin: 0; }
@@ -134,8 +135,8 @@
   .textlink { color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.95rem; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
   .textlink:hover { color: var(--volt); border-bottom-color: var(--volt); }
   .btn.big { font-size: 1.2rem; padding: 18px 30px; border-radius: 14px; }
-  .later { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); max-width: 520px; }
-  .later-title { font-weight: 600; font-size: 0.95rem; margin: 0 0 10px; }
+  .foot-wl { flex-basis: 100%; max-width: 520px; }
+  .foot-wl .waitlist { margin-top: 4px; }
   .waitlist.slim { margin-top: 0; }
   .waitlist.slim input { padding: 11px 14px; font-size: 0.95rem; }
   .waitlist.slim .btn { font-size: 0.95rem; padding: 10px 18px; background: transparent; color: var(--text); border-color: var(--line); cursor: pointer; }
@@ -159,6 +160,7 @@
   .waitlist.done { display: block; background: var(--panel); border: 1px solid var(--volt); border-radius: 12px; padding: 16px 18px; font-size: 1.05rem; }
   .start { margin-top: 26px; max-width: 520px; }
   .start .waitlist { margin-top: 0; }
+  .start .fine, .linebox .fine { color: #D4D0C8; }
   .start .fine { margin-top: 10px; }
   .linebox { margin-top: 26px; max-width: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
   .linebox .state { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; line-height: 1.35; }
@@ -195,7 +197,7 @@
     .linebox .btn.big { padding: 14px 20px; margin-top: 10px; }
     .linebox .fine, .start .fine { margin-top: 8px; }
     .account b { display: none; }
-    .steps { grid-template-columns: 1fr; }
+    .steps, .steps.four { grid-template-columns: 1fr; }
     .dance { grid-template-columns: minmax(0, 1fr); }
     .soon { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .soon a { padding: 14px; }
@@ -219,16 +221,16 @@
   <nav>
     <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp.png" alt="Brodie">brodie dance</a>
     <div class="links">
-      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#follow">follow</a><a id="nav-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
+      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#follow">follow</a>
     </div>
     <span class="account" id="account" hidden></span>
   </nav>
 
   <header class="hero">
     <div>
-      <div class="eyebrow">a coach on your video call</div>
+      <div class="eyebrow">FaceTime Brodie, your dance coach</div>
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
-      <p class="lead">Brodie watches your camera, scores every part against the creator and tells you the one thing to fix.</p>
+      <p class="lead">FaceTime Brodie. He watches your moves, scores every part, and tells you the one thing to fix.</p>
       <div class="start" id="start-box">
         <form class="waitlist" id="start" autocomplete="on">
           <input type="email" id="start-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
@@ -249,14 +251,6 @@
       <div class="hero-actions">
         <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i></a></div>
       </div>
-      <div class="later">
-        <p class="later-title">new dances in your inbox</p>
-        <form class="waitlist slim" id="waitlist" autocomplete="on">
-          <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email">
-          <button class="btn ghost" type="submit" id="wl-go">notify me</button>
-        </form>
-        <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
-      </div>
     </div>
     <div class="art">
       <div class="clip">
@@ -270,11 +264,12 @@
   </header>
 
   <section id="how">
-    <h2>how a lesson goes</h2>
-    <div class="steps">
-      <div class="card"><div class="n">1</div><h3>watch first</h3><p>The whole dance once, with the song.</p></div>
-      <div class="card"><div class="n">2</div><h3>learn it in parts</h3><p>Eight counts at a time. Brodie names the moves, you dance along.</p></div>
-      <div class="card"><div class="n">3</div><h3>get your score</h3><p>A cheer or one tip per part, then the next one.</p></div>
+    <h2>how it works</h2>
+    <div class="steps four">
+      <div class="card"><div class="n">1</div><h3>sign up</h3><p>Just your email. No password, no app.</p></div>
+      <div class="card"><div class="n">2</div><h3>see if brodie is free</h3><p>He teaches one person at a time. If he's busy, a countdown says when he's free.</p></div>
+      <div class="card"><div class="n">3</div><h3>facetime brodie</h3><p>Call him from an iPhone, iPad or Mac. Prop the phone up so he sees you head to toe.</p></div>
+      <div class="card"><div class="n">4</div><h3>learn the dance</h3><p>Eight counts at a time. He scores every part and gives you one tip, then the next part.</p></div>
     </div>
     <div class="bar-demo"><span>accuracy</span><div class="track"><div class="fill"></div><div class="mark"></div></div><span>68%</span></div>
   </section>
@@ -293,7 +288,7 @@
   <section id="under">
     <h2>under the hood</h2>
     <div class="steps">
-      <div class="card"><h3>body tracking</h3><p>Your camera, tracked live. Nothing to install.</p></div>
+      <div class="card"><h3>he watches the call</h3><p>Brodie follows your whole body through the FaceTime video, live.</p></div>
       <div class="card"><h3>a judge, not a guess</h3><p>Your moves are lined up with the creator's and scored.</p></div>
       <div class="card"><h3>a voice that coaches</h3><p>Between parts: the moves, one tip, the hype.</p></div>
     </div>
@@ -301,16 +296,24 @@
 
   <section id="follow">
     <h2>more dances on the way.</h2>
-    <p class="lead">Follow Brodie to hear first about new dances and the FaceTime number&nbsp;drop&nbsp;📞</p>
+    <p class="lead">Follow Brodie to hear first when a new dance&nbsp;drops&nbsp;📞</p>
     <a class="btn primary" id="vote-follow" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">vote for the next dance →</a>
     <div class="social big"><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok<small>@verityagent8</small></span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram<small>@brodie.dancity</small></span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube<small>@verityagent-o6t</small></span></a></div>
   </section>
 
   <footer>
     <span><img src="assets/brodie/brodie-pfp-square.png" alt="">Built on the Brodie starter for IvyHacks 2026.</span>
-    <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">source on GitHub</a>
+    <a href="#" id="wl-open">email me when a new dance drops</a>
+    <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
     <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
     <span class="follow"><span>follow us:</span><a href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i>TikTok</a><a href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i>Instagram</a><a href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i>YouTube</a></span>
+    <div class="foot-wl" id="foot-wl" hidden>
+      <form class="waitlist slim" id="waitlist" autocomplete="on">
+        <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email for new dances">
+        <button class="btn ghost" type="submit" id="wl-go">notify me</button>
+      </form>
+      <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
+    </div>
   </footer>
 </div>
 
@@ -323,7 +326,7 @@
   const pretty = (s) => s.replace(/_[0-9a-f]{6}$/, '').replace(/[_-]+/g, ' ');
 
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
-    if (c.fork) { document.getElementById('nav-fork').href = c.fork; document.getElementById('foot-fork').href = c.fork; }
+    if (c.fork) { document.getElementById('foot-fork').href = c.fork; }
   }).catch(() => {});
 
   // the lessons: from the server when it is reachable, else the list baked in at the last deploy
@@ -414,9 +417,14 @@
     + (d.by ? '<span class="by">dance by ' + esc(d.by) + '</span>' : '<span class="by">&nbsp;</span>')
     + '<span class="eq" aria-hidden="true">' + Array.from({ length: 12 }, (_, i) => '<i style="animation-delay:-' + ((i * 7 + k * 3) % 10) / 10 + 's"></i>').join('') + '</span></a>').join('');
   for (const a of document.querySelectorAll('#soon-list a')) a.addEventListener('click', (e) => {
-    e.preventDefault(); document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    document.getElementById('wl-email')?.focus({ preventScroll: true });
+    e.preventDefault(); openWaitlist();
   });
+  function openWaitlist() {
+    document.getElementById('foot-wl').hidden = false;
+    document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('wl-email')?.focus({ preventScroll: true });
+  }
+  document.getElementById('wl-open').addEventListener('click', (e) => { e.preventDefault(); openWaitlist(); });
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
 
   // ---- step 1: one email field (a returning visitor with a session skips it); step 2: Brodie's live status ----

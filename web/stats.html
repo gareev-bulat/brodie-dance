@@ -39,6 +39,13 @@ button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; pa
 .ghost { background:none; color:var(--grey); padding:6px 0; font:600 13px 'Plus Jakarta Sans', Arial, sans-serif; text-decoration:underline }
 .err { color:#FF8A7A }
 .note { color:var(--grey); font-size:13px }
+.tile b.sm { font-size:22px; line-height:1.15; word-break:break-all }
+.state-open { color:var(--volt) } .state-busy { color:#FFB020 } .state-offline { color:var(--grey) }
+.row { display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+.danger { background:#FF8A7A }
+.confirm { background:var(--panel); border:1px solid #FF8A7A; border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:12px }
+.confirm .ghost { padding:12px 6px }
+td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
 @media (max-width:640px) { .tiles { grid-template-columns:repeat(2, minmax(0,1fr)) } .tile b { font-size:32px } }
 </style>
 </head>
@@ -56,6 +63,19 @@ button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; pa
   <p class="err" id="err" hidden></p>
 
   <div id="body" hidden>
+    <section id="line-sec">
+      <h2>Brodie's line</h2>
+      <div class="tiles" id="line-tiles"></div>
+      <div class="row"><button class="danger" id="reset">Reset line</button><span class="note" id="reset-note"></span></div>
+      <div class="confirm" id="confirm" hidden>
+        <p id="confirm-text"></p>
+        <div class="row"><button class="danger" id="confirm-yes">Reset anyway</button><button class="ghost" id="confirm-no" type="button">cancel</button></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Event</th><th>Session</th><th>Reason</th><th>Before</th></tr></thead>
+        <tbody id="line-log"></tbody>
+      </table></div>
+    </section>
     <section>
       <h2>Totals</h2>
       <div class="tiles" id="totals"></div>
@@ -105,7 +125,48 @@ async function load() {
     : '<tr><td colspan="6">nothing yet</td></tr>';
   $('meta').textContent = `updated ${new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} · days in ${s.tz}` + (s.excluded_team_accounts ? ` · ${s.excluded_team_accounts} team accounts hidden` : '');
   clearTimeout(timer); timer = setTimeout(load, 60000);
+  loadLine();
 }
+// ---- Brodie's line: who holds it, time left, the worker's last report; an admin reset with an in-page confirm ----
+let lineInfo = null, lineTimer = null;
+const ago = s => s == null ? '–' : s < 90 ? s + ' s ago' : Math.round(s / 60) + ' min ago';
+const mmss = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.round(s) % 60).padStart(2, '0');
+const when = t => new Date(t * 1000).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit' });
+async function loadLine() {
+  clearTimeout(lineTimer);
+  if (!key) return;
+  let r; try { r = await fetch(API + '/api/admin/line?key=' + encodeURIComponent(key), { cache: 'no-store' }); } catch { return; }
+  if (!r.ok) return;
+  const l = lineInfo = await r.json();
+  const label = l.state === 'open' ? 'free' : l.state;
+  const session = l.held ? (l.phase === 'reset' ? 'reset buffer' : (l.call_id || l.room)) : '–';
+  $('line-tiles').innerHTML = `<div class="tile"><b class="state-${l.state}">${label}</b><small>line state</small></div>`
+    + `<div class="tile"><b class="sm">${esc(session)}</b><small>session holding it${l.room && l.call_id ? ' · ' + esc(l.room) : ''}</small></div>`
+    + tile(l.started_s_ago == null ? '–' : ago(l.started_s_ago), 'session started')
+    + tile(l.held ? mmss(l.raw_seconds_left) : '–', 'time left')
+    + tile(ago(l.heartbeat_s_ago), 'worker heartbeat')
+    + tile(ago(l.keepalive_s_ago), 'session keepalive');
+  $('line-log').innerHTML = l.log.length ? l.log.map(e => `<tr><td>${esc(when(e.t))}</td><td>${esc(e.event)}</td><td>${esc(e.call_id || e.room || '–')}</td>`
+    + `<td class="l">${esc(e.reason || '')}</td><td class="l">${esc(e.before || '')}</td></tr>`).join('') : '<tr><td colspan="5">no sessions yet</td></tr>';
+  lineTimer = setTimeout(loadLine, 5000);
+}
+function confirmText(l) {
+  if (!l || !l.held) return 'Line is free. Reset anyway? (Nothing to clear; it is logged.)';
+  if (l.phase === 'reset') return `Line is in its reset buffer (${mmss(l.raw_seconds_left)} left). Reset anyway?`;
+  return `Line is busy, session started ${ago(l.started_s_ago)}, ${mmss(l.raw_seconds_left)} left. `
+    + 'If that session is really still running, the next caller could overlap it. Reset anyway?';
+}
+$('reset').addEventListener('click', async () => { await loadLine(); $('confirm-text').textContent = confirmText(lineInfo); $('confirm').hidden = false; $('reset-note').textContent = ''; });
+$('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+$('confirm-yes').addEventListener('click', async () => {
+  $('confirm-yes').disabled = true;
+  try {
+    const r = await fetch(API + '/api/admin/line/reset?key=' + encodeURIComponent(key), { method: 'POST' });
+    $('reset-note').textContent = r.ok ? 'Line reset: free now.' : 'Reset failed (' + r.status + ').';
+  } catch { $('reset-note').textContent = "Reset failed: can't reach the server."; }
+  $('confirm-yes').disabled = false; $('confirm').hidden = true; loadLine();
+});
+
 function fail(msg) { $('err').textContent = msg; $('err').hidden = false; }
 $('login').addEventListener('submit', e => { e.preventDefault(); key = $('key').value.trim(); store.set(key); load(); });
 $('forget').addEventListener('click', () => { store.set(''); key = ''; clearTimeout(timer); load(); });

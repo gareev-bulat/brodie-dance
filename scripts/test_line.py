@@ -31,6 +31,12 @@ def mmss(s): return f'{int(s) // 60:02d}:{int(s) % 60:02d}'
 def beat(): server._LAST_BEAT['t'] = time.time()
 
 
+def live(room, secs):
+    """A running session: the clock moves on with the worker's keepalive every 20 s."""
+    end = CLOCK[0] + secs
+    while CLOCK[0] < end: CLOCK[0] = min(end, CLOCK[0] + 20); line.touch(room)
+
+
 async def line_of(c):
     r = await c.get('/api/line'); return r.status, await r.json()
 
@@ -75,26 +81,26 @@ async def main():
     ok, _ = await worker(line_client.start, 'chert-room-1', 'call-1'); check('the worker takes the line for a FaceTime caller', ok)
     code, d = await line_of(ana)
     check('busy at the start: countdown <= 15:00 and no number', d['state'] == 'busy' and 0 < d['seconds_left'] <= 900 and 'facetime' not in d, mmss(d['seconds_left']))
-    CLOCK[0] += 42
+    live('chert-room-1', 42)
     code, d = await line_of(ana)
     check('42 s later: the real time left, counting down', d['seconds_left'] == 900 + 30 - 42, mmss(d['seconds_left']))
     ok, d2 = await worker(line_client.start, 'chert-room-2', 'call-2')
     msg = line_client.busy_text(d2.get('seconds_left'))
     check('a second FaceTime caller is refused with the minutes left', not ok and msg.startswith("Brodie's in a session right now. Call back in about 15 minutes"), msg)
-    CLOCK[0] += 300
+    live('chert-room-1', 300)
     await worker(line_client.end, 'chert-room-1')
     code, d = await line_of(ana); check('session ends early: only the 30 s reset buffer left', d['state'] == 'busy' and d['seconds_left'] == 30, mmss(d['seconds_left']))
     CLOCK[0] += 30
     code, d = await line_of(ana); check('free again right after the buffer, number back', d['state'] == 'open' and d['facetime'] == NUMBER, d['state'])
 
-    print('\n5. a crashed session expires on its own')
-    await worker(line_client.start, 'chert-room-3', 'call-3'); CLOCK[0] += 899
+    print('\n5. a session that never reports its end (worker still alive) frees at the cap')
+    await worker(line_client.start, 'chert-room-3', 'call-3'); live('chert-room-3', 899)
     code, d = await line_of(ana); check('still busy just before the cap', d['state'] == 'busy', mmss(d['seconds_left']))
     CLOCK[0] += 31
     code, d = await line_of(ana); check('no end ever reported: free after the cap + buffer', d['state'] == 'open', d['state'])
 
     print('\n6. the line survives a server restart')
-    await worker(line_client.start, 'chert-room-4', 'call-4'); CLOCK[0] += 100
+    await worker(line_client.start, 'chert-room-4', 'call-4'); live('chert-room-4', 100)
     _, before = await line_of(ana)
     srv2 = TestServer(server.app()); await srv2.start_server(); c2 = await client(srv2)
     await c2.post('/api/start', json={'email': 'ana@example.com'}); _, after = await line_of(c2)
@@ -116,6 +122,20 @@ async def main():
         check(f'FACETIME_NUMBER={raw!r}', d.get('facetime') == '+1 (628) 289-2384' and d.get('facetime_dial') == '+16282892384', (d.get('facetime'), d.get('facetime_dial')))
     os.environ['FACETIME_NUMBER'] = NUMBER
 
+    print('\n7c. the landing page only describes the FaceTime flow')
+    page = await (await ana.get('/')).text(); low = page.lower()
+    old = ['href="/app', "'/app", '"/app', '/api/token', 'in the browser', 'in your browser', 'works in the browser', 'nothing to install',
+           'body tracking', 'your camera', 'livekit', 'phone_test', 'mint_token', 'web call', 'dance with your camera']
+    hits = [p for p in old if p in low]
+    check('no link to /app and none of the old browser-call phrases', not hits, hits or 'clean')
+    check('how it works: sign up -> see if brodie is free -> facetime brodie -> learn the dance',
+          all(x in low for x in ('<h3>sign up</h3>', '<h3>see if brodie is free</h3>', '<h3>facetime brodie</h3>', '<h3>learn the dance</h3>')))
+
+    hero = page[page.index('<header class="hero">'):page.index('</header>')]
+    nav = page[page.index('<nav'):page.index('</nav>')]
+    check('the hero has exactly one email field; the new-dance emails are in the footer', hero.count('type="email"') == 1 and 'id="waitlist"' in page[page.index('<footer'):])
+    check('the label above the headline names FaceTime; github is not in the top nav', 'FaceTime Brodie, your dance coach' in hero and 'github' not in nav.lower())
+
     print('\n8. the dev preview switch is off unless DEV_PREVIEW=1')
     os.environ.pop('DEV_PREVIEW', None)
     for q in ('free', 'busy', 'offline'):
@@ -128,6 +148,34 @@ async def main():
     r = await anon.get('/api/line?preview=busy'); d = await r.json()
     check('with DEV_PREVIEW=1: the busy preview counts down from 6:42', r.status == 200 and d['state'] == 'busy' and d['seconds_left'] <= 402, d.get('seconds_left'))
     os.environ.pop('DEV_PREVIEW')
+
+    print('\n9. admin reset (stats page) and the keepalive')
+    await worker(line_client.start, 'chert-room-9', 'call-9'); live('chert-room-9', 180)
+    r = await other.post('/api/admin/line/reset'); r2 = await other.post('/api/admin/line/reset?key=wrong')
+    code, d = await line_of(other)
+    check('reset without the key (or a wrong one): 403 and the line stays busy', r.status == 403 and r2.status == 403 and d['state'] == 'busy', (r.status, r2.status, d['state']))
+    r = await other.get('/api/admin/line?key=adm'); a = await r.json()
+    check('admin view: session, started 3 min ago, time left, heartbeat', a['held'] and a['call_id'] == 'call-9' and a['started_s_ago'] == 180
+          and a['raw_seconds_left'] == 900 + 30 - 180 and a['heartbeat_s_ago'] is not None, {k: a[k] for k in ('call_id', 'started_s_ago', 'raw_seconds_left', 'heartbeat_s_ago')})
+    r = await other.post('/api/admin/line/reset?key=adm'); d = await r.json()
+    code, s = await line_of(other)
+    check('reset with the key: free at once (no 30 s buffer)', r.status == 200 and s['state'] == 'open', s['state'])
+    log = (await (await other.get('/api/admin/line?key=adm')).json())['log']
+    check('the reset is logged with the time, "admin reset" and the state before', log[0]['event'] == 'reset' and log[0]['reason'] == 'admin reset'
+          and log[0]['call_id'] == 'call-9' and 'started 180 s ago' in log[0]['before'] and log[0]['t'] == CLOCK[0], log[0])
+    await worker(line_client.end, 'chert-room-9'); code, s = await line_of(other)
+    check('the reset session\'s late end does not re-busy the line', s['state'] == 'open', s['state'])
+
+    await worker(line_client.start, 'chert-room-10', 'call-10')
+    for _ in range(5): CLOCK[0] += 20; await worker(line_client.touch, 'chert-room-10')
+    code, s = await line_of(other); check('keepalive every 20 s: still busy after 100 s', s['state'] == 'busy', mmss(s['seconds_left']))
+    CLOCK[0] += 74; code, s = await line_of(other); check('keepalive stops (crash / network): still busy within LINE_STALE_S', s['state'] == 'busy', mmss(s['seconds_left']))
+    CLOCK[0] += 31; code, s = await line_of(other)
+    check('keepalive stopped 105 s ago: free (not at the 15-minute cap)', s['state'] == 'open', s['state'])
+    await worker(line_client.start, 'chert-room-11', 'call-11'); CLOCK[0] += 30
+    await worker(line_client.end, 'chert-room-11', 'caller left')
+    log = (await (await other.get('/api/admin/line?key=adm')).json())['log']
+    check('an end is logged with its reason', log[0]['event'] == 'end' and log[0]['reason'] == 'caller left', log[0]['reason'])
     for c in (ana, other): await c.close()
     await srv.close()
 

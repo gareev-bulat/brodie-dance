@@ -5,10 +5,10 @@
     line_client.timeline()                        # [(at_s, phase)]: last_part, wrap, hangup (from LINE_CAP_S; [] when 0)
 
 Off unless BRODIE_SERVER and BRODIE_HEARTBEAT_KEY are set (the same pair as the heartbeat). If the server cannot be reached
-the call goes ahead (fail open) and a WARNING says the line is NOT held: a web caller could start a call at the same time.
+the call goes ahead (fail open) and a WARNING says the line is NOT held: a second FaceTime caller could get in at the same time.
 Blocking urllib calls: run them off the event loop (asyncio.to_thread).
 """
-import json, os, urllib.error, urllib.request
+import json, os, time, urllib.error, urllib.request
 
 TIMEOUT_S = 3.0
 
@@ -37,15 +37,30 @@ def start(room, call_id=None):
     if code == 200: print(f'[line] holding the line for {room!r}', flush=True); return True, d
     if code == 409: print(f'[line] line BUSY ({d.get("seconds_left")} s left): refusing the caller in {room!r}', flush=True); return False, d
     print(f'[line] WARNING: could not report the call start to the server ({code or d}): this call does NOT hold the line, '
-          f'so a web caller could start a call at the same time. Going ahead with the call.', flush=True)
+          f'so a second FaceTime caller could get in at the same time. Going ahead with the call.', flush=True)
     return True, None
 
 
-def end(room):
+def end(room, reason='ended', tries=3):
+    """Report the session's end, retried (a dropped request would otherwise leave the line busy until the keepalive times out)."""
     if not configured(): return
-    code, d = _post('/api/line/end', {'room': room})
-    if code == 200: print(f'[line] released the line for {room!r} (reset buffer on the server)' if d.get('ended') else f'[line] call end for {room!r}: not holding the line (already expired)', flush=True)
-    else: print(f'[line] WARNING: could not report the call end ({code or d}): the server frees the line on its own at the cap', flush=True)
+    code, d = None, None
+    for i in range(tries):
+        code, d = _post('/api/line/end', {'room': room, 'reason': reason})
+        if code is not None and code < 500: break
+        time.sleep(0.5 * (i + 1))
+    if code == 200: print(f'[line] released the line for {room!r} ({reason})' if d.get('ended') else f'[line] call end for {room!r}: not holding the line (already expired or reset)', flush=True)
+    else: print(f'[line] WARNING: could not report the call end after {tries} tries ({code or d}): the server frees the line once the keepalive stops (~2 min)', flush=True)
+
+
+def touch_every_s(): return float(os.environ.get('LINE_TOUCH_S', '20'))
+
+
+def touch(room):
+    """Keepalive while the session runs. Failures are quiet: the next one retries, and the server only frees after LINE_STALE_S."""
+    if not configured(): return
+    code, d = _post('/api/line/touch', {'room': room})
+    if code == 200 and not d.get('held'): print(f'[line] keepalive: {room!r} no longer holds the line (an admin reset or an expiry)', flush=True)
 
 
 def cap_s(): return float(os.environ.get('LINE_CAP_S', '900'))

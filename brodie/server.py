@@ -164,7 +164,7 @@ async def line_start(req):
     b = await _body(req); room = str(b.get('room', ''))[:128]
     if not room: return web.json_response({'error': 'room required'}, status=400)
     ok, st = line.start(room, str(b.get('call_id', '') or '')[:64])
-    print(f'[line] start {room!r}: {"ok" if ok else "BUSY " + str(st.get("seconds_left")) + " s left"}', flush=True)
+    if not ok: print(f'[line] start {room!r} refused: busy, {st.get("seconds_left")} s left', flush=True)
     if ok: return web.json_response({'ok': True, 'cap_s': line.cap_s()})
     return web.json_response(dict(st, error='busy'), status=409)
 
@@ -172,9 +172,38 @@ async def line_start(req):
 async def line_end(req):
     if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
     b = await _body(req); room = str(b.get('room', ''))[:128]
-    ended = line.end(room)
-    print(f'[line] end {room!r}: {"reset buffer " + str(line.buffer_s()) + " s" if ended else "not the line holder (ignored)"}', flush=True)
+    ended = line.end(room, str(b.get('reason', '') or 'ended')[:80])
+    if not ended: print(f'[line] end {room!r}: not the line holder (ignored)', flush=True)
     return web.json_response({'ok': True, 'ended': ended})
+
+
+async def line_touch(req):
+    """The worker's keepalive while a session runs: when it stops (crash, network gone) the line frees within LINE_STALE_S."""
+    if not _worker_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req)
+    return web.json_response({'ok': True, 'held': line.touch(str(b.get('room', ''))[:128])})
+
+
+def _admin_ok(req):
+    key = os.environ.get('ADMIN_KEY', '')
+    return bool(key) and hmac.compare_digest(req.query.get('key', ''), key)
+
+
+async def admin_line(req):
+    """The stats page's line panel: GET /api/admin/line?key=<ADMIN_KEY>. The session holding the line, its age and time left,
+    the worker's last heartbeat and keepalive, and the recent starts, ends and resets."""
+    if not _admin_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+    beat = _LAST_BEAT['t']
+    return web.json_response(dict(line.info(worker_online()), heartbeat_s_ago=round(time.time() - beat) if beat else None, log=line.log(20)),
+                             headers={'Cache-Control': 'no-store'})
+
+
+async def admin_line_reset(req):
+    """POST /api/admin/line/reset?key=<ADMIN_KEY>: the line is free now (no reset buffer); the held session is logged as ended
+    ("admin reset"). Without the key: 403 and nothing changes."""
+    if not _admin_ok(req): return web.json_response({'error': 'forbidden'}, status=403)
+    before = line.reset('admin reset')
+    return web.json_response({'ok': True, 'before': before, 'line': line.info(worker_online())}, headers={'Cache-Control': 'no-store'})
 
 
 async def config(_req):
@@ -247,7 +276,8 @@ def app():
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.post('/api/start', start), web.get('/api/me', me),
                   web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
-                  web.get('/api/line', line_status), web.post('/api/line/start', line_start), web.post('/api/line/end', line_end), web.get('/api/dances', dances),
+                  web.get('/api/line', line_status), web.post('/api/line/start', line_start), web.post('/api/line/end', line_end), web.post('/api/line/touch', line_touch),
+                  web.get('/api/admin/line', admin_line), web.post('/api/admin/line/reset', admin_line_reset), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
                   web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
                   web.get('/', landing), web.get('/index.html', landing), web.static('/', WEB)])
@@ -260,5 +290,5 @@ if __name__ == '__main__':
     ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', '8765')), help='hosting services set PORT')
     a = ap.parse_args()
     users.init(); line.init()
-    print(f'[brodie] web on http://{a.host}:{a.port}: landing at /, call page at /app, {users.count()} users in {users.DB}', flush=True)
+    print(f'[brodie] web on http://{a.host}:{a.port}: landing at /, {users.count()} users in {users.DB}', flush=True)
     web.run_app(app(), host=a.host, port=a.port, print=None)

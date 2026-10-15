@@ -43,6 +43,7 @@ Environment variables on the host:
 | `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
 | `FACETIME_NUMBER` | the Chert FaceTime line, e.g. `+16282892384` (any formatting is fine: the link uses the digits, the page shows `+1 (628) 289-2384`); shown only to signed-in visitors while Brodie is free |
 | `LINE_CAP_S` / `LINE_BUFFER_S` | session cap and reset buffer in seconds (optional, default 900 / 30) |
+| `LINE_STALE_S` | a session whose worker keepalive (every 20 s) stops this long is treated as ended (optional, default 75). Admins can also free the line at once from `/stats.html` (Reset line, needs `ADMIN_KEY`) |
 | `DEV_PREVIEW` | never on the host. `1` on a dev machine turns on `?preview=free`, `busy`, `offline`, `loggedout` |
 | `FORK_URL` | the team's GitHub fork (optional) |
 | `HOST` / `PORT` | `0.0.0.0` and whatever the host assigns (the Dockerfile sets both; most hosts override `PORT`) |
@@ -71,7 +72,7 @@ session's start and end (`/api/line/start`, `/api/line/end`): while one runs the
 caller hears a short `?preview=free`, `busy`, `offline`, `loggedout` message and is hung up. If the worker can't reach the server, the session still runs but does not
 hold the line (a WARNING in the worker log).
 
-LiveKit dispatches that worker into every room the website creates (`web-<user>-…`) and into the Chert FaceTime line. The
+LiveKit dispatches that worker into the Chert FaceTime line's rooms (the website creates no rooms). The
 worker's `DANCE` should match the website's.
 
 ## 3. Check it

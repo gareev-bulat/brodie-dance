@@ -1,5 +1,3 @@
-# The web + token server only (brodie/server.py): landing page, accounts, call page, LiveKit tokens, lesson list. No torch, no MediaPipe.
+# The website only (brodie/server.py): landing page, email sign-in, Brodie's line, lesson list. No torch, no MediaPipe, no LiveKit.
 aiohttp>=3.9
-livekit-api>=1.0
-livekit-protocol>=1.0
 numpy>=2.0
