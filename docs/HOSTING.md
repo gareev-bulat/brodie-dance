@@ -43,6 +43,7 @@ Environment variables on the host:
 | `BRODIE_DB` | path of the sqlite file, on a persistent disk if the host has one (default `data/brodie.db`) |
 | `FACETIME_NUMBER` | the Chert FaceTime line, e.g. `+16282892384` (any formatting is fine: the link uses the digits, the page shows `+1 (628) 289-2384`); shown only to signed-in visitors while Brodie is free |
 | `LINE_CAP_S` | session length in seconds (optional, default 900 = 15 minutes) |
+| `LINE_CLAIM_S` | after a visitor clicks "FaceTime Brodie", how long the line waits for their call to start before it goes to the next person (optional, default 120). Once the worker reports the call, the session runs up to `LINE_CAP_S`. Set it to 900 to turn this off |
 | `LINE_COOLDOWN_S` | after a FaceTime call ends, the line frees this many seconds later (optional, default 15: Chert needs about 10 s between calls). The worker reports calls with `BRODIE_SERVER` + `BRODIE_HEARTBEAT_KEY` (facetime/line_report.py); without them the line frees on "I'm done dancing" or at the end of the session |
 | `ADMIN_KEY` on `/stats.html` | the stats page also shows Brodie's line and has Mark busy (1 to 15 minutes), Add 5 minutes and Mark free; all need the key |
 | `DEV_PREVIEW` | never on the host. `1` on a dev machine turns on `?preview=free`, `busy`, `mine`, `offline`, `loggedout` |

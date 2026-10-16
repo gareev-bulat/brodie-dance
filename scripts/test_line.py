@@ -11,7 +11,7 @@ sys.path[:0] = [ROOT, os.path.join(ROOT, 'src')]
 TMP = tempfile.mkdtemp(prefix='brodie-line-')
 NUMBER = '+1 (628) 289-2384'
 os.environ.update(BRODIE_DB=os.path.join(TMP, 'brodie.db'), SESSION_SECRET='test', HEARTBEAT_KEY='k3y', FACETIME_NUMBER='+16282892384',
-                  LINE_CAP_S='900', ADMIN_KEY='adm')
+                  LINE_CAP_S='900', LINE_CLAIM_S='900', ADMIN_KEY='adm')   # the click-only flow (no worker reports)
 os.environ.pop('DEV_PREVIEW', None)
 
 from aiohttp.test_utils import TestServer, TestClient

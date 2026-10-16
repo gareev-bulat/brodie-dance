@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'src')]
 TMP = tempfile.mkdtemp(prefix='brodie-autorelease-')
 os.environ.update(BRODIE_DB=os.path.join(TMP, 'brodie.db'), SESSION_SECRET='test', HEARTBEAT_KEY='k3y', FACETIME_NUMBER='+16282892384',
-                  LINE_CAP_S='900', LINE_COOLDOWN_S='15', ADMIN_KEY='adm', BRODIE_HEARTBEAT_KEY='k3y')
+                  LINE_CAP_S='900', LINE_COOLDOWN_S='15', LINE_CLAIM_S='120', ADMIN_KEY='adm', BRODIE_HEARTBEAT_KEY='k3y')
 os.environ.pop('DEV_PREVIEW', None)
 
 from aiohttp.test_utils import TestServer, TestClient
@@ -48,9 +48,13 @@ async def main():
     try:
         beat()
         print('\n1. a visitor clicks, dances 4 minutes, hangs up WITHOUT "I\'m done"')
-        r = await A.post('/api/line/claim'); check('A clicks FaceTime Brodie: the line is theirs', (await st(A)) == ('mine', 900))
-        check('B sees busy 15:00', (await st(B)) == ('busy', 900))
+        r = await A.post('/api/line/claim'); check('A clicks FaceTime Brodie: the line is theirs for 2 min to start the call', (await st(A)) == ('mine', 120))
+        d = await (await A.get('/api/line')).json(); check('A: not on the call yet', d.get('on_call') is False, d)
+        check('B sees busy 2:00', (await st(B)) == ('busy', 120))
+        CLOCK[0] += 20
         check("worker reports the call start (A's session kept)", await worker('start') and line.info()['source'] == 'visitor')
+        check('the call started: the session now runs up to 15 min from the call', (await st(B)) == ('busy', 900) and line.info()['on_call'])
+        d = await (await A.get('/api/line')).json(); check('A: on the call', d.get('on_call') is True, d)
         CLOCK[0] += 240
         check('worker reports the call end', await worker('end'))
         s = await st(B); check('B now sees busy for the cooldown only (0:15, not 11:00)', s == ('busy', 15), f'{s[0]} {mmss(s[1])}')
@@ -87,8 +91,17 @@ async def main():
         await A.post('/api/admin/line/free', params=adm)
         await A.post('/api/line/claim'); CLOCK[0] += 30
         r = await A.post('/api/line/done'); check('"I\'m done dancing" still frees at once', (await r.json()).get('freed') and (await st(B)) == ('open', 0))
-        await A.post('/api/line/claim'); CLOCK[0] += 900
-        check('no end report (worker down): the line frees at 15:00 as before', (await st(B)) == ('open', 0))
+        await A.post('/api/line/claim'); await worker('start'); CLOCK[0] += 899
+        check('no end report (worker down after the start): still busy at 14:59', (await st(B))[0] == 'busy')
+        CLOCK[0] += 1; check('...and free at 15:00 as before', (await st(B)) == ('open', 0))
+
+        print('\n6. a click with no call: the line goes to the next person after 2 min')
+        await A.post('/api/line/claim'); check('A clicks, never calls: B sees busy 2:00', (await st(B)) == ('busy', 120))
+        CLOCK[0] += 119; check('still busy at 1:59', (await st(B))[0] == 'busy')
+        CLOCK[0] += 1; check('free at 2:00', (await st(B)) == ('open', 0))
+        check('B can take it', (await B.post('/api/line/claim')).status == 200 and (await st(B))[0] == 'mine')
+        log = line.log(5); check('the stats log says A clicked but never called', any('no call within 120 s' in e['detail'] for e in log), [e['detail'] for e in log][:3])
+        await B.post('/api/line/done')
 
         print('\n5. safety')
         r = await A.post('/api/line/call', json={'event': 'end'}); check('without the worker key: refused', r.status == 403, r.status)
