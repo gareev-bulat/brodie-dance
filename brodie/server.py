@@ -9,6 +9,7 @@ Routes: /  landing (web/index.html)
         POST /api/line/done    "I'm done dancing": the visitor's session ends, the line is free for everyone
         GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
         POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
+        POST /api/line/call {event: start|end}   Brodie's worker: a FaceTime call started / ended (X-Brodie-Key)
         GET /api/admin/line   POST /api/admin/line/busy?minutes=N | /free | /extend?minutes=5   the stats page (?key=ADMIN_KEY)
 The line is website-only (brodie/line.py): Brodie's worker reports nothing but its heartbeat.
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
@@ -186,6 +187,19 @@ async def line_done(req):
     return web.json_response(dict(_line_view(u), freed=freed), headers=NO_STORE)
 
 
+async def line_call(req):
+    """Brodie's worker reporting a FaceTime call: POST /api/line/call {event: start|end, call_id}, X-Brodie-Key: HEARTBEAT_KEY.
+    start: a free line shows busy (callers who dialled without the site); end: the line frees after the cooldown (Chert's
+    pause between calls) instead of at the end of the 15-minute session."""
+    key = os.environ.get('HEARTBEAT_KEY', '')
+    if not key or not hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key):
+        return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req); ev = str(b.get('event', '')); call_id = str(b.get('call_id', '') or '')[:64]
+    if ev == 'start': return web.json_response({'ok': True, 'source': line.call_started(call_id)})
+    if ev == 'end': return web.json_response({'ok': True, 'free_in_s': line.call_ended(call_id)})
+    return web.json_response({'error': 'event must be start or end'}, status=400)
+
+
 def _admin_ok(req):
     key = os.environ.get('ADMIN_KEY', '')
     return bool(key) and hmac.compare_digest(req.query.get('key', ''), key)
@@ -301,7 +315,7 @@ def app():
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.post('/api/start', start), web.get('/api/me', me),
                   web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
-                  web.get('/api/line', line_status), web.post('/api/line/claim', line_claim), web.post('/api/line/done', line_done),
+                  web.get('/api/line', line_status), web.post('/api/line/claim', line_claim), web.post('/api/line/done', line_done), web.post('/api/line/call', line_call),
                   web.get('/api/admin/line', admin_line), web.post('/api/admin/line/busy', admin_busy), web.post('/api/admin/line/free', admin_free),
                   web.post('/api/admin/line/reset', admin_free), web.post('/api/admin/line/extend', admin_extend), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
