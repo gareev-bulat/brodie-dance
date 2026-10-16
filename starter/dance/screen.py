@@ -27,6 +27,14 @@ COL_L, COL_R, COL_MID = (255, 200, 0), (0, 170, 255), (240, 240, 240)   # RGB: t
 LEAD_BEATS = 4                                                     # beats of song before ONE (starter/handlers.py build_clip), no numbers shown
 SHOW_COUNTS = os.environ.get('DANCE_COUNT_ALOUD', '0') != '0'      # the 1..8 numbers only when the counts are spoken too
 PIP_W, PIP_H, PIP_PAD, BAR_H = int(120 * K), int(213 * K), int(12 * K), int(36 * K)   # the caller's camera bottom-right, the bar on top
+# FaceTime on an iPhone shows this 9:16 track full screen ("Fill"): the screen is narrower (about 9:19.5), so roughly 9 % of each
+# side is cut off, and the Dynamic Island covers the top middle. The creator's whole frame, the bar, the texts and the caller's
+# camera stay inside this safe area; the edges show a blurred copy of the creator's frame. In 360x640 units, like everything else.
+SAFE_X = int(36 * K)                                             # 10 % each side
+BAR_Y = int(44 * K)                                              # the accuracy bar starts below the island
+VID_X0, VID_X1 = SAFE_X, W - SAFE_X                              # where the creator's frame goes
+VID_Y0, VID_Y1 = BAR_Y + BAR_H + int(6 * K), H - int(10 * K)
+LAYOUT = 'safe1'                                                 # in the frame cache key: a layout change re-renders the cache
 PASS_MARK = float(os.environ.get('DANCE_PASS', '0.5'))
 
 
@@ -85,7 +93,7 @@ def cached_frames(path, fps=FPS_OUT):
     (Brodie's video sent no frames) and Chert hung up with "Agent failed". From the cache it loads in well under a second."""
     import pickle
     st = os.stat(path)
-    key = (f'{os.path.splitext(os.path.basename(path))[0]}_{W}x{H}_{fps}fps_{"mirror" if MIRROR else "plain"}'
+    key = (f'{os.path.splitext(os.path.basename(path))[0]}_{W}x{H}_{LAYOUT}_{fps}fps_{"mirror" if MIRROR else "plain"}'
            f'_{int(st.st_mtime)}_{st.st_size}.pkl')
     if key in _MEM: return _MEM[key]
     cdir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(path))), 'tmp', 'screen_cache')   # data/tmp/screen_cache
@@ -111,7 +119,8 @@ def preload(video_path):
 
 
 def load_frames(path, fps=FPS_OUT):
-    """The video at `fps`, each frame letterboxed to W x H RGB. Returns (frames uint8 (N, H, W, 3), fps)."""
+    """The video at `fps`, each frame fitted whole inside the safe area (VID_X0..VID_X1, VID_Y0..VID_Y1) over a blurred, darkened
+    copy of itself that fills the W x H frame. Returns (JPEG-encoded frames, fps)."""
     import cv2
     cap = cv2.VideoCapture(path); src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     out, i, next_t = [], 0, 0.0
@@ -122,9 +131,15 @@ def load_frames(path, fps=FPS_OUT):
         if t + 1e-6 < next_t: continue
         next_t += 1.0 / fps
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB); h, w = rgb.shape[:2]
-        s = min(W / w, H / h); nw, nh = max(2, int(w * s)), max(2, int(h * s))
-        canvas = np.zeros((H, W, 3), np.uint8)
-        y0, x0 = (H - nh) // 2, (W - nw) // 2
+        c = max(W / w, H / h)                                   # the backdrop: the same frame covering W x H, blurred and dimmed
+        cw, ch = max(W, int(np.ceil(w * c))), max(H, int(np.ceil(h * c)))
+        small = cv2.GaussianBlur(cv2.resize(rgb, (max(2, cw // 8), max(2, ch // 8)), interpolation=cv2.INTER_AREA), (0, 0), 3)
+        big = cv2.resize(small, (cw, ch), interpolation=cv2.INTER_LINEAR)
+        by, bx = (big.shape[0] - H) // 2, (big.shape[1] - W) // 2
+        canvas = (big[by:by + H, bx:bx + W].astype(np.float32) * 0.4).astype(np.uint8)
+        bwid, bhei = VID_X1 - VID_X0, VID_Y1 - VID_Y0            # the creator's whole frame inside the safe area
+        s = min(bwid / w, bhei / h); nw, nh = max(2, int(w * s)), max(2, int(h * s))
+        y0, x0 = VID_Y0 + (bhei - nh) // 2, VID_X0 + (bwid - nw) // 2
         canvas[y0:y0 + nh, x0:x0 + nw] = cv2.resize(rgb, (nw, nh), interpolation=cv2.INTER_AREA)
         frame = canvas[:, ::-1] if MIRROR else canvas
         out.append(cv2.imencode('.jpg', cv2.cvtColor(np.ascontiguousarray(frame), cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 92])[1])
@@ -133,10 +148,14 @@ def load_frames(path, fps=FPS_OUT):
 
 
 def _text(img, s, org, scale, color=WHITE, thick=2, center=False):
-    """org, scale and thick are in 360x640 units; scaled by K for the real canvas."""
+    """org, scale and thick are in 360x640 units; scaled by K for the real canvas. Text that would run past the safe area
+    (SAFE_X from either edge) is set smaller so it stays on an iPhone screen."""
     import cv2
     font = cv2.FONT_HERSHEY_DUPLEX
     org = (int(round(org[0] * K)), int(round(org[1] * K))); scale = scale * K; thick = max(1, int(round(thick * K)))
+    room = (W - 2 * SAFE_X - int(8 * K)) if center else (W - SAFE_X - org[0])
+    (tw, _), _ = cv2.getTextSize(s, font, scale, thick)
+    if tw > room: scale *= room / tw
     if center:
         (tw, _), _ = cv2.getTextSize(s, font, scale, thick); org = ((W - tw) // 2, org[1])
     cv2.putText(img, s, org, font, scale, BLACK, thick + 4, cv2.LINE_AA)
@@ -178,15 +197,15 @@ class Screen:
             elif SHOW_COUNTS:
                 b = beat - LEAD_BEATS
                 if b < 8 * (play['k1'] - play['k0']):
-                    _text(img, str(b % 8 + 1), (280, 90), 2.6, VOLT, 5)
+                    _text(img, str(b % 8 + 1), (W / K - SAFE_X / K - 50, 150), 2.6, VOLT, 5)
             label = ('WATCH THE WHOLE DANCE' if play.get('preview') else 'FULL DANCE') if play['k1'] - play['k0'] > 1 else f'PART {play["k0"] + 1}/{n}'
-            _text(img, label, (14, 70), 0.75 if play.get('preview') else 0.9, WHITE, 2)
+            _text(img, label, (SAFE_X / K + 10, VID_Y0 / K + 30), 0.75 if play.get('preview') else 0.9, WHITE, 2)
             return self._finish(img, st, cam)
         # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
         img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
         state = st.get('state')
         if state == 'idle' or not st.get('visible'):
-            _text(img, 'BRODIE DANCE', (0, 120), 1.3, VOLT, 3, center=True)
+            _text(img, 'BRODIE DANCE', (0, 150), 1.3, VOLT, 3, center=True)
             for i, line in enumerate(['Step back so I can see', 'your whole body']):
                 _text(img, line, (0, 300 + 40 * i), 0.9, WHITE, 2, center=True)
             return self._finish(img, st, cam)
@@ -197,29 +216,30 @@ class Screen:
                 _text(img, f'Part {kk + 1}: {s}%', (0, 290 + 45 * i), 1.0, WHITE, 2, center=True)
             return self._finish(img, st, cam)
         title = 'FULL DANCE NEXT' if state == 'full' else f'PART {k + 1}/{n}'
-        _text(img, title, (0, 110), 1.4, VOLT, 3, center=True)
+        _text(img, title, (0, 140), 1.4, VOLT, 3, center=True)
         last = st.get('last_pct')
-        if last is not None: _text(img, f'Last try: {last}%', (0, 170), 1.0, WHITE, 2, center=True)
+        if last is not None: _text(img, f'Last try: {last}%', (0, 196), 1.0, WHITE, 2, center=True)
         steps = ref.step(k) if state != 'full' else None
         if steps:
-            y = 250
+            y = 268
             for bullet in [b.strip() for b in steps.split('|') if b.strip()][:3]:   # 2-3 short bullets, not a paragraph
-                for j, line in enumerate(textwrap.wrap(bullet, 24)[:2]):
-                    _text(img, ('- ' if j == 0 else '  ') + line, (28, y), 0.72, WHITE, 2); y += 32
+                for j, line in enumerate(textwrap.wrap(bullet, 24, break_on_hyphens=False)[:2]):
+                    _text(img, ('- ' if j == 0 else '  ') + line, (SAFE_X / K + 6, y), 0.72, WHITE, 2); y += 32
                 y += 8
         return self._finish(img, st, cam)
 
     def _finish(self, img, st, cam):
         """Every frame ends with you bottom-right (camera + skeleton) and the accuracy bar along the bottom."""
         import cv2
-        if cam is not None:
-            y0, x0 = H - PIP_PAD - PIP_H, W - PIP_PAD - PIP_W
+        if cam is not None:                                           # inside the safe area, so an iPhone doesn't cut it off
+            y0, x0 = H - PIP_PAD - PIP_H, W - SAFE_X - PIP_PAD - PIP_W
             img[y0:y0 + PIP_H, x0:x0 + PIP_W] = cam_panel(cam, PIP_W, PIP_H)
             cv2.rectangle(img, (x0, y0), (x0 + PIP_W - 1, y0 + PIP_H - 1), WHITE, max(2, int(2 * K)))
-        y0 = 0                                                        # the accuracy bar along the top
+        y0 = BAR_Y                                                    # the accuracy bar along the top, below the Dynamic Island
         cv2.rectangle(img, (0, y0), (W, y0 + BAR_H), (18, 18, 18), -1)
-        _text(img, 'ACCURACY', (12, 24), 0.6, WHITE, 1)
-        bx0, bx1, by0, by1 = int(124 * K), W - int(62 * K), int(10 * K), BAR_H - int(10 * K)
+        sx = SAFE_X / K
+        _text(img, 'ACCURACY', (sx + 6, y0 / K + 24), 0.55, WHITE, 1)
+        bx0, bx1, by0, by1 = int((sx + 104) * K), W - SAFE_X - int(46 * K), y0 + int(10 * K), y0 + BAR_H - int(10 * K)
         cv2.rectangle(img, (bx0, by0), (bx1, by1), (70, 70, 70), -1)
         pct = st.get('last_pct')
         if pct is not None:
@@ -228,7 +248,7 @@ class Screen:
             cv2.rectangle(img, (bx0, by0), (bx0 + int((bx1 - bx0) * f), by1), col, -1)
         xm = bx0 + int((bx1 - bx0) * PASS_MARK)
         cv2.line(img, (xm, by0 - 2), (xm, by1 + 2), VOLT, max(2, int(2 * K)))   # the pass mark
-        _text(img, f'{pct}%' if pct is not None else '--', (306, 25), 0.6, WHITE, 1)
+        _text(img, f'{pct}%' if pct is not None else '--', (W / K - sx - 42, y0 / K + 25), 0.6, WHITE, 1)
         return img
 
     async def run(self, room, get_state, get_cam=lambda: None):
