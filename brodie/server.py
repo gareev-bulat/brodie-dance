@@ -4,8 +4,10 @@
 Routes: /  landing (web/index.html)
         POST /api/start {email}  the landing page's one field: creates the account (no password) or signs into it
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
-        GET /api/line   signed in only: Brodie's line, open | busy (seconds_left) | mine | offline, the FaceTime number when open or mine
-        POST /api/line/claim   the visitor clicked "FaceTime Brodie": a 15-minute session is theirs, or 409 busy
+        GET /api/line   Brodie's line, open | busy (seconds_left) | mine | offline; the FaceTime number only to a signed-in visitor
+                        (email or guest) when open or mine. Logged out: the state and time left, never the number
+        POST /api/line/claim   the visitor clicked "FaceTime Brodie": the session is theirs, or 409 busy. Logged out and the
+                        line free: a guest session (cookie, no email) is made first, so one tap gets the number
         POST /api/line/done    "I'm done dancing": the visitor's session ends, the line is free for everyone
         GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
         POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
@@ -73,7 +75,8 @@ def _preview_line(p):
 
 
 def _public(u):
-    return {'id': u['id'], 'name': u['name'], 'email': u['email'], 'calls': u['calls']}
+    g = users.is_guest(u)
+    return {'id': u['id'], 'name': u['name'], 'email': '' if g else u['email'], 'calls': u['calls'], 'guest': g}
 
 
 def current_user(req):
@@ -161,22 +164,28 @@ NO_STORE = {'Cache-Control': 'no-store'}
 
 
 async def line_status(req):
-    """Signed in only (logged out: 401 and nothing else)."""
+    """Signed in (email or guest): the full view. Logged out: the state and time left only, no number (the pop-up shows
+    "free" or "busy, free in about 1 minute" before anyone signs up)."""
     p = preview(req)
     if p and p != 'loggedout': return web.json_response(_preview_line(p), headers=NO_STORE)
-    u = None if p == 'loggedout' else current_user(req)
-    if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
+    if p == 'loggedout': return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
+    u = current_user(req)
+    if u is None: return web.json_response(line.view(None, worker_online()), headers=NO_STORE)
     return web.json_response(_line_view(u), headers=NO_STORE)
 
 
 async def line_claim(req):
     """The visitor clicked "FaceTime Brodie": the line is theirs for 15 minutes (200 with the number), or 409 busy (no number).
     Offline: 503. Two clicks at once: one sqlite write transaction, the first wins."""
-    u = current_user(req)
-    if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
-    if worker_online() is False: return web.json_response(dict(line.view(u['id'], False), error='offline'), status=503, headers=NO_STORE)
+    u, new = current_user(req), False
+    if worker_online() is False: return web.json_response(dict(line.view(u['id'] if u else None, False), error='offline'), status=503, headers=NO_STORE)
+    if u is None:                                     # logged out: a guest session, but only when the line is free to take
+        st = line.view(None, worker_online())
+        if st['state'] != 'open': return web.json_response(st, status=409, headers=NO_STORE)
+        u, new = users.guest(), True
     ok, _ = line.claim(u['id'])
-    return web.json_response(_line_view(u), status=200 if ok else 409, headers=NO_STORE)
+    resp = web.json_response(dict(_line_view(u), user=_public(u)), status=200 if ok else 409, headers=NO_STORE)
+    return _with_session(resp, req, u['id']) if new else resp
 
 
 async def line_done(req):

@@ -109,6 +109,19 @@ def by_email(email):
         return _row(c.execute('SELECT * FROM users WHERE id = ?', (cur.lastrowid,)).fetchone()), True
 
 
+def guest():
+    """A visitor without an email: the landing page's pop-up takes the line with one tap. The account gets a placeholder
+    email with no @ (guest-<random>), which no email field accepts, so nobody can sign into it by typing an address; the
+    signed session cookie is the only way back to it. Created only when a visitor actually takes a free line."""
+    with _db() as c:
+        cur = c.execute('INSERT INTO users (name, email, pw_hash, salt, created) VALUES ("guest", ?, "", "", ?)', ('guest-' + secrets.token_hex(8), time.time()))
+        return _row(c.execute('SELECT * FROM users WHERE id = ?', (cur.lastrowid,)).fetchone())
+
+
+def is_guest(u):
+    return bool(u) and u['email'].startswith('guest-') and '@' not in u['email']
+
+
 def verify(email, password):
     email = (email or '').strip().lower()
     with _db() as c:

@@ -15,7 +15,7 @@ os.environ.update(BRODIE_DB=os.path.join(TMP, 'brodie.db'), SESSION_SECRET='test
 os.environ.pop('DEV_PREVIEW', None)
 
 from aiohttp.test_utils import TestServer, TestClient
-from brodie import server, line
+from brodie import server, line, users
 
 CLOCK = [1_000_000.0]
 line.now = lambda: CLOCK[0]
@@ -55,10 +55,18 @@ async def main():
     srv = TestServer(server.app()); await srv.start_server()
     beat()
 
-    print('\n1. logged out: no number, no status anywhere')
+    print('\n1. logged out: the status but never the number; one tap makes a guest session')
     anon = await visitor(srv)
-    code, d = await line_of(anon); check('GET /api/line is 401 with nothing in it', code == 401 and set(d) == {'error'}, d)
-    r = await anon.post('/api/line/claim'); check('a logged-out click cannot take the line (401)', r.status == 401)
+    code, d = await line_of(anon); check('GET /api/line: the state, no number', code == 200 and d['state'] == 'open' and 'facetime' not in d, d)
+    guest = await visitor(srv)
+    r = await guest.post('/api/line/claim'); d = await j(r)
+    check('a logged-out tap on a free line: a guest session takes it, with the number', r.status == 200 and d['state'] == 'mine' and d['facetime'] == NUMBER and d['user']['guest'] and d['user']['email'] == '', d)
+    r = await guest.get('/api/me'); check('the guest cookie signs them back in', r.status == 200 and (await j(r))['user']['guest'])
+    code, d = await line_of(anon); check('everyone else: busy, no number', d['state'] == 'busy' and 'facetime' not in d, d)
+    n = users.count(); r = await anon.post('/api/line/claim')
+    check('a logged-out tap on a busy line: 409, no guest account made', r.status == 409 and users.count() == n, r.status)
+    r = await guest.post('/api/line/done'); check('the guest is done: free again', (await j(r))['freed'])
+    r = await anon.post('/api/start', json={'email': 'guest-0123456789abcdef'}); check('nobody can sign into a guest account by typing its id', r.status == 400)
     leaks = []
     for path in ('/api/config', '/api/health', '/api/dances', '/', '/index.html', '/line.js'):
         body = await (await anon.get(path)).text()
