@@ -174,8 +174,9 @@ async def main():
     hits = [p for p in old if p in low]
     check('no link to /app and none of the old browser-call phrases', not hits, hits or 'clean')
     hero = page[page.index('<header class="hero">'):page.index('</header>')]; nav = page[page.index('<nav'):page.index('</nav>')]
-    check('one email field in the hero; FaceTime label; github not in the nav; "I\'m done dancing" button',
-          hero.count('type="email"') == 1 and 'FaceTime Brodie, your dance coach' in hero and 'github' not in nav.lower() and "I'm done dancing" in hero)
+    check('the hero opens the pop-up (no email field there); FaceTime label; github not in the nav; "I\'m done dancing" button',
+          hero.count('type="email"') == 0 and 'id="start-go"' in hero and '<script src="popup.js">' in page and 'FaceTime Brodie, your dance coach' in hero
+          and 'github' not in nav.lower() and "I'm done dancing" in hero)
 
     print('\n11. the dev preview switch is off unless DEV_PREVIEW=1')
     for q in ('free', 'busy', 'mine', 'offline'):
