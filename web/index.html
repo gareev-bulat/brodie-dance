@@ -10,380 +10,362 @@
 <meta property="og:title" content="Brodie Dance">
 <meta property="og:description" content="Learn the dance eight counts at a time. FaceTime Brodie: he watches, scores and coaches you.">
 <meta property="og:image" content="assets/brodie/brodie-pfp-square.png">
+<meta name="theme-color" content="#140B33">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,100..125,400..900;1,100..125,400..900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
-  /* Brand from the Brodie character kit (web/assets/brodie/brodie.json): volt on near-black, cream only on Brodie himself. */
-  :root { --ground: #0A0A0B; --panel: #1F2126; --grey: #8E9198; --volt: #D9FF3D; --ink: #1A1919; --text: #F4F2EE; --line: #2A2D33; }
+  /* Dance-game night. A rhythm game's title screen: a club stage under three spotlights. The light colors are the game's
+     judgement colors and mean the same thing everywhere: volt = perfect (and the button), cyan = great / done, magenta = good.
+     Cream is Brodie's own color. The pop-up (popup.js) takes the same variables. */
+  :root {
+    --night: #140B33; --ground: #0C0820; --panel: #1E1448; --deep: #140B33;
+    --volt: #D9FF3D; --volt-dark: #7C9A12; --cyan: #35E6FF; --magenta: #FF3EA5;
+    --text: #F4F2EE; --soft: #DCD7F2; --grey: #A9A2CF; --muted: #C9C3E8; --ink: #1A1919; --line: rgba(244,242,238,0.14);
+  }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--ground); color: var(--text); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 17px; line-height: 1.55; }
+  body { margin: 0; background: var(--ground); color: var(--text); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 17px; line-height: 1.55; overflow-x: hidden; }
   a { color: inherit; }
-  h1, h2, h3, .wordmark, .btn { font-family: 'Archivo', 'Plus Jakarta Sans', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.03em; }
-  h1 { font-size: clamp(2.6rem, 7vw, 5.2rem); line-height: 0.95; margin: 0 0 20px; }
-  h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1; margin: 0 0 28px; }
-  h3 { font-size: 1.25rem; margin: 0 0 8px; }
-  p { margin: 0 0 14px; max-width: 34em; }
-  .muted { color: var(--grey); }
-  .wrap { width: min(1100px, 100% - 32px); margin: 0 auto; }
-
-  nav { display: flex; align-items: center; gap: 14px; padding: 18px 0; }
-  nav .wordmark { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; text-decoration: none; white-space: nowrap; }
-  nav .wordmark img { width: 40px; height: 40px; border-radius: 50%; }
-  nav .links { margin-left: auto; display: flex; gap: 22px; font-size: 0.95rem; }
-  nav .links a { text-decoration: none; color: var(--grey); }
-  nav .links a:hover { color: var(--text); }
-
-  .hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; padding: 48px 0 56px; }
-  .hero .art { position: relative; display: flex; justify-content: center; }
-  .hero .art { align-items: flex-end; gap: 0; }
-  .hero .art img { width: min(100%, 360px); margin-left: -60px; filter: drop-shadow(0 30px 40px rgba(0,0,0,0.55)); }
-  .clip { position: relative; z-index: 1; flex: none; width: 220px; aspect-ratio: 9 / 16; border-radius: 22px; overflow: hidden; border: 3px solid var(--volt); background: #000 url(assets/hero/dance.jpg) center / cover; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
-  .clip video { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .clip-btn { position: absolute; right: 8px; bottom: 8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.8rem; cursor: pointer; }
-  .hero .art::before { content: ''; position: absolute; inset: 10% 8% 2%; background: radial-gradient(closest-side, rgba(217,255,61,0.22), transparent 70%); z-index: 0; }
-  .hero .art img { position: relative; z-index: 1; }
-  .eyebrow { color: var(--volt); font-weight: 600; letter-spacing: 0.02em; font-size: 0.9rem; margin-bottom: 14px; }
-  .lead { font-size: 1.15rem; color: #CFCBC3; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
-  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 12px; text-decoration: none; font-size: 1.05rem; border: 2px solid var(--volt); transition: transform .12s ease; }
-  .btn:hover { transform: translateY(-1px); }
-  .btn.primary { background: var(--volt); color: var(--ink); }
-  .btn.ghost { color: var(--text); border-color: var(--line); }
-  .btn.ghost:hover { border-color: var(--volt); }
-  .btn[hidden] { display: none; }
-  .fine { font-size: 0.85rem; color: var(--grey); margin-top: 14px; }
-
-  section { padding: 56px 0; border-top: 1px solid var(--line); }
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .steps.four { grid-template-columns: repeat(4, 1fr); }
-  .card { background: var(--panel); border-radius: 16px; padding: 22px 22px 18px; border: 1px solid var(--line); }
-  .card .n { font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--volt); font-size: 2rem; line-height: 1; margin-bottom: 12px; }
-  .card p { font-size: 0.98rem; color: #CFCBC3; margin: 0; }
-
-  .dances { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .dance { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 28px; align-items: center; }
-  .dance .stage { position: relative; aspect-ratio: 9 / 14; border-radius: 14px; overflow: hidden; background: radial-gradient(120% 60% at 50% 100%, rgba(217,255,61,0.16), transparent 60%), var(--ground); border: 1px solid var(--line); }
-  .dance .stage::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: 7%; height: 10px; border-radius: 50%; background: radial-gradient(closest-side, rgba(217,255,61,0.35), transparent); }
-  .dance canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .dance .stage img { position: absolute; inset: 0; margin: auto; width: 70%; }
-  .dance .timeline { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 4px; z-index: 1; }
-  .dance .timeline i { height: 4px; border-radius: 2px; background: #3A3D44; position: relative; overflow: hidden; }
-  .dance .timeline i b { position: absolute; inset: 0; width: 0; background: var(--volt); }
-  .dance .info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .dance .handle { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: clamp(1.6rem, 3.4vw, 2.3rem); line-height: 1; }
-  .dance .by { font-size: 0.95rem; color: #CFCBC3; }
-  .dance .meta { font-size: 0.92rem; color: var(--grey); }
-  .dance .live { align-self: flex-start; background: var(--volt); color: var(--ink); font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; margin-bottom: 4px; }
-  .counts { display: flex; gap: 6px; margin: 14px 0 6px; }
-  .counts span { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 0.8rem; font-weight: 600; color: var(--grey); background: var(--ground); border: 1px solid var(--line); transition: background .08s, color .08s; }
-  .counts span.on { background: var(--volt); color: var(--ink); border-color: var(--volt); }
-  .parts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .parts li { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; transition: border-color .2s, background .2s; }
-  .parts li.on { border-color: var(--volt); background: rgba(217,255,61,0.06); }
-  .parts .label { font-size: 0.78rem; color: var(--grey); margin-bottom: 6px; }
-  .parts li.on .label { color: var(--volt); }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chips span { font-size: 0.85rem; color: #CFCBC3; background: var(--ground); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
-  .empty { color: var(--grey); }
-  .soon-title { margin-top: 40px; }
-  .vote { display: flex; align-items: center; justify-content: space-between; gap: 18px 28px; flex-wrap: wrap; margin-top: 18px; padding: 22px 24px; border-radius: 16px; border: 1px dashed var(--volt); background: rgba(217,255,61,0.05); text-decoration: none; color: var(--text); transition: background .15s, transform .15s; }
-  .vote:hover { background: rgba(217,255,61,0.1); transform: translateY(-2px); }
-  .vote > span:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 280px; }
-  .vote b { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: 1.45rem; line-height: 1.1; }
-  .vote small { font-size: 0.95rem; color: #CFCBC3; }
-  .vote .btn { white-space: nowrap; }
-  .soon { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; scrollbar-width: thin; }
-  .soon a { flex: 0 0 220px; scroll-snap-align: start; }
-  .soon a { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px; text-decoration: none; transition: border-color .15s, transform .15s; }
-  .soon a:hover { border-color: var(--volt); transform: translateY(-2px); }
-  .soon .pill { align-self: flex-start; font-size: 0.72rem; font-weight: 600; color: var(--grey); border: 1px solid var(--line); padding: 2px 9px; border-radius: 999px; margin-bottom: 10px; }
-  .soon b { font-family: 'Archivo', sans-serif; font-weight: 800; text-transform: lowercase; letter-spacing: -0.02em; font-size: 1.45rem; line-height: 1.05; }
-  .soon .song { font-size: 0.92rem; color: #CFCBC3; }
-  .soon .by { font-size: 0.82rem; color: var(--grey); }
-  .soon .eq { display: flex; align-items: flex-end; gap: 3px; height: 22px; margin-top: 12px; }
-  .soon .eq i { width: 4px; border-radius: 2px; background: #3A3D44; height: 30%; animation: eq 1s ease-in-out infinite alternate; }
-  .soon a:hover .eq i { background: var(--volt); }
-  @keyframes eq { to { height: 100%; } }
-  @media (prefers-reduced-motion: reduce) { .soon .eq i { animation: none; height: 60%; } }
-
-  .bar-demo { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 14px; max-width: 520px; font-size: 0.9rem; }
-  .bar-demo .track { flex: 1; height: 12px; background: #3A3D44; border-radius: 6px; position: relative; overflow: hidden; }
-  .bar-demo .fill { position: absolute; inset: 0 32% 0 0; background: linear-gradient(90deg, #E24B4B, #7FCB3D); }
-  .bar-demo .mark { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 3px; background: var(--volt); }
-
-  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--grey); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
-  footer img { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }
-  .social { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
-  .social > span { color: var(--grey); font-size: 0.95rem; margin-right: 2px; }
-  .ico { display: inline-block; flex: none; width: 1.15em; height: 1.15em; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
-  .ico-tiktok { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/tiktok.svg); }
-  .ico-instagram { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/instagram.svg); }
-  .ico-youtube { --ico: url(https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/youtube.svg); }
-  .social .pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; font-family: 'Archivo', 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 0.95rem; letter-spacing: -0.02em; transition: border-color .12s, background .12s, color .12s, transform .12s; }
-  .social .pill .ico { color: var(--volt); }
-  .social .pill:hover { border-color: var(--volt); transform: translateY(-1px); }
-  .social .pill > span { display: flex; flex-direction: column; line-height: 1.15; }
-  .social .pill small { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 500; font-size: 0.8rem; color: var(--grey); letter-spacing: 0; }
-  .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; margin-top: 26px; }
-  .hero-actions .cta { margin-top: 0; }
-  #follow-hero { margin-top: 0; gap: 8px; }
-  #follow-hero .pill { width: 44px; height: 44px; padding: 0; justify-content: center; }
-  #follow-hero .pill .ico { width: 20px; height: 20px; }
-  #follow-hero .pill:hover { background: var(--volt); }
-  #follow-hero .pill:hover .ico { color: var(--ink); }
-  .textlink { color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.95rem; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
-  .textlink:hover { color: var(--volt); border-bottom-color: var(--volt); }
-  .btn.big { font-size: 1.2rem; padding: 18px 30px; border-radius: 14px; }
-  .foot-wl { flex-basis: 100%; max-width: 520px; }
-  .foot-wl .waitlist { margin-top: 4px; }
-  .waitlist.slim { margin-top: 0; }
-  .waitlist.slim input { padding: 11px 14px; font-size: 0.95rem; }
-  .waitlist.slim .btn { font-size: 0.95rem; padding: 10px 18px; background: transparent; color: var(--text); border-color: var(--line); cursor: pointer; }
-  .waitlist.slim .btn:hover { border-color: var(--volt); }
-  .social.big { margin-top: 24px; gap: 14px; }
-  .social.big .pill { gap: 16px; padding: 18px 24px 18px 20px; border-radius: 18px; font-size: 1.2rem; min-width: 220px; }
-  .social.big .pill .ico { width: 30px; height: 30px; }
-  .social.big .pill:hover { background: var(--volt); color: var(--ink); }
-  .social.big .pill:hover .ico, .social.big .pill:hover small { color: var(--ink); }
-  #follow .lead { max-width: 560px; }
-  .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
-  .follow a { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-  .follow a .ico { color: var(--grey); width: 1em; height: 1em; }
-  .follow a:hover .ico { color: var(--volt); }
-  .follow a:hover { color: var(--volt); }
-
-  .waitlist { display: flex; gap: 10px; margin-top: 26px; max-width: 520px; }
-  .waitlist input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 1.05rem; }
-  .waitlist input:focus { outline: 2px solid var(--volt); outline-offset: -1px; }
-  .waitlist .btn { white-space: nowrap; }
-  .waitlist.done { display: block; background: var(--panel); border: 1px solid var(--volt); border-radius: 12px; padding: 16px 18px; font-size: 1.05rem; }
-  .start { margin-top: 26px; max-width: 520px; }
-  .start .waitlist { margin-top: 0; }
-  .start .fine, .linebox .fine { color: #D4D0C8; }
-  .start .fine { margin-top: 10px; }
-  .linebox { margin-top: 26px; max-width: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
-  .linebox .state { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; line-height: 1.35; }
-  .linebox .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grey); flex: none; }
-  .linebox.open { border-color: var(--volt); }
-  .linebox.open .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
-  .linebox.busy .dot { background: #FFB020; }
-  .linebox.mine { border-color: var(--volt); }
-  .linebox.mine .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
-  .linebox.mine .timer { font-size: 1rem; font-weight: 700; color: #D4D0C8; margin-top: 6px; }
-  .linebox.mine .timer::after { content: ' left in your session'; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 400; }
-  .linebox.mine.precall .timer { font-size: 2.2rem; font-weight: 800; color: var(--text); }
-  .linebox.mine.precall .timer::after { content: ''; }
-  .linebox .timer { display: block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-  .linebox .number { display: block; margin-top: 12px; font-size: 1.35rem; font-weight: 700; color: var(--text); text-decoration: none; }
-  .linebox .btn { margin-top: 12px; }
-  .linebox #line-done { display: flex; margin-top: 14px; font-size: 0.95rem; padding: 10px 18px; cursor: pointer; background: none; }
-  .linebox #line-done[hidden] { display: none; }
-  .linebox .fine { margin-top: 10px; }
-  .account { font-size: 0.95rem; color: var(--grey); white-space: nowrap; }
-  .account a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
-  .account b { color: var(--text); font-weight: 600; margin-right: 10px; }
-
-  .err { color: #FF8A8A; font-size: 0.9rem; min-height: 1.2em; margin: 8px 0 0; }
+  img { max-width: 100%; }
   [hidden] { display: none !important; }
+  .wrap { width: min(1200px, 100% - 40px); margin: 0 auto; }
+  .game { font-family: 'Archivo', 'Plus Jakarta Sans', sans-serif; font-weight: 900; font-style: italic; font-stretch: 125%; letter-spacing: -0.03em; text-transform: lowercase; }
+  h2.game { margin: 0 0 40px; font-size: clamp(40px, 5vw, 56px); line-height: 1; }
+  :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 
-  @media (max-width: 820px) {
-    .hero { grid-template-columns: 1fr; gap: 10px; padding: 4px 0 36px; }
-    .hero .art { order: -1; justify-content: center; height: 236px; margin-bottom: 8px; }
-    .hero .art::before { inset: 0 20%; }
-    .clip { width: 133px; border-radius: 16px; border-width: 2px; }
-    .clip-btn { width: 30px; height: 30px; right: 6px; bottom: 6px; font-size: 0.7rem; }
-    .hero .art img { width: auto; height: 196px; margin-left: -22px; }
-    .eyebrow { margin-bottom: 6px; font-size: 0.8rem; }
-    h1 { font-size: 2.3rem; margin-bottom: 10px; }
-    .lead { font-size: 0.98rem; line-height: 1.4; margin: 0; }
-    .start, .linebox { margin-top: 16px; }
-    .linebox { padding: 14px 16px; }
-    .linebox .state { font-size: 1rem; }
-    .linebox .timer { font-size: 1.8rem; margin-top: 6px; }
-    .linebox .number { font-size: 1.15rem; margin-top: 8px; }
-    .linebox .btn.big { padding: 14px 20px; margin-top: 10px; }
-    .linebox .fine, .start .fine { margin-top: 8px; }
-    .account b { display: none; }
-    .steps, .steps.four { grid-template-columns: 1fr; gap: 10px; }
-    .steps .card { display: grid; grid-template-columns: 34px 1fr; column-gap: 12px; padding: 16px 16px 14px; }
-    .steps .card .n { grid-row: span 2; font-size: 1.6rem; margin: 2px 0 0; }
-    .steps .card h3 { margin-bottom: 4px; }
-    .dance { grid-template-columns: minmax(0, 1fr); }
-    .soon { gap: 10px; margin-right: -16px; padding-right: 16px; }
-    .soon a { flex-basis: 158px; }
-    .soon a { padding: 14px; }
-    .soon b { font-size: 1.15rem; }
-    .soon .song, .soon .by { font-size: 0.8rem; }
-    .dance .stage { width: min(100%, 300px); justify-self: center; }
-    nav .links { display: none; }
-    .waitlist { flex-direction: column; max-width: none; }
-    .waitlist .btn { width: 100%; justify-content: center; }
-    .social.big .pill { flex: 1 1 100%; min-width: 0; }
-    .vote .btn { width: 100%; justify-content: center; }
-    .btn.big { width: 100%; justify-content: center; }
-  }
+  /* buttons (the pop-up uses these too) */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 24px; border-radius: 14px; border: 2px solid var(--volt);
+    font-family: 'Archivo', sans-serif; font-weight: 900; font-style: italic; font-stretch: 125%; font-size: 1.05rem; letter-spacing: -0.02em; text-transform: lowercase;
+    text-decoration: none; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+  .btn.primary { position: relative; background: var(--volt); color: var(--ink); box-shadow: 0 6px 0 var(--volt-dark), 0 14px 40px rgba(217,255,61,0.28); }
+  .btn.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--volt-dark), 0 18px 50px rgba(217,255,61,0.35); }
+  .btn.primary:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--volt-dark), 0 6px 20px rgba(217,255,61,0.25); transition-duration: .05s; }
+  .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+  .btn.ghost:hover { border-color: var(--volt); }
+  .btn.big { font-size: 1.5rem; padding: 22px 38px; border-radius: 18px; }
+  .btn:disabled { cursor: default; }
 
-  body { overflow-x: hidden; }
+  /* ---- the title screen ---- */
+  .hero { position: relative; overflow: hidden; background: var(--night); padding-bottom: 56px; isolation: isolate; }
+  .lights { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+  .beam { position: absolute; top: -10%; height: 130%; transform-origin: 50% 0; filter: blur(14px); }
+  .beam.m { left: 8%; width: 900px; transform: translateX(-50%) rotate(-14deg); background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(255,62,165,0.30) 15deg, transparent 30deg); }
+  .beam.c { left: 92%; width: 900px; transform: translateX(-50%) rotate(16deg); background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(53,230,255,0.28) 15deg, transparent 30deg); }
+  .beam.v { left: 68%; top: -6%; height: 120%; width: 760px; transform: translateX(-50%); filter: blur(10px); background: conic-gradient(from 166deg at 50% 0%, transparent 0deg, rgba(217,255,61,0.30) 14deg, transparent 28deg); }
+  .floor { position: absolute; left: 50%; bottom: -2px; width: 2200px; height: 360px; transform: translateX(-50%) perspective(520px) rotateX(64deg); transform-origin: 50% 100%;
+    background-image: linear-gradient(rgba(255,62,165,0.55) 2px, transparent 2px), linear-gradient(90deg, rgba(53,230,255,0.5) 2px, transparent 2px); background-size: 90px 90px;
+    -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 92%); mask-image: linear-gradient(to top, #000 10%, transparent 92%); }
+  .glow { position: absolute; left: 68%; bottom: 40px; width: 760px; height: 260px; transform: translateX(-50%); opacity: 0.75;
+    background: radial-gradient(closest-side, rgba(217,255,61,0.42), rgba(217,255,61,0.08) 60%, transparent); }
 
-  /* privacy, said plainly: three short promises under "how it works" */
-  .trust { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .trust li { display: flex; gap: 12px; align-items: flex-start; font-size: 0.92rem; color: var(--grey); line-height: 1.45; }
-  .trust svg { flex: none; width: 22px; height: 22px; margin-top: 1px; fill: none; stroke: var(--volt); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .trust b { display: block; color: var(--text); font-weight: 600; font-size: 0.98rem; margin-bottom: 2px; }
-  @media (max-width: 820px) { .trust { grid-template-columns: 1fr; gap: 14px; } }
+  nav { position: relative; display: flex; align-items: center; gap: 24px; padding: 22px 0; }
+  .wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.02em; white-space: nowrap; }
+  .wordmark img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--volt); }
+  .nav-links { margin-left: auto; display: flex; gap: 28px; font-size: 15px; font-weight: 500; }
+  .nav-links a { text-decoration: none; color: var(--muted); }
+  .nav-links a:hover { color: var(--text); }
+  .account { font-size: 14px; color: var(--grey); white-space: nowrap; }
+  .account b { color: var(--text); font-weight: 600; margin-right: 10px; }
+  .account a { color: var(--text); }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap;
+    background: rgba(244,242,238,0.06); border: 1px solid var(--line); }
+  .chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--grey); }
+  .chip.open, .chip.mine { background: rgba(217,255,61,0.12); border-color: rgba(217,255,61,0.5); }
+  .chip.open i, .chip.mine i { background: var(--volt); box-shadow: 0 0 0 4px rgba(217,255,61,0.25), 0 0 12px var(--volt); animation: live 1.6s ease-out infinite; }
+  .chip.busy i { background: var(--magenta); }
+  @keyframes live { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.7), 0 0 12px var(--volt); } to { box-shadow: 0 0 0 10px rgba(217,255,61,0), 0 0 12px var(--volt); } }
 
-  /* ---- the stage: the hero is a dance floor under a spotlight. Its glow flashes and the big count changes on every beat ---- */
-  .hero { position: relative; isolation: isolate; }
-  .stage { --x: calc(50% + min(1100px, 100vw - 32px) * 0.276); position: absolute; z-index: -1; top: -90px; bottom: 0; left: 50%; width: 100vw;
-    transform: translateX(-50%); overflow: hidden; pointer-events: none;
-    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); }
-  .stage .beam { position: absolute; left: var(--x); top: 0; width: 900px; height: 118%; transform: translateX(-50%);
-    background: conic-gradient(from 161deg at 50% 0%, transparent 0deg, rgba(244,242,238,0.12) 10deg, rgba(244,242,238,0.26) 19deg, rgba(244,242,238,0.12) 28deg, transparent 38deg);
-    filter: blur(12px); }
-  .stage .floor { position: absolute; left: var(--x); bottom: 0; width: 1500px; height: 72%; transform: translateX(-50%) perspective(460px) rotateX(63deg);
-    transform-origin: 50% 100%; background-size: 76px 76px; background-position: 50% 0;
-    background-image: linear-gradient(rgba(217,255,61,0.55) 2px, transparent 2px), linear-gradient(90deg, rgba(217,255,61,0.55) 2px, transparent 2px);
-    -webkit-mask-image: radial-gradient(ellipse 50% 100% at 50% 100%, #000 35%, transparent 85%); mask-image: radial-gradient(ellipse 50% 100% at 50% 100%, #000 35%, transparent 85%);
-    animation: floor-run 3.636s linear infinite; }
-  @keyframes floor-run { to { background-position: 50% 76px; } }
-  .stage .glow { position: absolute; left: var(--x); bottom: -6%; width: 980px; height: 70%; transform: translateX(-50%); mix-blend-mode: screen;
-    background: radial-gradient(closest-side, rgba(217,255,61,0.62), rgba(217,255,61,0.16) 50%, transparent); opacity: 0.5;
-    animation: glow-beat .909s ease-out infinite; }
-  .stage.synced .glow { animation: none; }
-  @keyframes glow-beat { from { opacity: 1; } to { opacity: 0.35; } }
-  .stage .count { position: absolute; left: var(--x); top: 46%; transform: translate(-50%, -50%); font-family: 'Archivo', sans-serif; font-weight: 800;
-    font-size: min(44vw, 580px); line-height: 0.8; letter-spacing: -0.04em; color: transparent; -webkit-text-stroke: 3px rgba(217,255,61,0.5); opacity: 0; }
-  .stage .count.lead { -webkit-text-stroke-color: rgba(244,242,238,0.38); }
-  .stage .count.on { opacity: 1; animation: count-in .55s cubic-bezier(.2, 1.4, .4, 1); }
-  @keyframes count-in { from { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
-  @media (max-width: 820px) {
-    .stage { --x: 50%; top: -80px; bottom: auto; height: 360px; }
-    .stage .beam { width: 560px; }
-    .stage .floor { width: 900px; height: 62%; background-size: 52px 52px; }
-    @keyframes floor-run { to { background-position: 50% 52px; } }
-    .stage .glow { width: 600px; height: 64%; bottom: -4%; }
-    .stage .count { top: 50%; font-size: 300px; -webkit-text-stroke-width: 2px; }
-  }
+  .hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 40px; align-items: center; padding-top: 28px; }
+  h1 { margin: 0; font-size: clamp(52px, 7.2vw, 104px); line-height: 0.9; text-shadow: 0 6px 0 var(--magenta), 0 12px 40px rgba(255,62,165,0.35); }
+  .lead { margin: 28px 0 0; max-width: 30em; font-size: 19px; line-height: 1.55; color: var(--soft); }
+  .start { display: flex; align-items: center; gap: 18px; margin-top: 30px; }
+  .start p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); }
+  .fine { margin: 22px 0 0; font-size: 14px; color: var(--grey); }
 
-  /* ---- alive: the hero moves to the beat, the live status pulses, buttons answer a tap ---- */
-  .clip canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  /* Brodie bounces to the song: lowest (a little squash) on each beat, highest halfway between. The page script drives it from
-     the clip's own clock (.synced); when the clip can't play (an older iPhone without WebM) the same bounce runs on its own. */
-  .hero .art img.brodie { transform-origin: 50% 100%; will-change: transform; animation: bounce .909s ease-in-out infinite; }
-  .hero .art img.brodie.synced { animation: none; }
-  @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1.012, 0.988); } 50% { transform: translateY(-9px) scale(0.995, 1.005); } }
-  .linebox.open .dot, .linebox.mine .dot { animation: live 1.6s ease-out infinite; }
-  @keyframes live { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.7); } to { box-shadow: 0 0 0 12px rgba(217,255,61,0); } }
+  /* Brodie's line, once its state is known: the status, then the button */
+  .linebox { margin-top: 30px; max-width: 540px; }
+  .linebox .state { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; font-size: 1.05rem; line-height: 1.4; color: var(--soft); }
+  .linebox .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--grey); flex: none; }
+  .linebox.open .dot, .linebox.mine .dot { background: var(--volt); animation: live 1.6s ease-out infinite; }
+  .linebox.busy .dot { background: var(--magenta); }
+  .linebox.offline .dot { background: #FF6B6B; }
+  .linebox .timer { display: block; margin-top: 8px; font-family: 'Archivo', sans-serif; font-weight: 900; font-style: italic; font-stretch: 125%; font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+  .linebox.mine:not(.precall) .timer { font-size: 1rem; font-weight: 700; font-style: normal; font-stretch: 100%; color: var(--muted); }
+  .linebox.mine:not(.precall) .timer::after { content: ' left in your session'; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 400; }
+  .linebox .number { display: block; margin-top: 14px; font-size: 1.15rem; font-weight: 700; color: var(--text); text-decoration: none; }
+  .linebox .btn.big { margin-top: 16px; }
+  .linebox #line-done { margin-top: 14px; font-size: 0.95rem; padding: 10px 18px; }
   .linebox.freed { animation: freed .8s cubic-bezier(.2, 1.5, .4, 1); }
-  @keyframes freed { 30% { transform: scale(1.03); box-shadow: 0 0 0 3px var(--volt), 0 0 44px rgba(217,255,61,0.45); } }
-  .btn.primary { position: relative; }
-  .btn:active { transform: translateY(1px) scale(0.96); transition-duration: .05s; }
-  .btn.primary::after { content: ''; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none; }
-  .btn.primary.burst::after { animation: burst .55s ease-out; }
-  @keyframes burst { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.65); } to { box-shadow: 0 0 0 20px rgba(217,255,61,0); } }
+  @keyframes freed { 30% { transform: scale(1.03); } }
+
+  /* the phone: the dance clip as Brodie shows it on the call, his accuracy bar and part number on top */
+  .stagebox { position: relative; height: 640px; }
+  .device { position: absolute; left: 30px; top: 30px; width: 292px; height: 600px; border-radius: 46px; border: 8px solid #231A4D; overflow: hidden; background: #000;
+    box-shadow: 0 0 0 2px rgba(53,230,255,0.45), 0 30px 80px rgba(0,0,0,0.6), 0 0 80px rgba(53,230,255,0.25); }
+  .screen { position: absolute; inset: 0; background: #000 url(assets/hero/dance.jpg) center / cover; }
+  .screen video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .callbar { position: absolute; left: 0; right: 0; top: 34px; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(18,18,18,0.88);
+    font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11px; letter-spacing: 0.02em; color: #F5F5F5; pointer-events: none; }
+  .callbar .track { flex: 1; height: 8px; border-radius: 4px; background: #464646; position: relative; overflow: hidden; }
+  .callbar .track b { position: absolute; inset: 0 32% 0 0; background: #3FB43C; }
+  .callbar .track i { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--volt); }
+  .callpart { position: absolute; left: 14px; top: 80px; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 17px; color: #F5F5F5; text-shadow: 0 1px 4px #000; pointer-events: none; }
+  .clip-btn { position: absolute; right: 14px; bottom: 16px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.8rem; cursor: pointer; }
+  .judge { position: absolute; left: -10px; top: 0; font-size: 58px; line-height: 1; color: var(--volt); transform: rotate(-9deg); white-space: nowrap;
+    text-shadow: 0 4px 0 var(--ink), 0 0 30px rgba(217,255,61,0.7); }
+  .judge.pop { animation: judge-pop .6s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes judge-pop { from { transform: rotate(-9deg) scale(1.5); opacity: 0.2; } }
+  img.brodie { position: absolute; right: -30px; bottom: 6px; width: 340px; transform-origin: 50% 100%; will-change: transform; filter: drop-shadow(0 24px 30px rgba(0,0,0,0.55));
+    animation: bounce .909s ease-in-out infinite; }
+  img.brodie.synced { animation: none; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1.012, 0.988); } 50% { transform: translateY(-9px) scale(0.995, 1.005); } }
+
+  /* the count lane: 1 to 8, done in cyan, the current beat in volt */
+  .lane-row { position: relative; margin-top: 30px; display: flex; align-items: center; gap: 22px; }
+  .lane-row p { flex: none; margin: 0; max-width: 210px; font-size: 15px; line-height: 1.4; color: var(--soft); }
+  .lane { flex: 1 1 auto; display: flex; gap: 10px; }
+  .lane span { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 14px; font-family: 'Archivo', sans-serif; font-weight: 900; font-style: italic; font-size: 28px;
+    background: rgba(244,242,238,0.04); border: 2px solid rgba(244,242,238,0.22); color: rgba(244,242,238,0.55); transition: transform .12s ease; }
+  .lane span.done { background: rgba(53,230,255,0.16); border-color: rgba(53,230,255,0.75); color: var(--cyan); }
+  .lane span.now { background: var(--volt); border-color: var(--volt); color: var(--ink); box-shadow: 0 0 0 6px rgba(217,255,61,0.18), 0 0 40px rgba(217,255,61,0.6); transform: translateY(-6px); }
+  .lane span.lead { background: rgba(244,242,238,0.9); border-color: var(--text); color: var(--ink); transform: translateY(-6px); }
+
+  /* ---- how a lesson plays ---- */
+  .levels-wrap { position: relative; }
+  .levels-wrap::before { content: ''; position: absolute; left: 32px; right: 32px; top: 31px; border-top: 2px dashed rgba(201,195,232,0.25); }
+  .levels { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; list-style: none; margin: 0; padding: 0; }
+  .levels li { display: flex; flex-direction: column; gap: 14px; }
+  .lv { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; font-size: 26px; border: 2px solid; box-shadow: 0 0 0 8px var(--ground); }
+  .lv.c { color: var(--cyan); background: rgba(53,230,255,0.10); border-color: rgba(53,230,255,0.7); }
+  .lv.m { color: var(--magenta); background: rgba(255,62,165,0.10); border-color: rgba(255,62,165,0.7); }
+  .lv.v { color: var(--volt); background: rgba(217,255,61,0.10); border-color: rgba(217,255,61,0.7); }
+  .levels h3 { margin: 6px 0 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: -0.02em; text-transform: lowercase; }
+  .levels p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--muted); }
+  section { padding: 92px 0; }
+  .s-ground { background: var(--ground); }
+  .s-night { background: var(--night); }
+
+  /* ---- now playing ---- */
+  .np { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .trackcard { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; padding: 20px; border-radius: 26px; background: var(--panel); border: 2px solid var(--volt); box-shadow: 0 0 60px rgba(217,255,61,0.15); }
+  .trackcard + .trackcard { margin-top: 18px; }
+  .trackcard .art { border-radius: 18px; overflow: hidden; aspect-ratio: 9 / 16; background: #000; }
+  .trackcard .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .trackcard .info { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .live-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; background: var(--volt); color: var(--ink); font-size: 13px; font-weight: 700; }
+  .live-tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+  .trackcard .title { font-size: clamp(32px, 3.4vw, 42px); line-height: 0.95; }
+  .trackcard .by { font-size: 15px; color: var(--muted); }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .stats span { padding: 6px 12px; border-radius: 10px; background: rgba(53,230,255,0.12); border: 1px solid rgba(53,230,255,0.5); font-size: 14px; font-weight: 600; }
+  .parts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .parts li { padding: 12px 14px; border-radius: 14px; background: var(--deep); }
+  .parts .label { font-size: 13px; font-weight: 600; color: var(--magenta); margin-bottom: 8px; }
+  .moves { display: flex; flex-wrap: wrap; gap: 6px; }
+  .moves span { padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(244,242,238,0.25); font-size: 13px; color: #E7E3F7; }
+  .trackcard .btn { align-self: flex-start; margin-top: 8px; font-size: 19px; padding: 16px 28px; }
+  .next h3 { margin: 0 0 18px; padding-top: 84px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: -0.02em; text-transform: lowercase; color: var(--soft); }
+  .locked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .locked li { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 14px; background: rgba(244,242,238,0.04); border: 1px solid rgba(244,242,238,0.10); }
+  .locked svg { flex: none; width: 20px; height: 20px; fill: none; stroke: #8E86B8; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .locked b { display: block; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; text-transform: lowercase; }
+  .locked span { font-size: 13px; color: var(--grey); }
+  .vote { margin-top: 16px; display: flex; justify-content: center; padding: 16px; border-radius: 14px; border: 2px dashed var(--magenta); color: var(--text); text-decoration: none;
+    font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; text-transform: lowercase; }
+  .vote:hover { background: rgba(255,62,165,0.08); }
+
+  /* ---- house rules ---- */
+  .rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+  .rules li { display: flex; gap: 16px; align-items: flex-start; }
+  .rules svg { flex: none; width: 30px; height: 30px; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rules b { display: block; font-size: 19px; margin-bottom: 6px; }
+  .rules span { font-size: 16px; line-height: 1.55; color: var(--muted); }
+
+  /* ---- follow ---- */
+  .follow-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px; }
+  .follow-grid h2 { margin: 0; }
+  .follow-grid > div > p { margin: 16px 0 26px; font-size: 18px; color: var(--soft); }
+  .follow-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .follow-row a { display: flex; flex-direction: column; padding: 16px 22px; border-radius: 16px; background: var(--panel); border: 1px solid rgba(244,242,238,0.15); text-decoration: none; min-width: 180px; }
+  .follow-row a:hover { border-color: var(--volt); }
+  .follow-row b { font-family: 'Archivo', sans-serif; font-size: 20px; text-transform: lowercase; }
+  .follow-row span { font-size: 13px; color: var(--grey); }
+  .wave { width: 230px; filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5)); }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px; font-size: 14px; color: var(--grey); }
+  footer a { color: var(--soft); }
+  .foot-wl { flex-basis: 100%; max-width: 520px; }
+  .waitlist { display: flex; gap: 10px; }
+  .waitlist input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 0.95rem; }
+  .waitlist input:focus { outline: 2px solid var(--volt); outline-offset: -1px; }
+  .waitlist .btn { font-size: 0.95rem; padding: 10px 18px; }
+  .waitlist.done { display: block; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--volt); background: var(--panel); color: var(--text); }
+  .foot-wl .fine { margin-top: 10px; }
+
+  @media (max-width: 820px) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-top: 4px; }
+    .stage-col { order: -1; }
+    .stagebox { height: 456px; }
+    .device { left: 12px; top: 34px; width: 196px; height: 400px; border-width: 6px; border-radius: 32px; }
+    .callbar { top: 24px; padding: 6px 10px; font-size: 8px; }
+    .callpart { top: 58px; left: 10px; font-size: 12px; }
+    img.brodie { width: 210px; right: -6px; bottom: 0; }
+    .judge { left: 0; font-size: 40px; }
+    .beam.v, .glow { left: 50%; }
+    .glow { bottom: auto; top: 260px; width: 460px; }
+    .start { flex-direction: column; align-items: stretch; }
+    .btn.big { width: 100%; }
+    .lane-row { flex-direction: column; align-items: stretch; gap: 12px; }
+    .lane { gap: 6px; }
+    .lane span { width: auto; min-width: 0; flex: 1 1 0; height: auto; aspect-ratio: 1 / 1.1; font-size: 20px; border-radius: 10px; }
+    .nav-links { display: none; }
+    .account b { display: none; }
+    section { padding: 64px 0; }
+    .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
+    .levels-wrap::before { display: none; }
+    .np, .trackcard, .rules, .follow-grid { grid-template-columns: minmax(0, 1fr); }
+    .trackcard .art { max-width: 220px; }
+    .next h3 { padding-top: 0; }
+    .rules { gap: 20px; }
+    .wave { width: 160px; justify-self: end; }
+    .follow-row a { flex: 1 1 100%; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .stage .floor, .stage .glow, .stage .count.on, .hero .art img.brodie, .linebox .dot, .linebox.freed, .btn.primary.burst::after { animation: none !important; }
-    .btn:active { transform: none; }
+    img.brodie, .chip i, .linebox .dot, .linebox.freed, .judge.pop { animation: none !important; }
+    .btn, .lane span { transition: none; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp.png" alt="Brodie">brodie dance</a>
-    <div class="links">
-      <a href="#how">how it works</a><a href="#dances">dances</a><a href="#follow">follow</a>
-    </div>
+
+<header class="hero">
+  <div class="lights" aria-hidden="true"><div class="beam m"></div><div class="beam c"></div><div class="beam v"></div><div class="floor"></div><div class="glow" id="stage-glow"></div></div>
+  <nav class="wrap">
+    <a class="wordmark" href="/"><img src="assets/brodie/brodie-pfp-square.png" alt="">brodie dance</a>
+    <div class="nav-links"><a href="#how">how a lesson plays</a><a href="#dances">dances</a><a href="#follow">follow</a></div>
     <span class="account" id="account" hidden></span>
+    <span class="chip" id="nav-status" hidden><i></i><span></span></span>
   </nav>
 
-  <header class="hero">
-    <div class="stage" aria-hidden="true"><div class="beam"></div><div class="floor"></div><div class="glow"></div><span class="count"></span></div>
+  <div class="wrap hero-grid">
     <div>
-      <div class="eyebrow">FaceTime Brodie, your dance coach</div>
-      <h1>learn the dance.<br>eight counts<br>at a time.</h1>
-      <p class="lead">FaceTime Brodie. He watches your moves, scores every part, and tells you the one thing to fix.</p>
+      <h1 class="game">learn the dance. eight counts at a time.</h1>
+      <p class="lead">FaceTime Brodie, your dance coach. He watches your moves, scores every part, and tells you the one thing to fix.</p>
       <div class="start" id="start-box">
-        <button class="btn primary big" type="button" id="start-go">facetime brodie now →</button>
-        <p class="fine">Lessons are on FaceTime, from an iPhone, iPad or Mac. No sign-up, and your video is never saved.</p>
+        <button class="btn primary big" type="button" id="start-go">facetime brodie</button>
+        <p>One person at a time.<br>Tap to see if he's free.</p>
       </div>
       <div class="linebox" id="line" aria-live="polite" hidden>
         <p class="state"><i class="dot"></i><span id="line-msg"></span></p>
         <span class="timer" id="line-timer" hidden></span>
         <div id="line-call" hidden>
           <span class="number" id="line-number"></span>
-          <a class="btn primary big" id="line-facetime" href="#">FaceTime Brodie</a>
-          <p class="fine">FaceTime needs an iPhone, iPad or Mac.</p>
+          <a class="btn primary big" id="line-facetime" href="#">facetime brodie</a>
           <button type="button" class="btn ghost" id="line-done" hidden>I'm done dancing</button>
         </div>
       </div>
-      <div class="hero-actions">
-        <div class="social" id="follow-hero"><span>follow</span><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener" aria-label="Brodie on TikTok"><i class="ico ico-tiktok" aria-hidden="true"></i></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener" aria-label="Brodie on Instagram"><i class="ico ico-instagram" aria-hidden="true"></i></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener" aria-label="Brodie on YouTube"><i class="ico ico-youtube" aria-hidden="true"></i></a></div>
-      </div>
+      <p class="fine">iPhone, iPad or Mac. No sign-up. Your video is never saved.</p>
     </div>
-    <div class="art">
-      <div class="clip">
-        <video id="hero-video" muted loop playsinline preload="none" poster="assets/hero/dance.jpg" aria-label="the dance Brodie teaches, playing on a loop">
-          <source src="assets/hero/dance.webm" type="video/webm">
-        </video>
-        <button type="button" class="clip-btn" id="hero-pause" aria-label="pause the video" hidden>❚❚</button>
-      </div>
-      <img class="brodie" src="assets/brodie/brodie-flex.png" alt="Brodie flexing in his BRODIE tank top">
-    </div>
-  </header>
 
-  <section id="how">
-    <h2>how it works</h2>
-    <div class="steps">
-      <div class="card"><div class="n">1</div><h3>tap facetime brodie</h3><p>See if he's free and call him in one tap from an iPhone, iPad or Mac. He teaches one person at a time.</p></div>
-      <div class="card"><div class="n">2</div><h3>prop your phone up</h3><p>Step back so he sees you head to toe. He follows your whole body through the call, live.</p></div>
-      <div class="card"><div class="n">3</div><h3>eight counts at a time</h3><p>Your moves are lined up with the creator's and scored. Between parts: the moves, one tip, then the next part.</p></div>
+    <div class="stage-col">
+      <div class="stagebox">
+        <div class="device">
+          <div class="screen">
+            <video id="hero-video" muted loop playsinline preload="none" poster="assets/hero/dance.jpg" aria-label="the dance Brodie teaches, playing on a loop as it looks on a call">
+              <source src="assets/hero/dance.webm" type="video/webm">
+            </video>
+            <button type="button" class="clip-btn" id="hero-pause" aria-label="pause the video" hidden>❚❚</button>
+          </div>
+          <div class="callbar" aria-hidden="true"><span>ACCURACY</span><span class="track"><b></b><i></i></span><span>68%</span></div>
+          <div class="callpart" aria-hidden="true">PART 1/2</div>
+        </div>
+        <div class="judge game" id="judge" aria-hidden="true">on beat!</div>
+        <img class="brodie" src="assets/brodie/brodie-flex.png" alt="Brodie, the coach, flexing in his BRODIE tank top">
+      </div>
     </div>
-    <div class="bar-demo"><span>accuracy</span><div class="track"><div class="fill"></div><div class="mark"></div></div><span>68%</span></div>
-    <ul class="trust" aria-label="your privacy">
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span><b>watched live, never saved</b>Brodie watches your moves during the call to score them. Your video isn't recorded.</span></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><span><b>no account needed</b>Just tap and call. An email is only for new-dance news, if you want it.</span></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span><b>what you say stays in the call</b>Brodie's AI voice hears you live so he can talk back. We don't keep transcripts.</span></li>
+  </div>
+
+  <div class="wrap lane-row">
+    <p>Brodie counts you in, then scores each part.</p>
+    <div class="lane" id="lane" aria-hidden="true"><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="now">5</span><span>6</span><span>7</span><span>8</span></div>
+  </div>
+</header>
+
+<section id="how" class="s-ground">
+  <div class="wrap">
+    <h2 class="game">how a lesson plays</h2>
+    <div class="levels-wrap">
+      <ol class="levels">
+        <li><span class="lv c game">1</span><h3>watch it whole</h3><p>Brodie plays the full dance once, mirrored like a studio mirror.</p></li>
+        <li><span class="lv m game">2</span><h3>part 1</h3><p>Eight counts at a time. He scores it and gives you one tip.</p></li>
+        <li><span class="lv m game">3</span><h3>part 2</h3><p>The next eight counts, the same way, until the moves stick.</p></li>
+        <li><span class="lv v game">4</span><h3>full dance</h3><p>Put it all together. You get a score for every part.</p></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="dances" class="s-night">
+  <div class="wrap np">
+    <div>
+      <h2 class="game" style="margin-bottom: 28px">now playing</h2>
+      <div id="dances-list"><p class="fine">Loading the lesson list…</p></div>
+    </div>
+    <div class="next">
+      <h3>up next</h3>
+      <ul class="locked" id="soon-list"></ul>
+      <a class="vote" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">vote for the next dance</a>
+    </div>
+  </div>
+</section>
+
+<section class="s-ground">
+  <div class="wrap">
+    <h2 class="game" style="margin-bottom: 36px">house rules</h2>
+    <ul class="rules" aria-label="your privacy">
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" style="stroke: var(--cyan)"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div><b>watched live, never saved</b><span>Brodie watches your moves during the call to score them. Your video isn't recorded.</span></div></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" style="stroke: var(--magenta)"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+        <div><b>no account needed</b><span>Just tap and call. An email is only for new-dance news, if you want it.</span></div></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" style="stroke: var(--volt)"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <div><b>what you say stays in the call</b><span>Brodie's AI voice hears you live so he can talk back. We don't keep transcripts.</span></div></li>
     </ul>
-  </section>
+  </div>
+</section>
 
-  <section id="dances">
-    <h2>dances brodie knows</h2>
-    <div class="dances" id="dances-list"><div class="empty">Loading the lesson list…</div></div>
-    <h3 class="soon-title">up next</h3>
-    <div class="soon" id="soon-list"></div>
-    <a class="vote" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">
-      <span><b>don't see your dance?</b><small>Tell us which one Brodie should teach next. The most requested get built first.</small></span>
-      <span class="btn primary">vote for the next dance →</span>
-    </a>
-  </section>
-
-  <section id="follow">
-    <h2>more dances on the way.</h2>
-    <p class="lead">Follow Brodie to hear first when a new dance&nbsp;drops&nbsp;📞</p>
-    <div class="social big"><a class="pill" href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i><span>tiktok<small>@verityagent8</small></span></a><a class="pill" href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i><span>instagram<small>@brodie.dancity</small></span></a><a class="pill" href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i><span>youtube<small>@verityagent-o6t</small></span></a></div>
-  </section>
-
-  <footer>
-    <span><img src="assets/brodie/brodie-pfp-square.png" alt="">Built on the Brodie starter for IvyHacks 2026.</span>
-    <a href="#" id="wl-open">email me when a new dance drops</a>
-    <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
-    <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
-    <span class="follow"><span>follow us:</span><a href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><i class="ico ico-tiktok" aria-hidden="true"></i>TikTok</a><a href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><i class="ico ico-instagram" aria-hidden="true"></i>Instagram</a><a href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><i class="ico ico-youtube" aria-hidden="true"></i>YouTube</a></span>
-    <div class="foot-wl" id="foot-wl" hidden>
-      <form class="waitlist slim" id="waitlist" autocomplete="on">
-        <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email for new dances">
-        <button class="btn ghost" type="submit" id="wl-go">notify me</button>
-      </form>
-      <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
+<section id="follow" class="s-night" style="padding-bottom: 48px">
+  <div class="wrap">
+    <div class="follow-grid">
+      <div>
+        <h2 class="game">more dances are coming.</h2>
+        <p>Follow Brodie to hear first when a new dance drops.</p>
+        <div class="follow-row">
+          <a href="https://www.tiktok.com/@verityagent8" target="_blank" rel="noopener"><b>tiktok</b><span>@verityagent8</span></a>
+          <a href="https://www.instagram.com/brodie.dancity/" target="_blank" rel="noopener"><b>instagram</b><span>@brodie.dancity</span></a>
+          <a href="https://www.youtube.com/@verityagent-o6t" target="_blank" rel="noopener"><b>youtube</b><span>@verityagent-o6t</span></a>
+        </div>
+      </div>
+      <img class="wave" src="assets/brodie/brodie-sit-wave.png" alt="Brodie sitting and waving">
     </div>
-  </footer>
-</div>
+    <footer>
+      <span>Built on the Brodie starter for IvyHacks 2026.</span>
+      <a href="#" id="wl-open">email me when a new dance drops</a>
+      <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
+      <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
+      <div class="foot-wl" id="foot-wl" hidden>
+        <form class="waitlist" id="waitlist" autocomplete="on">
+          <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email for new dances">
+          <button class="btn ghost" type="submit" id="wl-go">notify me</button>
+        </form>
+        <p class="fine" id="wl-note">One email when a new dance drops. Nothing else.</p>
+      </div>
+    </footer>
+  </div>
+</section>
 
 <script src="line.js"></script>
 <script src="popup.js"></script>
@@ -393,111 +375,53 @@
   const API = (Q.get('api') || window.BRODIE_API || (document.querySelector('meta[name="brodie-api"]')?.content || '')).replace(/\/$/, '');   // '' = same origin
   const REMOTE = API !== '' && new URL(API, location.href).origin !== location.origin;   // hosted apart from the server (Vercel): the waitlist posts across origins; accounts need the server's own origin (the server itself, even with brodie-api set to its own URL, is not remote)
   const pretty = (s) => s.replace(/_[0-9a-f]{6}$/, '').replace(/[_-]+/g, ' ');
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t).replace(/[<>&"]/g, (c) => '&#' + c.charCodeAt(0) + ';');
 
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
-    if (c.fork) { document.getElementById('foot-fork').href = c.fork; }
+    if (c.fork) { $('foot-fork').href = c.fork; }
   }).catch(() => {});
 
-  // the lessons: from the server when it is reachable, else the list baked in at the last deploy
+  // ---- now playing: the lessons from the server when it is reachable, else the list baked in at the last deploy ----
   const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true}];
-  // the creator's poses per lesson, baked from data/dances by scripts/bake_landing_poses.py (13 points, 0-255 in the dancer's box)
-  const POSES = {"sbbyj":{"fps":10,"aspect":0.485,"parts":[0.91,8.18,15.45],"beat":0.9091,"f":"780fab29442ac34e354fcb70366f9e785a78a4b85cb8a7f362f07310a6293f2abd4d3050c3702f709d785979a5b85bb9a6f261f16d10a1293b2ab64e2a4fb870277199775678a5b75ab9a4f263f16a109f293929b34e264eb06f1f7197765477a3b75ab8a3f263f168109f293829b34f234eac70197196775277a1b85ab8a3f363f16910a02a3829b34f224eac70157095775177a0b959b8a4f362f16a10a12a382ab44f224eaf701570957751789fb959b9a3f361f16b10a12a392ab54f244fb36f1970967851789fb959b9a3f361f26c10a22a392ab74f264fb66e1f70967752789fb959b9a2f361f16d10a22a392ab84c284fbd682470967752789fb959b9a3f361f16d0fa12a3a2abc48294fcb5b256e957752789db959b9a3f360f16e0fa02a3c2abf46284fdb4d1f6c937851789cb859b9a2f25ef26f11a0293d2ac1452550e43e156b917951799cb959baa1f35df37012a2293d29c8412250e72f096b927b517b9dbb59bca0f45ef4700ba5263e27ce3e204fea24026c927b507b9dba59bc9ef461f57004a6243e24ce3f204eec20006c917b4f7b9dba59bc9df462f57108a5263d26ce3e204fea20006c917c4f7c9cba59bc9df462f5720ea5273e29cd3d2050e820016c937d517d9dbb5abd9ef360f4720ea6273f28cd3d1f50e721026b957d537ea0bb5bbda0f35af4720ea7274028cd3d204fe422036a977d557da0bb5cbda0f35bf4730fa7284029cc40214edb240a66977c557c9fba5bbba0f360f2730fa7294129ca43244bc32f225b987b567aa1ba5abaa2f360f17013a92a432ac6472c48a244474d9d7b597aa5bb59bba5f45ef06e18ab2e472dbd4d36478b536344a07d5d7ca8bc59bca6f35df16e1bac30482eba51384886566b41a27e5e7ea9be59bea6f35df17118ac2d472cc14d3548944f6142a07d5c7da7bf5ac0a5f15df17413aa2a462bcb443149b33f40449b7b597ba2bd5bbda3f15ef07711aa284729d2402e4ad02d1c47987a597a9fba5cbaa2f25df07910ab274928d43e2c4add220c48997b5a7aa0b85cb8a2f25bf17a0eab264927d03f2c48d0261b43997a5a79a2b75bb8a2f25bf2790cab264726c8432e46af36413e9b795979a4b75ab8a3f15df27613ad284727c04834479043613e9e7a5a79a8b85bb9a5f25cf27419ae2a4829be4a394784476b3ea07b5b7aaab95bbaa7f25cf2741aad2a472ac14937498d44663f9f7b5a7ba9ba5bbba6f25cf37514aa294529c646344aa93b50419b7a587aa4ba5cbba4f25cf27709a9244524c844314ac82f2f4396795679a0b95bb9a1f25df17705a9214521cc412e4ada251744967a5679a0b85db9a1f15df17704aa204521cd402e4ada211743977a577aa0b85cb8a1f15df17807aa244723c8432f49c9282b4097795778a0b859b79ff25ef1780dac274727c4463048ae364a3c9a785778a2b758b79ff25ff0770baf264825c4483546924269399c775876a5b657b6a1f15fef7708b1254923c14b3b45834877389d775876a6b757b7a2f05fef770cb0274826c44a38478a4474399d795779a4b959baa3f05ff1770eae284628cb463349a43b5f3b9b7a577ba1bb5bbca2f25ef27810ac284729cf43324bc12f3e3d997b587b9fba5bbaa1f35ef2790cac264827d340314bd9232441997b587ba1ba5aba9ff460f37a05ae234824d63f314be21d1d41997b587ba1ba59ba9df562f47b09ae254825d242324ad3232c3c987b577aa0ba59ba9ef461f37a0fad284828cb443349b42f4c3999795779a1b859b9a0f260f27810ad284728c64534479e3769379b775778a2b759b7a2f160f17710ac284729c5453448a43667379a775777a1b65ab7a2f060f07710ab284728c845324abd304a3999785878a0b65bb7a0f05fef7710ab274828cb45314ac42c3b3999785878a0b75cb7a0f05eef7610ac274728c8453249ad324d379a775877a2b65bb6a1f05fee7410ac284628c2463447973a68369b765776a2b558b6a3ef60ee7410ab284629c2463348a33866389a775777a1b758b7a2f060ef7610aa284628c845314bbf31493b98785779a0b959b9a0f25ff17610aa284728cd43304ac62d3f39987957799fb95ab9a0f35ff17511ab284629ca443247b13559369a785778a1b85ab8a1f25ef17311ac294628c3473546983e70369c775877a3b85ab8a3f25ef17411ad294728c0483646914075369d765876a5b759b6a3f15ef07511ac294629c5473447a03c6b379b775877a4b759b7a3f15ef07710aa294629cc45314abd314f3a99795779a1b85ab8a1f15ef0790bab264727d242324cd825323f977a577aa0b95cb99ef25ff17900ad224823d241334ce51e2242987b577ba3b85eb89df260f27900ad224822d042334bda22293f9a7a587aa4b85fb89ef25ff17a0bad264827cd433348bb2d48389c785a78a2b85db8a0f25ef07b10ae284729cc4434469f3868359f785c78a3b95cb8a1f25ef07b0fb1284928c84739458f407837a2785c78a6b95bb7a1f25ff07b0fb2284a27c6473b448e3f7c37a1785c78a6b95cb8a1f15ff17b10b0284928cb443746a23873369e795a79a2ba5cbaa2f15df17b10ae284929d0433549bb2f563b9a7a587a9dba5bbaa1f15df17c0fad284929d541364ccf273642977a567a9cb959b99ff25ff17c0fae274829d940364dd6232546967a547a9bb857b99df25ff17d0eae274729db3f364dd6212446967a547a9cb855b99ef15ff17d0fad274628da3e354cd3212745967a547a9cb855b99ef160f17e0fad274728d73f354bcf212a45967954799db856b99ef160f17e0fad284828d5413249cb262e43977855789eb757b89ef061f17d0fae2a4827d1452a44c730363f987757769fb75ab89ff060f17e0fae294826cd472641c238393d9a765875a0b75cb89ff15ef17e0fb0294826cc462842be3b373e9a765775a0b75db8a0f15df17f0fb1284826d0432a44b93b37419a765675a0b75cb7a0f15ef0810fb1274827d1422a45b63b3a439a7556759fb55ab6a0f05eef830fb2274827d0422a45b43a3d439b755774a0b45ab5a0ef5eee840fb2274927ce422a46b33b3e449b745774a0b55ab5a1ef5dee870fb3284a27ce442a46b33c3e449c745874a0b55cb5a1ef5def890eb4284b26d0462a45b53f40429e745a74a1b55db5a1ef5cef8a0eb5294c26d3472a44b84346409f755c74a3b55eb5a1f05cef8a0fb6294d27d6482c44ba454c3ea0755c75a4b55eb5a1f05def890eb7294e28d5482f47af454840a0765c76a4b65cb5a2f15ff0840eb5284f27c947354790413e439e775b76a4b65bb7a3f362f17f08b3245123b3423e46703738459b765976a5b75bb9a4f366f57b04af2152229f3e45475c31334599775977aab95bbba6f468f7780ca8245426933e494952312d4494795879aabc59bea8f568f8760fa42557278d3e4c4a4c2e2a458d7a5679a0bf55bfa7f767f7750ca52356248e3f4a4a4d2a28448c78547799be54bda6f766f6780ba82350249642434b57312444927955789ebc57bca8f569f77d0bab254b26a444384d6c3820489a7a597aa7bb5dbeabf36af8850db1274929bd422f4c8e352b49a17a5c7bacbd62c0aaf368f88b0fb6284c28d1423048af335042a7796279aebc66bea9f366f79111b92a5228d5443f43c9368039ab796779afb965baa9f466f59714ba2d5a29ce47523fe238a431ae7c6d7cb2bb64bbaaf667f59c12b82c5f26c54a603cef39b52bb07d727db5bd69bdabf768f69f10b52a6024bf49653bef37b827b17c767cb6bf70bfabf768f79f10b62a6024c149653bee36b726b17b767bb5c070c0abf868f89b13ba2d5f27cb4a5e3df035b028b07c717cb4be6cbdabf868f69417be305b2cd64a5043e2369c2fae7e6b7eb4be67beaaf869f78b17bf2f552eda483f4ab93b7839aa7f657eb1c063c0a8f76af8810ebd285229cc463b4c8d3d5044a47c5e7cabbf60bfa6f66cf57906b7235424af46464c673a36489c7a5a79a7bd5ebda6f66df5740cad25572695454f4c4a382947927b567aa5be5bbea8f76df8720fa52559268843504c413126478a7a537a9dbe56bea9f76bf7700ea1245a258241504b412d26468578517792bc52baa6f86af56d0fa024582584424f4b442d2544847751758cba52b8a3f869f46d10a22453268d43494d4d2d20448878517790ba52b9a5f86af5700ca7254c279b453f4e5c331e458e7a517a96bc54bca8f86af87604ad234825b045374f74372643967b537b9dbf58bfaaf86af97c09b3254826c844344d9434403f9e7b587ba5c05cc0aaf96af98309b6254a26d544354abd346837a67c5f7dabbf5fbfaaf968f88805b8254e25d4463849dd3b7f34ab7e657eb0c061bfabf867f88a08b9275027d6493b4be13e8136ad7e677fb2c264c1adf969f98b05bb255026d847394bca3c703aac7d667db2c267c1aef96bfb8c08bb264f26cf44344aa5374f41a87b617bb2bf69c0adf970fc8f10b8294d29c044324b8e343346a57c607db5be69c2aef874fd9115b52c4d2db845324f8c352646a57f6081b8c26ac8b1f874ff9115b62c4c2dc146335095352a46a4815f82b5c869ccb1fa74ff9111b82a4c2ad246344caa374b43a57e5f7eafc569c7aefa73fc910fb9284f27d7453d45c53b7a3ba87a637aaebf69c0acf971fa9310b8295326cf464d3fe13c9f32ab796879b0bd67bcabfa6ff99511b72b5826ca485b3cf33caf2aaf7c6e7bb3c069bfabfc6cfa9612b72b5a26c948633bf83bb125b47c747dbac171c1acfb6bfc9712b72a5b26c949643cf739b023b57b767dbcc176c2adfb6cfd9612b82a5926cb49633cf834b022b57c737dbbc374c3adfb6dfd9311ba2b5627d0495c3ff332a525b27d6e7db9c16dc1adfa6cfb8c0fbd2a5328d7484a45d733882fad7d667db4c065bfadf96af8850fbe295029d5453d4aa03a633aa77d5f7dadc361c2abf96af9810fbb275129bf433d4c6e3b4340a17c5b7ca7c160c0aaf96dfa7e0db5255527a540454d5a303042997b587ba3bf5bbeabf96cfa7c0cae2357269b3c4c4c58272745917b557b9ec055bfacf96cfa7b0da9235926983a4e4b562625468c7b547a98c155c0a9fa6dfb7a0ea7235a26953a4d4a532725438a7a557994c057bfa6fa6dfa7a09ab225625983e484b572f23448f7b557a98bf57bea7fa6cfa7c03b1225025a6413f4d6a3a2245977c567ca2c059c0acf86cfc8208b3254b28bb40354d8a352c449e7b597caac060c2aef86dfd890fb5284b29cf41304baa2d4640a57a607baebf68c1aef76efb8f11b9295029d7433c45c831763aad7b687bb1bf6cbfaff86cf99314ba2c5829d146533ee538a02fb37c717db6c16ec1b0fb6bfb9613b92d5d29ca4a633af53cb127b67d767dbac273c2b0fc6dfc9712b82c5f27c94a6639f93bb724b67b797cbcc178c1b1fc70fd9812bb2c6126cb496439fb37b924b67a797abdc07ac1b2fc71fd9814be2d6129d148633cff37b827b67b777cbfc078c0b3fb70fc9715c02e5f2bd5486042ff39b32eb67e747ec0c174c1b4fa6ffb9411c02b5a2ad9485346ec39a234b37e6f7fbdc170c2b3f96ffb8f0ebf2a542ad947424bc5377b3baf7e697fb8c16dc2b3f871fb8c0ebd29512ad4473a4fa2355044ab7e637fb8c06bc3b4f774fb"}};
-  const TITLES = { sbbyj: 'Chest Sweep Twist' };   // display names for lessons whose id is the creator's handle
+  const TITLES = { sbbyj: 'Chest Sweep Twist' };            // display names for lessons whose id is the creator's handle
+  const ART = { sbbyj: 'assets/hero/dance.jpg' };           // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
-  const esc = (t) => String(t).replace(/[<>&"]/g, (c) => '&#' + c.charCodeAt(0) + ';');
-  const BONES = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];   // 0 head, 1/2 shoulders, 3/4 elbows, 5/6 wrists, 7/8 hips, 9/10 knees, 11/12 ankles
-  const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let stages = [];
   function renderDances(list) {
-    const box = document.getElementById('dances-list'); box.innerHTML = ''; stages = [];
-    for (const x of list) {
-      const P = POSES[x.name], el = document.createElement('div'); el.className = 'dance';
-      const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="chips">'
+    $('dances-list').innerHTML = list.filter((x) => !x.error).map((x) => {
+      const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="moves">'
         + s.split('|').map((t) => t.trim()).filter(Boolean).map((t) => '<span>' + esc(t) + '</span>').join('') + '</div></li>').join('');
-      el.innerHTML = '<div class="stage">' + (P ? '<canvas></canvas><div class="timeline">'
-          + Array.from({ length: P.parts.length - 1 }, () => '<i style="flex:1"><b></b></i>').join('') + '</div>' : '<img src="assets/brodie/brodie-flex.png" alt="">') + '</div>'
-        + '<div class="info">' + (x.live ? '<span class="live">live now</span>' : '') + '<div class="handle">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
-        + (TITLES[x.name] ? '<span class="by">dance by ' + esc(credit(x.name)) + '</span>' : '')
-        + '<span class="meta">' + x.parts + ' parts · ' + Math.round(x.seconds) + ' s' + (x.music ? ' · with the song' : '') + '</span>'
-        + (P ? '<div class="counts">' + [1, 2, 3, 4, 5, 6, 7, 8].map((n) => '<span>' + n + '</span>').join('') + '</div>' : '')
-        + (parts ? '<ul class="parts">' + parts + '</ul>' : '') + '</div>';
-      box.append(el);
-      if (P) stages.push({ P, el, cv: el.querySelector('canvas'), bars: [...el.querySelectorAll('.timeline b')], counts: [...el.querySelectorAll('.counts span')],
-        rows: [...el.querySelectorAll('.parts li')], n: P.f.length / 52, trail: [] });
-    }
-    if (STILL) for (const st of stages) draw(st, st.P.parts[1] + st.P.beat * 3);
-  }
-  function pose(st, t) {   // the 13 points at time t (s), blended between the 10 fps frames
-    const f = Math.min(t * st.P.fps, st.n - 1.001), i = Math.floor(f), a = f - i, s = st.P.f, out = [];
-    for (let j = 0; j < 13; j++) {
-      const p = (i * 13 + j) * 4, q = p + 52, v = (o) => parseInt(s.substr(o, 2), 16);
-      out.push([v(p) + (v(q) - v(p)) * a, v(p + 2) + (v(q + 2) - v(p + 2)) * a]);
-    }
-    return out;
-  }
-  function draw(st, t) {
-    const { P, cv } = st, dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth, H = cv.clientHeight;
-    if (!W) return;
-    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-    const bh = H * 0.8, bw = bh * P.aspect, sc = Math.min(1, (W * 0.86) / bw), ox = (W - bw * sc) / 2, oy = H * 0.1;
-    const pts = pose(st, t).map(([x, y]) => [ox + x / 255 * bw * sc, oy + y / 255 * bh * sc]);
-    const lw = Math.max(3, bh * sc * 0.022);
-    st.trail.push([pts[5], pts[6]]); if (st.trail.length > 14) st.trail.shift();
-    g.lineCap = 'round'; g.lineJoin = 'round';
-    for (let k = 1; k < st.trail.length; k++) for (const s of [0, 1]) {   // fading ribbons behind the hands
-      const a = st.trail[k - 1][s], b = st.trail[k][s]; g.strokeStyle = 'rgba(217,255,61,' + (k / st.trail.length * 0.35) + ')'; g.lineWidth = lw * (0.4 + k / st.trail.length);
-      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
-    }
-    g.fillStyle = 'rgba(217,255,61,0.1)'; g.beginPath(); for (const j of [1, 2, 8, 7]) g.lineTo(pts[j][0], pts[j][1]); g.fill();
-    g.strokeStyle = '#D9FF3D'; g.lineWidth = lw; g.shadowColor = 'rgba(217,255,61,0.6)'; g.shadowBlur = lw * 2.5;
-    g.beginPath(); for (const [a, b] of BONES) { g.moveTo(pts[a][0], pts[a][1]); g.lineTo(pts[b][0], pts[b][1]); } g.stroke();
-    const [n, l, r] = [pts[0], pts[1], pts[2]], neck = [(l[0] + r[0]) / 2, (l[1] + r[1]) / 2], hr = Math.hypot(l[0] - r[0], l[1] - r[1]) * 0.24 + lw * 0.5;
-    g.beginPath(); g.moveTo(neck[0], neck[1]); g.lineTo(n[0], n[1] + hr); g.stroke();
-    g.beginPath(); g.arc(n[0], n[1], hr, 0, 7); g.stroke();
-    g.shadowBlur = 0; g.fillStyle = '#0A0A0B';
-    for (let j = 1; j < 13; j++) { g.beginPath(); g.arc(pts[j][0], pts[j][1], lw * 0.55, 0, 7); g.fill(); }
-    const cut = P.parts, part = cut.findIndex((c, i) => i > 0 && t < c) - 1, beat = Math.floor((t - cut[0]) / P.beat);
-    st.bars.forEach((b, i) => { b.style.width = Math.max(0, Math.min(1, (t - cut[i]) / (cut[i + 1] - cut[i]))) * 100 + '%'; });
-    st.counts.forEach((c, i) => c.classList.toggle('on', beat >= 0 && beat % 8 === i));
-    st.rows.forEach((row, i) => row.classList.toggle('on', i === part));
-  }
-  if (!STILL) {
-    const t0 = performance.now();
-    (function tick(now) {
-      for (const st of stages) { const r = st.el.getBoundingClientRect(); if (r.bottom > 0 && r.top < innerHeight) draw(st, ((now - t0) / 1000) % st.P.parts.at(-1)); }
-      requestAnimationFrame(tick);
-    })(t0);
+      const stats = [x.bpm ? Math.round(x.bpm) + ' bpm' : '', x.parts + ' parts', Math.round(x.seconds) + ' seconds', x.music ? 'with the song' : ''].filter(Boolean);
+      return '<article class="trackcard"><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt=""></div><div class="info">'
+        + (x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
+        + '<div class="title game">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
+        + (TITLES[x.name] ? '<div class="by">dance by ' + esc(credit(x.name)) + '</div>' : '')
+        + '<div class="stats">' + stats.map((s) => '<span>' + esc(s) + '</span>').join('') + '</div>'
+        + (parts ? '<ul class="parts">' + parts + '</ul>' : '')
+        + (x.live ? '<button type="button" class="btn primary play">play it with brodie</button>' : '') + '</div></article>';
+    }).join('');
+    for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => BrodiePopup.open());
   }
   renderDances(FALLBACK_DANCES);
-  // viral dances queued for after launch (not in Brodie yet); a card takes you to the waitlist
-  const SOON = [
-    { name: 'Renegade', song: 'Lottery (Renegade)', artist: 'K CAMP', by: 'Jalaiah Harmon' },
-    { name: 'Savage', song: 'Savage', artist: 'Megan Thee Stallion', by: 'Keara Wilson' },
-    { name: 'Say So', song: 'Say So', artist: 'Doja Cat', by: 'Haley Sharpe' },
-    { name: 'Toosie Slide', song: 'Toosie Slide', artist: 'Drake' },
-    { name: 'Apple', song: 'Apple', artist: 'Charli xcx', by: 'Kelley Heyer' },
-    { name: 'Hot To Go!', song: 'HOT TO GO!', artist: 'Chappell Roan' },
-    { name: 'Blinding Lights', song: 'Blinding Lights', artist: 'The Weeknd' },
-    { name: 'Laxed', song: 'Laxed (Siren Beat)', artist: 'Jawsh 685' },
-  ];
-  document.getElementById('soon-list').innerHTML = SOON.map((d, k) => '<a href="#waitlist">'
-    + '<span class="pill">coming soon</span><b>' + esc(d.name) + '</b><span class="song">' + esc(d.song) + ' · ' + esc(d.artist) + '</span>'
-    + (d.by ? '<span class="by">dance by ' + esc(d.by) + '</span>' : '<span class="by">&nbsp;</span>')
-    + '<span class="eq" aria-hidden="true">' + Array.from({ length: 12 }, (_, i) => '<i style="animation-delay:-' + ((i * 7 + k * 3) % 10) / 10 + 's"></i>').join('') + '</span></a>').join('');
-  for (const a of document.querySelectorAll('#soon-list a')) a.addEventListener('click', (e) => {
-    e.preventDefault(); openWaitlist();
-  });
-  function openWaitlist() {
-    document.getElementById('foot-wl').hidden = false;
-    document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    document.getElementById('wl-email')?.focus({ preventScroll: true });
-  }
-  document.getElementById('wl-open').addEventListener('click', (e) => { e.preventDefault(); openWaitlist(); });
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
+  // viral dances queued for after launch (not in Brodie yet): locked tracks
+  const SOON = [
+    { name: 'Renegade', song: 'Lottery (Renegade)', artist: 'K CAMP' },
+    { name: 'Savage', song: 'Savage', artist: 'Megan Thee Stallion' },
+    { name: 'Say So', song: 'Say So', artist: 'Doja Cat' },
+    { name: 'Toosie Slide', song: 'Toosie Slide', artist: 'Drake' },
+    { name: 'Apple', song: 'Apple', artist: 'Charli xcx' },
+    { name: 'Hot To Go!', song: 'HOT TO GO!', artist: 'Chappell Roan' },
+  ];
+  const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+  $('soon-list').innerHTML = SOON.map((d) => '<li>' + LOCK + '<div><b>' + esc(d.name) + '</b><span>' + esc(d.song) + ', ' + esc(d.artist) + '</span></div></li>').join('');
+  function openWaitlist() {
+    $('foot-wl').hidden = false;
+    $('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('wl-email')?.focus({ preventScroll: true });
+  }
+  $('wl-open').addEventListener('click', (e) => { e.preventDefault(); openWaitlist(); });
 
-  // ---- step 1: one email field (a returning visitor with a session skips it); step 2: Brodie's live status ----
-  const $ = (id) => document.getElementById(id);
   // ---- the hero clip: muted and looping; pausable; with reduced motion (or a browser that can't play WebM) the poster stays ----
   (() => {
     const v = $('hero-video'), b = $('hero-pause');
@@ -509,18 +433,17 @@
     v.play().then(() => { b.hidden = false; }).catch(() => { b.hidden = false; set(); });
     heroBeat(v);
   })();
-  // The dancer's skeleton glowing over the clip, the count popping on every beat ("5 6 7 8" to get ready, then "1 2 3", as on
-  // the call) and Brodie bouncing smoothly to the beat. assets/hero/dance-poses.json comes from scripts/make_hero_video.py, from the lesson's own
-  // poses and beat for the same seconds as the clip, so all of it follows the video's own clock.
+  // Everything in the hero keeps time with the clip: the dancer's skeleton over it, the count lane (5 6 7 8 to get ready,
+  // then 1 2 3, as on the call), "on beat!" popping on each ONE, the floor's glow flashing on the beat and Brodie bouncing.
+  // assets/hero/dance-poses.json comes from scripts/make_hero_video.py: the lesson's own poses and beat for the clip's seconds.
   function heroBeat(v) {
-    const clip = v.parentElement, cv = document.createElement('canvas'), stage = document.querySelector('.hero .stage');
-    const num = stage && stage.querySelector('.count'), glow = stage && stage.querySelector('.glow');
-    const brodie = document.querySelector('.hero .art img.brodie');
-    cv.setAttribute('aria-hidden', 'true'); clip.insertBefore(cv, $('hero-pause'));
+    const screen = v.parentElement, cv = document.createElement('canvas'), glow = $('stage-glow'), judge = $('judge');
+    const brodie = document.querySelector('img.brodie'), pads = [...$('lane').children];
+    cv.setAttribute('aria-hidden', 'true'); screen.insertBefore(cv, $('hero-pause'));
     const BODY = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];   // 1/2 shoulders .. 11/12 ankles
     let D = null, last = null, base = null, ph = null, prev = 0;
     fetch('assets/hero/dance-poses.json').then((r) => r.json()).then((d) => {
-      D = d; if (brodie) brodie.classList.add('synced'); if (stage) stage.classList.add('synced'); requestAnimationFrame(tick);
+      D = d; if (brodie) brodie.classList.add('synced'); requestAnimationFrame(tick);
     }).catch(() => {});
     function clock(now) {   // the clip's time between its frame updates: currentTime plus the time since it last changed
       const ct = v.currentTime;
@@ -532,35 +455,31 @@
       if (v.paused) { if (brodie) brodie.style.transform = ''; if (glow) glow.style.opacity = ''; ph = null; return; }   // paused: all rests
       const ready = v.readyState >= 2;      // false for a moment while the clip loops or buffers: Brodie keeps his own beat
       const t = clock(now), x = (D.start + t - D.first_beat) / D.beat, k = Math.floor(x);   // k: beats since ONE (negative: the lead-in)
-      {
-        // Brodie (and the stage's glow) keep their own steady beat and eases back onto the clip's: the 6 s loop isn't a whole number of beats, so the
-        // clip's beat jumps at each loop; his doesn't, it drifts back over about a second instead of hopping
-        if (ph === null) ph = x;
-        else {
-          ph += Math.min(0.1, (now - prev) / 1000) / D.beat;
-          if (ready) { const off = x - ph - Math.round(x - ph); ph += off * 0.06; }        // off: -0.5..0.5 of a beat
-        }
-        prev = now;
-        const f = ph - Math.floor(ph), up = 0.5 - 0.5 * Math.cos(2 * Math.PI * f);       // up: 0 on the beat, 1 halfway, smooth
-        if (glow) glow.style.opacity = (0.3 + 0.7 * Math.exp(-f * 4)).toFixed(3);          // the floor lights up on the beat, then fades
-        if (brodie) brodie.style.transform = `translateY(${(-9 * up).toFixed(2)}px) scale(${(1.012 - 0.017 * up).toFixed(4)}, ${(0.988 + 0.017 * up).toFixed(4)})`;
+      // Brodie and the glow keep their own steady beat and ease back onto the clip's: the 6 s loop isn't a whole number of
+      // beats, so the clip's beat jumps at each loop; theirs drifts back over about a second instead of hopping
+      if (ph === null) ph = x;
+      else {
+        ph += Math.min(0.1, (now - prev) / 1000) / D.beat;
+        if (ready) { const off = x - ph - Math.round(x - ph); ph += off * 0.06; }        // off: -0.5..0.5 of a beat
       }
+      prev = now;
+      const f = ph - Math.floor(ph), up = 0.5 - 0.5 * Math.cos(2 * Math.PI * f);       // up: 0 on the beat, 1 halfway, smooth
+      if (glow) glow.style.opacity = (0.45 + 0.55 * Math.exp(-f * 4)).toFixed(3);         // the floor lights up on the beat, then fades
+      if (brodie) brodie.style.transform = `translateY(${(-9 * up).toFixed(2)}px) scale(${(1.012 - 0.017 * up).toFixed(4)}, ${(0.988 + 0.017 * up).toFixed(4)})`;
       if (!ready) return;
       draw(t);
       if (k === last) return;
       last = k;
-      const n = k >= 0 ? (k % 8) + 1 : k >= -4 ? 9 + k : 0;
-      if (!num) return;
-      num.className = 'count';
-      if (!n) return;
-      num.textContent = n; void num.offsetWidth; num.className = 'count on' + (k < 0 ? ' lead' : '');
+      const n = k >= 0 ? (k % 8) + 1 : k >= -4 ? 9 + k : 0;                              // the count: 5 6 7 8 lead-in, then 1 ..
+      pads.forEach((p, i) => { p.className = !n ? '' : k < 0 ? (i + 1 === n ? 'lead' : '') : i + 1 < n ? 'done' : i + 1 === n ? 'now' : ''; });
+      if (k >= 0 && n === 1 && judge) { judge.classList.remove('pop'); void judge.offsetWidth; judge.classList.add('pop'); }
     }
     function draw(t) {
       const dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth, H = cv.clientHeight;
       if (!W) return;
       if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
       const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-      const f = Math.min(t * D.fps, D.f.length - 1.001), i = Math.floor(f), u = f - i, A = D.f[i], B = D.f[i + 1] || A;
+      const fr = Math.min(t * D.fps, D.f.length - 1.001), i = Math.floor(fr), u = fr - i, A = D.f[i], B = D.f[i + 1] || A;
       const vw = v.videoWidth || 216, vh = v.videoHeight || 382, s = Math.max(W / vw, H / vh), ox = (W - vw * s) / 2, oy = (H - vh * s) / 2;   // object-fit: cover
       const P = (j) => (A[2 * j] < 0 || B[2 * j] < 0) ? null
         : [ox + (A[2 * j] + (B[2 * j] - A[2 * j]) * u) / 1000 * vw * s, oy + (A[2 * j + 1] + (B[2 * j + 1] - A[2 * j + 1]) * u) / 1000 * vh * s];
@@ -569,20 +488,18 @@
       g.shadowColor = 'rgba(217,255,61,0.85)'; g.shadowBlur = W * 0.05;
       g.beginPath();
       for (const [p, q] of BODY) { const a = P(p), b = P(q); if (a && b) { g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } }
-      g.stroke(); g.shadowBlur = 0; g.fillStyle = '#0A0A0B';
+      g.stroke(); g.shadowBlur = 0; g.fillStyle = '#0C0820';
       for (let j = 1; j < 13; j++) { const p = P(j); if (p) { g.beginPath(); g.arc(p[0], p[1], lw * 0.55, 0, 7); g.fill(); } }
     }
   }
-  // a tap on a big button: a quick volt ring (the press itself is CSS)
-  document.addEventListener('pointerdown', (e) => {
-    const b = e.target.closest && e.target.closest('.btn.primary');
-    if (b) { b.classList.remove('burst'); void b.offsetWidth; b.classList.add('burst'); }
-  });
+
+  // ---- Brodie's line: the status in the nav and the hero, the pop-up, calling ----
   const dial = (n) => (n || '').replace(/[^0-9+]/g, '');
   let line = null, user = null, guestMode = false, lineState = '', lastDial = '';
   const PREVIEW = Q.get('preview') ? '?preview=' + encodeURIComponent(Q.get('preview')) : '';   // dev only: the server ignores it unless DEV_PREVIEW=1
   const post = (path, body) => fetch(API + path, { method: 'POST', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const watchLine = () => { if (!line) line = BrodieLine.watch(API, showLine, PREVIEW); };
+  const NAV = { open: 'Brodie is free', mine: "He's yours", busy: 'Brodie is busy', offline: 'Brodie is offline' };
   function signedIn(u) {
     user = u || null;
     const named = !!(u && !u.guest);                 // a guest session (no email) shows no account in the nav
@@ -592,7 +509,7 @@
       $('nav-logout').onclick = async (e) => {
         e.preventDefault(); await post('/api/logout').catch(() => {});
         if (line) { line.stop(); line = null; }
-        $('line').hidden = true; $('start-box').hidden = false; signedIn(null); boot();
+        $('line').hidden = true; $('start-box').hidden = false; $('nav-status').hidden = true; signedIn(null); boot();
       };
     } else { $('account').innerHTML = ''; }
     if (u) watchLine();
@@ -600,9 +517,10 @@
   function showLine(v) {
     BrodiePopup.update(v);
     if (v.state === 'signedout') {
-      $('line').hidden = true; $('start-box').hidden = false; if (line) { line.stop(); line = null; }
+      $('line').hidden = true; $('start-box').hidden = false; $('nav-status').hidden = true; if (line) { line.stop(); line = null; }
       user = null; $('account').hidden = true; BrodiePopup.needEmail(); return;
     }
+    $('nav-status').hidden = false; $('nav-status').className = 'chip ' + v.state; $('nav-status').lastChild.textContent = NAV[v.state] || '';
     $('start-box').hidden = true;
     const freed = lineState === 'busy' && v.state === 'open';     // he just freed up while this page was open
     $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '') + (freed ? ' freed' : '');
@@ -664,7 +582,7 @@
     BrodiePopup.needEmail();
   }
   boot();
-  // ---- waitlist (launch day) ----
+  // ---- the new-dance list (footer) ----
   const wl = $('waitlist'), wlNote = $('wl-note');
   wl.addEventListener('submit', async (e) => {
     e.preventDefault(); const go = $('wl-go'); go.disabled = true;
