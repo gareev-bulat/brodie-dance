@@ -244,12 +244,8 @@
       <h1>learn the dance.<br>eight counts<br>at a time.</h1>
       <p class="lead">FaceTime Brodie. He watches your moves, scores every part, and tells you the one thing to fix.</p>
       <div class="start" id="start-box">
-        <form class="waitlist" id="start" autocomplete="on">
-          <input type="email" id="start-email" name="email" required placeholder="your email" autocomplete="email" aria-label="your email">
-          <button class="btn primary" type="submit" id="start-go">dance with brodie →</button>
-        </form>
-        <p class="err" id="start-err" aria-live="polite"></p>
-        <p class="fine">Enter your email to see if Brodie is free. Lessons are on FaceTime.</p>
+        <button class="btn primary big" type="button" id="start-go">facetime brodie now →</button>
+        <p class="fine">Lessons are on FaceTime, from an iPhone, iPad or Mac.</p>
       </div>
       <div class="linebox" id="line" aria-live="polite" hidden>
         <p class="state"><i class="dot"></i><span id="line-msg"></span></p>
@@ -331,6 +327,7 @@
 </div>
 
 <script src="line.js"></script>
+<script src="popup.js"></script>
 <script>
   // The page is static; these two calls connect it to whatever is running behind it (see docs/HOSTING.md).
   const Q = new URLSearchParams(location.search);
@@ -452,69 +449,91 @@
     b.onclick = () => (v.paused ? v.play() : v.pause());
     v.play().then(() => { b.hidden = false; }).catch(() => { b.hidden = false; set(); });
   })();
-  const dial = (n) => n.replace(/[^0-9+]/g, '');
-  let line = null;
+  const dial = (n) => (n || '').replace(/[^0-9+]/g, '');
+  let line = null, user = null, guestMode = false, lineState = '', lastDial = '';
   const PREVIEW = Q.get('preview') ? '?preview=' + encodeURIComponent(Q.get('preview')) : '';   // dev only: the server ignores it unless DEV_PREVIEW=1
+  const post = (path, body) => fetch(API + path, { method: 'POST', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const watchLine = () => { if (!line) line = BrodieLine.watch(API, showLine, PREVIEW); };
   function signedIn(u) {
-    $('start-box').hidden = !!u;
-    if (u) {
-      $('account').hidden = false;
+    user = u || null;
+    const named = !!(u && !u.guest);                 // a guest session (no email) shows no account in the nav
+    $('account').hidden = !named;
+    if (named) {
       $('account').innerHTML = '<b>' + u.email.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
       $('nav-logout').onclick = async (e) => {
-        e.preventDefault(); await fetch(API + '/api/logout', { method: 'POST' }).catch(() => {});
+        e.preventDefault(); await post('/api/logout').catch(() => {});
         if (line) { line.stop(); line = null; }
-        $('line').hidden = true; signedIn(null);
+        $('line').hidden = true; $('start-box').hidden = false; signedIn(null); boot();
       };
-      if (!line) line = BrodieLine.watch(API, showLine, PREVIEW);
-    } else { $('account').hidden = true; $('account').innerHTML = ''; }
+    } else { $('account').innerHTML = ''; }
+    if (u) watchLine();
   }
   function showLine(v) {
-    if (v.state === 'signedout') { $('line').hidden = true; if (line) { line.stop(); line = null; } signedIn(null); return; }
+    BrodiePopup.update(v);
+    if (v.state === 'signedout') {
+      $('line').hidden = true; $('start-box').hidden = false; if (line) { line.stop(); line = null; }
+      user = null; $('account').hidden = true; BrodiePopup.needEmail(); return;
+    }
+    $('start-box').hidden = true;
     $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '');
     $('line-msg').textContent = v.text;
     $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
-    const call = (v.state === 'open' || v.state === 'mine') && !!v.facetime;   // free, or the session is this visitor's
+    // free, or the session is this visitor's. A guest sees the button before the number: the click takes the line, then dials
+    const call = (v.state === 'open' || v.state === 'mine') && (!!v.facetime || guestMode);
     $('line-call').hidden = !call; $('line-done').hidden = v.state !== 'mine';
-    lineState = v.state;
-    if (call) {
-      $('line-number').textContent = v.facetime;
-      $('line-facetime').href = 'facetime:' + (v.dial || dial(v.facetime));
-    }
+    lineState = v.state; lastDial = v.facetime ? (v.dial || dial(v.facetime)) : '';
+    $('line-number').textContent = v.facetime || ''; $('line-number').hidden = !v.facetime;
+    $('line-facetime').href = lastDial ? 'facetime:' + lastDial : '#';
   }
   // "FaceTime Brodie": take the line first (two clicks at once: the server gives it to the first), then open FaceTime
-  let lineState = '';
-  $('line-facetime').addEventListener('click', async (e) => {
-    if (lineState === 'mine') return;                              // the session is already theirs: straight to FaceTime
-    e.preventDefault();
-    const href = $('line-facetime').href;
+  async function callBrodie() {
+    if (lineState === 'mine' && lastDial) { location.href = 'facetime:' + lastDial; return; }   // already theirs: straight to FaceTime
     try {
-      const r = await fetch(API + '/api/line/claim' + PREVIEW, { method: 'POST', credentials: 'same-origin' });
-      const d = await r.json().catch(() => ({}));
-      if (r.status === 401) return signedIn(null);
-      if (line && d.state) line.apply(d);
-      if (r.ok && d.state === 'mine') location.href = href;
+      const r = await post('/api/line/claim' + PREVIEW), d = await r.json().catch(() => ({}));
+      if (r.status === 401) { BrodiePopup.needEmail(); BrodiePopup.open(); return; }
+      if (d.state) { watchLine(); line.apply(d); }
+      const n = d.facetime_dial || dial(d.facetime);
+      if (r.ok && d.state === 'mine' && n) location.href = 'facetime:' + n;
     } catch (err) { $('line-msg').textContent = 'No connection to the server. Try again in a moment.'; }
+  }
+  async function doneDancing() {
+    try { const r = await post('/api/line/done'), d = await r.json().catch(() => ({})); if (line && d.state) line.apply(d); } catch (err) {}
+  }
+  $('line-facetime').addEventListener('click', (e) => {
+    if (!BrodiePopup.apple) { e.preventDefault(); return BrodiePopup.open(); }   // Android, Windows: the pop-up explains / shows the QR
+    if (lineState === 'mine' && lastDial) return;                                 // the link itself opens FaceTime
+    e.preventDefault(); callBrodie();
   });
-  $('line-done').addEventListener('click', async () => {
-    $('line-done').disabled = true;
-    try {
-      const r = await fetch(API + '/api/line/done', { method: 'POST', credentials: 'same-origin' });
-      const d = await r.json().catch(() => ({}));
-      if (line && d.state) line.apply(d);
-    } catch (err) {}
-    finally { $('line-done').disabled = false; }
+  $('line-done').addEventListener('click', async () => { $('line-done').disabled = true; try { await doneDancing(); } finally { $('line-done').disabled = false; } });
+  $('start-go').addEventListener('click', () => BrodiePopup.open());
+  BrodiePopup.mount({
+    call: callBrodie,
+    done: doneDancing,
+    hasEmail: () => !!(user && !user.guest),
+    async start(email) {                             // a server without guest sessions wants an email before it shows the line
+      try {
+        const r = await post('/api/start', { email }), d = await r.json();
+        if (!r.ok) return d.error || 'Something went wrong.';
+        signedIn(d.user); return '';
+      } catch (err) { return 'No connection to the server.'; }
+    },
+    async waitlist(email) {                          // after the call: an email for new dances, optional
+      try {
+        const r = await post('/api/waitlist', { email, name: '' }), d = await r.json();
+        return r.ok ? '' : d.error || 'Something went wrong.';
+      } catch (err) { return 'Could not reach the server. Try again in a minute.'; }
+    },
   });
-  $('start').addEventListener('submit', async (e) => {
-    e.preventDefault(); $('start-err').textContent = ''; $('start-go').disabled = true;
-    try {
-      const r = await fetch(API + '/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('start-email').value }) });
-      const d = await r.json();
-      if (!r.ok) { $('start-err').textContent = d.error || 'Something went wrong.'; return; }
-      signedIn(d.user);
-    } catch (err) { $('start-err').textContent = 'No connection to the server.'; }
-    finally { $('start-go').disabled = false; }
-  });
-  fetch(API + '/api/me' + PREVIEW).then((r) => r.ok ? r.json() : { user: null }).then((d) => signedIn(d.user)).catch(() => signedIn(null));
+  // signed in: the line. Signed out: a server with guest sessions shows the line anyway (the click makes the session),
+  // an older one answers 401 and the pop-up asks for an email first
+  async function boot() {
+    let u = null;
+    try { const r = await fetch(API + '/api/me' + PREVIEW, { credentials: 'same-origin' }); if (r.ok) u = (await r.json()).user; } catch (err) {}
+    if (u) return signedIn(u);
+    try { const r = await fetch(API + '/api/line' + PREVIEW, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) { guestMode = true; return watchLine(); } } catch (err) {}
+    BrodiePopup.needEmail();
+  }
+  boot();
   // ---- waitlist (launch day) ----
   const wl = $('waitlist'), wlNote = $('wl-note');
   wl.addEventListener('submit', async (e) => {
