@@ -108,7 +108,6 @@
     box-shadow: 0 0 0 2px rgba(53,230,255,0.45), 0 30px 80px rgba(0,0,0,0.6), 0 0 80px rgba(53,230,255,0.25); }
   .screen { position: absolute; inset: 0; background: #000 url(assets/hero/dance.jpg) center / cover; }
   .screen video { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .callbar { position: absolute; left: 0; right: 0; top: 34px; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(18,18,18,0.88);
     font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11px; letter-spacing: 0.02em; color: #F5F5F5; pointer-events: none; }
   .callbar .track { flex: 1; height: 8px; border-radius: 4px; background: #464646; position: relative; overflow: hidden; }
@@ -433,14 +432,11 @@
     v.play().then(() => { b.hidden = false; }).catch(() => { b.hidden = false; set(); });
     heroBeat(v);
   })();
-  // Everything in the hero keeps time with the clip: the dancer's skeleton over it, the count lane (5 6 7 8 to get ready,
-  // then 1 2 3, as on the call), "on beat!" popping on each ONE, the floor's glow flashing on the beat and Brodie bouncing.
-  // assets/hero/dance-poses.json comes from scripts/make_hero_video.py: the lesson's own poses and beat for the clip's seconds.
+  // Everything in the hero keeps time with the clip: the count lane (5 6 7 8 to get ready, then 1 2 3, as on the call),
+  // "on beat!" popping on each ONE, the floor's glow flashing on the beat and Brodie bouncing. The beat comes from
+  // assets/hero/dance-poses.json (scripts/make_hero_video.py): the lesson's own beat for the clip's seconds.
   function heroBeat(v) {
-    const screen = v.parentElement, cv = document.createElement('canvas'), glow = $('stage-glow'), judge = $('judge');
-    const brodie = document.querySelector('img.brodie'), pads = [...$('lane').children];
-    cv.setAttribute('aria-hidden', 'true'); screen.insertBefore(cv, $('hero-pause'));
-    const BODY = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];   // 1/2 shoulders .. 11/12 ankles
+    const glow = $('stage-glow'), judge = $('judge'), brodie = document.querySelector('img.brodie'), pads = [...$('lane').children];
     let D = null, last = null, base = null, ph = null, prev = 0;
     fetch('assets/hero/dance-poses.json').then((r) => r.json()).then((d) => {
       D = d; if (brodie) brodie.classList.add('synced'); requestAnimationFrame(tick);
@@ -466,30 +462,11 @@
       const f = ph - Math.floor(ph), up = 0.5 - 0.5 * Math.cos(2 * Math.PI * f);       // up: 0 on the beat, 1 halfway, smooth
       if (glow) glow.style.opacity = (0.45 + 0.55 * Math.exp(-f * 4)).toFixed(3);         // the floor lights up on the beat, then fades
       if (brodie) brodie.style.transform = `translateY(${(-9 * up).toFixed(2)}px) scale(${(1.012 - 0.017 * up).toFixed(4)}, ${(0.988 + 0.017 * up).toFixed(4)})`;
-      if (!ready) return;
-      draw(t);
-      if (k === last) return;
+      if (!ready || k === last) return;
       last = k;
       const n = k >= 0 ? (k % 8) + 1 : k >= -4 ? 9 + k : 0;                              // the count: 5 6 7 8 lead-in, then 1 ..
       pads.forEach((p, i) => { p.className = !n ? '' : k < 0 ? (i + 1 === n ? 'lead' : '') : i + 1 < n ? 'done' : i + 1 === n ? 'now' : ''; });
       if (k >= 0 && n === 1 && judge) { judge.classList.remove('pop'); void judge.offsetWidth; judge.classList.add('pop'); }
-    }
-    function draw(t) {
-      const dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth, H = cv.clientHeight;
-      if (!W) return;
-      if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-      const fr = Math.min(t * D.fps, D.f.length - 1.001), i = Math.floor(fr), u = fr - i, A = D.f[i], B = D.f[i + 1] || A;
-      const vw = v.videoWidth || 216, vh = v.videoHeight || 382, s = Math.max(W / vw, H / vh), ox = (W - vw * s) / 2, oy = (H - vh * s) / 2;   // object-fit: cover
-      const P = (j) => (A[2 * j] < 0 || B[2 * j] < 0) ? null
-        : [ox + (A[2 * j] + (B[2 * j] - A[2 * j]) * u) / 1000 * vw * s, oy + (A[2 * j + 1] + (B[2 * j + 1] - A[2 * j + 1]) * u) / 1000 * vh * s];
-      const lw = Math.max(2, W * 0.022);
-      g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(217,255,61,0.9)'; g.lineWidth = lw;
-      g.shadowColor = 'rgba(217,255,61,0.85)'; g.shadowBlur = W * 0.05;
-      g.beginPath();
-      for (const [p, q] of BODY) { const a = P(p), b = P(q); if (a && b) { g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } }
-      g.stroke(); g.shadowBlur = 0; g.fillStyle = '#0C0820';
-      for (let j = 1; j < 13; j++) { const p = P(j); if (p) { g.beginPath(); g.arc(p[0], p[1], lw * 0.55, 0, 7); g.fill(); } }
     }
   }
 
