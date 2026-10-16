@@ -59,6 +59,7 @@ import argparse, asyncio, collections, json, logging, os, sys, threading, time
 from livekit import rtc
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli
 from facetime import DATA, AUDIO_TRACK_NAME
+from facetime import line_report
 from facetime.pipeline import FPS
 from facetime.perception import Perception, Config, add_arguments, build_pipeline, EVENT_SCHEMA_VERSION
 from facetime.coach_agent import frame_to_rgb              # the same frame conversion as the demo coach
@@ -258,6 +259,7 @@ class CoachJob:
         self.session_state = None; self.probes_ignored = 0        # the probe (--latency-probe) never beeps or opens the floor during an active set
         self.voice_mode = perception_off(a)                       # --perception off: no Perception; the worker emits its own session/status events
         self.t0 = time.monotonic(); self.ev_seq = 0; self.vision = None; self.vision_logged = False; self.session_opened = False; self.open_task = None
+        self.line_call = None; self.line_ended = False    # the FaceTime call reported to the website's line (facetime/line_report.py)
 
     # ---- lifecycle ----
     async def run(self):
@@ -358,6 +360,10 @@ class CoachJob:
         self.closed = True; self.stop.set(); self.done.set(); t0 = time.monotonic()
         if self.t_end is None: self.t_end = t0
         if self.leave_task is not None: self.leave_task.cancel()
+        if self.line_call is not None and not self.line_ended:   # the job ends without a 'participant left' (Chert closed the room)
+            self.line_ended = True
+            try: await asyncio.wait_for(asyncio.to_thread(line_report.report, 'end', self.line_call), line_report.TIMEOUT_S * 3 + 3)
+            except Exception as e: print(f'[line] call end not reported at cleanup ({e!r}): the line frees at the end of the session', flush=True)
         if getattr(self, 'avatar_task', None) is not None: self.avatar_task.cancel()
         if self.open_task is not None and not self.open_task.done(): self.open_task.cancel()
         for t in getattr(self, 'consumer_tasks', []): t.cancel()
@@ -425,6 +431,9 @@ class CoachJob:
         extra = getattr(self.event_writer, 'extra', None)                   # the JSONL lines carry the call id from the bind on (null before it)
         if isinstance(extra, dict): extra['call_id'] = self.call_id
         print(f'[worker] bound to {participant.identity!r} (call id {self.call_id or "n/a"}): {what}', flush=True)
+        if participant.identity.startswith(BRIDGE_PREFIX) and self.line_call is None and not self.closed:   # a FaceTime caller
+            self.line_call = self.call_id or participant.identity
+            asyncio.create_task(asyncio.to_thread(line_report.report, 'start', self.line_call), name='line-start')
         if self.voice_mode:
             if not self.session_opened and self.open_task is None:
                 self.open_task = asyncio.create_task(self._open_session(participant.identity), name='voice-start')
@@ -495,6 +504,9 @@ class CoachJob:
         print(f'[worker] participant left: {p.identity}', flush=True)
         if p.identity == self.bound:
             self.bound = None
+            if self.line_call is not None and not self.line_ended:
+                self.line_ended = True
+                asyncio.create_task(asyncio.to_thread(line_report.report, 'end', self.line_call), name='line-end')
             if self.a.leave_grace_s is not None and self.a.leave_grace_s >= 0 and self.leave_task is None and not self.closed:
                 self.leave_task = asyncio.create_task(self._leave_grace(), name='leave-grace')
 

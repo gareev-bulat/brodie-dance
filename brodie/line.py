@@ -46,6 +46,8 @@ def _who(r):
     if r['source'] == 'visitor':
         u = users.get(r['uid'])
         return f'visitor {u["email"] if u else "#" + str(r["uid"])}'
+    if r['source'] == 'facetime': return 'a FaceTime caller (no click on the site)'
+    if r['source'] == 'cooldown': return "Chert's cooldown after a call"
     return r['source'] or ''
 
 
@@ -138,6 +140,47 @@ def admin_extend(minutes=5):
         c.execute('UPDATE line SET until = ? WHERE id = 1', (until,))
         _log(c, t, 'extend', 'admin', f'add {minutes:g} min: {_left(r, t)} s -> {int(round(until - t))} s left ({_who(r)})')
         c.execute('COMMIT'); return True
+    finally: c.close()
+
+
+def cooldown_s(): return float(os.environ.get('LINE_COOLDOWN_S', '15'))
+
+
+def call_started(call_id=''):
+    """Brodie's worker: a FaceTime caller is on. A free line (or one cooling down) becomes busy for the cap, so a caller who
+    dialled without clicking on the site still shows as busy; a session someone already holds is left as it is (their call).
+    Returns the source holding the line afterwards."""
+    c = _tx(); t = now()
+    try:
+        r = _row(c); _expire(c, r, t); r = _row(c)
+        if _busy(r, t) and r['source'] != 'cooldown':
+            _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}'.rstrip()); c.execute('COMMIT'); return r['source']
+        c.execute('UPDATE line SET source = "facetime", uid = NULL, t_start = ?, until = ? WHERE id = 1', (t, t + cap_s()))
+        _log(c, t, 'busy', 'facetime', f'FaceTime call started {call_id[:8]} (nobody clicked on the site)'.replace('  ', ' '))
+        c.execute('COMMIT'); return 'facetime'
+    finally: c.close()
+
+
+def call_ended(call_id=''):
+    """Brodie's worker: the FaceTime caller hung up. The line frees after LINE_COOLDOWN_S (15 s: Chert's line needs ~10 s
+    before it takes the next call), not at the end of the session, so a caller who forgets "I'm done dancing" no longer holds
+    the line for the full 15 minutes. A free line is held for the cooldown too (a visitor clicking now couldn't get through).
+    An admin's Mark busy is left alone (the team blocking the line on purpose). Repeats are harmless. Returns seconds until free."""
+    c = _tx(); t = now(); cd = cooldown_s()
+    try:
+        r = _row(c); _expire(c, r, t); r = _row(c)
+        if _busy(r, t) and r['source'] == 'admin':
+            _log(c, t, 'call ended', 'admin', f'FaceTime call ended {call_id[:8]}; the admin session stays'.replace('  ', ' '))
+            c.execute('COMMIT'); return _left(r, t)
+        if _busy(r, t):
+            until = min(r['until'], t + cd)
+            c.execute('UPDATE line SET until = ? WHERE id = 1', (until,))
+            _log(c, t, 'call ended', _who(r), f'FaceTime call ended {call_id[:8]}: free in {int(round(until - t))} s (was {_left(r, t)} s)'.replace('  ', ' '))
+        else:
+            until = t + cd
+            c.execute('UPDATE line SET source = "cooldown", uid = NULL, t_start = ?, until = ? WHERE id = 1', (t, until))
+            _log(c, t, 'call ended', 'facetime', f'FaceTime call ended {call_id[:8]}: cooling down {int(cd)} s'.replace('  ', ' '))
+        c.execute('COMMIT'); return int(round(until - t))
     finally: c.close()
 
 
