@@ -229,6 +229,31 @@
   }
 
   body { overflow-x: hidden; }
+
+  /* ---- alive: the hero moves to the beat, the live status pulses, buttons answer a tap ---- */
+  .clip canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .clip .beat { position: absolute; top: 8px; right: 12px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 3.2rem; line-height: 1;
+    color: var(--volt); text-shadow: 0 2px 14px rgba(0,0,0,0.75); opacity: 0; pointer-events: none; }
+  .clip .beat.lead { color: var(--text); }
+  .clip .beat.on { opacity: 1; animation: beat-pop .45s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes beat-pop { from { transform: scale(1.8); opacity: 0.15; } }
+  .hero .art img.brodie { transform-origin: 50% 100%; }
+  .hero .art img.brodie.bob { animation: bob .42s cubic-bezier(.3, 1.5, .5, 1); }
+  @keyframes bob { 40% { transform: translateY(-8px) rotate(-2deg) scale(1.02); } }
+  .linebox.open .dot, .linebox.mine .dot { animation: live 1.6s ease-out infinite; }
+  @keyframes live { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.7); } to { box-shadow: 0 0 0 12px rgba(217,255,61,0); } }
+  .linebox.freed { animation: freed .8s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes freed { 30% { transform: scale(1.03); box-shadow: 0 0 0 3px var(--volt), 0 0 44px rgba(217,255,61,0.45); } }
+  .btn.primary { position: relative; }
+  .btn:active { transform: translateY(1px) scale(0.96); transition-duration: .05s; }
+  .btn.primary::after { content: ''; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none; }
+  .btn.primary.burst::after { animation: burst .55s ease-out; }
+  @keyframes burst { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.65); } to { box-shadow: 0 0 0 20px rgba(217,255,61,0); } }
+  @media (max-width: 820px) { .clip .beat { font-size: 1.9rem; top: 5px; right: 8px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .clip .beat.on, .hero .art img.brodie.bob, .linebox .dot, .linebox.freed, .btn.primary.burst::after { animation: none !important; }
+    .btn:active { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -440,7 +465,55 @@
     v.addEventListener('play', set); v.addEventListener('pause', set);
     b.onclick = () => (v.paused ? v.play() : v.pause());
     v.play().then(() => { b.hidden = false; }).catch(() => { b.hidden = false; set(); });
+    heroBeat(v);
   })();
+  // The dancer's skeleton glowing over the clip, the count popping on every beat ("5 6 7 8" to get ready, then "1 2 3", as on
+  // the call) and Brodie bobbing along. assets/hero/dance-poses.json comes from scripts/make_hero_video.py, from the lesson's own
+  // poses and beat for the same seconds as the clip, so all of it follows the video's own clock.
+  function heroBeat(v) {
+    const clip = v.parentElement, cv = document.createElement('canvas'), num = document.createElement('span');
+    const brodie = document.querySelector('.hero .art img.brodie');
+    num.className = 'beat'; num.setAttribute('aria-hidden', 'true'); cv.setAttribute('aria-hidden', 'true');
+    clip.insertBefore(cv, $('hero-pause')); clip.insertBefore(num, $('hero-pause'));
+    const BODY = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];   // 1/2 shoulders .. 11/12 ankles
+    let D = null, last = null;
+    fetch('assets/hero/dance-poses.json').then((r) => r.json()).then((d) => { D = d; requestAnimationFrame(tick); }).catch(() => {});
+    function tick() {
+      requestAnimationFrame(tick);
+      if (v.paused || v.readyState < 2) return;
+      const t = v.currentTime, k = Math.floor((D.start + t - D.first_beat) / D.beat);   // beats since ONE (negative: the lead-in)
+      draw(t);
+      if (k === last) return;
+      last = k;
+      const n = k >= 0 ? (k % 8) + 1 : k >= -4 ? 9 + k : 0;
+      num.className = 'beat';
+      if (!n) return;
+      num.textContent = n; void num.offsetWidth; num.className = 'beat on' + (k < 0 ? ' lead' : '');
+      if (brodie) { brodie.classList.remove('bob'); void brodie.offsetWidth; brodie.classList.add('bob'); }
+    }
+    function draw(t) {
+      const dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth, H = cv.clientHeight;
+      if (!W) return;
+      if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+      const f = Math.min(t * D.fps, D.f.length - 1.001), i = Math.floor(f), u = f - i, A = D.f[i], B = D.f[i + 1] || A;
+      const vw = v.videoWidth || 216, vh = v.videoHeight || 382, s = Math.max(W / vw, H / vh), ox = (W - vw * s) / 2, oy = (H - vh * s) / 2;   // object-fit: cover
+      const P = (j) => (A[2 * j] < 0 || B[2 * j] < 0) ? null
+        : [ox + (A[2 * j] + (B[2 * j] - A[2 * j]) * u) / 1000 * vw * s, oy + (A[2 * j + 1] + (B[2 * j + 1] - A[2 * j + 1]) * u) / 1000 * vh * s];
+      const lw = Math.max(2, W * 0.022);
+      g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(217,255,61,0.9)'; g.lineWidth = lw;
+      g.shadowColor = 'rgba(217,255,61,0.85)'; g.shadowBlur = W * 0.05;
+      g.beginPath();
+      for (const [p, q] of BODY) { const a = P(p), b = P(q); if (a && b) { g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } }
+      g.stroke(); g.shadowBlur = 0; g.fillStyle = '#0A0A0B';
+      for (let j = 1; j < 13; j++) { const p = P(j); if (p) { g.beginPath(); g.arc(p[0], p[1], lw * 0.55, 0, 7); g.fill(); } }
+    }
+  }
+  // a tap on a big button: a quick volt ring (the press itself is CSS)
+  document.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest && e.target.closest('.btn.primary');
+    if (b) { b.classList.remove('burst'); void b.offsetWidth; b.classList.add('burst'); }
+  });
   const dial = (n) => (n || '').replace(/[^0-9+]/g, '');
   let line = null, user = null, guestMode = false, lineState = '', lastDial = '';
   const PREVIEW = Q.get('preview') ? '?preview=' + encodeURIComponent(Q.get('preview')) : '';   // dev only: the server ignores it unless DEV_PREVIEW=1
@@ -467,7 +540,8 @@
       user = null; $('account').hidden = true; BrodiePopup.needEmail(); return;
     }
     $('start-box').hidden = true;
-    $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '');
+    const freed = lineState === 'busy' && v.state === 'open';     // he just freed up while this page was open
+    $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '') + (freed ? ' freed' : '');
     $('line-msg').textContent = v.text;
     $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
     // free, or the session is this visitor's. A guest sees the button before the number: the click takes the line, then dials

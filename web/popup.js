@@ -30,7 +30,7 @@ window.BrodiePopup = (() => {
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: bp-fade .18s ease; }
   .bp-back[hidden] { display: none; }
   .bp { position: relative; width: min(440px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--panel); border: 2px solid var(--volt);
-    border-radius: 24px; padding: 26px 24px 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,0.6); animation: bp-up .22s ease; }
+    border-radius: 24px; padding: 26px 24px 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,0.6); animation: bp-up .42s cubic-bezier(.2, 1.4, .4, 1); }
   .bp-x { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--grey);
     font-size: 1.6rem; line-height: 1; cursor: pointer; }
   .bp-x:hover { color: var(--text); background: var(--line); }
@@ -61,10 +61,14 @@ window.BrodiePopup = (() => {
   .bp-skip { margin-top: 4px; background: none; border: 0; color: var(--grey); font: inherit; font-size: 0.9rem; cursor: pointer; text-decoration: underline; }
   .bp-err { color: #FF8A8A; font-size: 0.9rem; min-height: 1.2em; margin: 6px 0 0; }
   @keyframes bp-fade { from { opacity: 0; } }
-  @keyframes bp-up { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+  @keyframes bp-up { from { opacity: 0; transform: translateY(28px) scale(0.92); } }
+  .bp.open .bp-dot, .bp.mine .bp-dot { animation: bp-live 1.6s ease-out infinite; }
+  @keyframes bp-live { from { box-shadow: 0 0 0 0 rgba(217,255,61,0.7); } to { box-shadow: 0 0 0 10px rgba(217,255,61,0); } }
+  .bp-status.freed { animation: bp-freed .8s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes bp-freed { 30% { transform: scale(1.08); box-shadow: 0 0 0 3px var(--volt), 0 0 36px rgba(217,255,61,0.5); } }
   @keyframes bp-pulse { to { opacity: 0.3; } }
   @media (max-width: 520px) { .bp { padding: 22px 18px 18px; } .bp h2 { font-size: 1.7rem; } .bp img.bp-face { width: 72px; height: 72px; } }
-  @media (prefers-reduced-motion: reduce) { .bp-back, .bp { animation: none; } .bp.loading .bp-dot { animation: none; } }`;
+  @media (prefers-reduced-motion: reduce) { .bp-back, .bp, .bp-status.freed { animation: none; } .bp .bp-dot { animation: none !important; } }`;
 
   let opts = {}, el = {}, v = { state: 'loading', left: 0 }, freeAt = 0, mode = 'line', sawCall = false, lastFocus = null, qrDone = false;
   const $ = (sel) => el.root.querySelector(sel);
@@ -194,6 +198,9 @@ window.BrodiePopup = (() => {
   function update(nv) {
     if (nv.state === 'signedout') return;
     const was = v; v = nv; freeAt = Date.now() + (nv.left || 0) * 1000;
+    if (el.root && was.state === 'busy' && nv.state === 'open') {          // he just freed up while the pop-up was open: a little pop
+      const st = $('.bp-status'); st.classList.remove('freed'); void st.offsetWidth; st.classList.add('freed');
+    }
     if (nv.state === 'mine' && !nv.precall) sawCall = true;
     if (sawCall && nv.state !== 'mine' && was.state === 'mine') {   // this visitor's call just ended
       sawCall = false;
