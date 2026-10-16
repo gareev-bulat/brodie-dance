@@ -176,6 +176,8 @@
   .linebox.mine .dot { background: var(--volt); box-shadow: 0 0 10px var(--volt); }
   .linebox.mine .timer { font-size: 1rem; font-weight: 700; color: #D4D0C8; margin-top: 6px; }
   .linebox.mine .timer::after { content: ' left in your session'; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 400; }
+  .linebox.mine.precall .timer { font-size: 2.2rem; font-weight: 800; color: var(--text); }
+  .linebox.mine.precall .timer::after { content: ''; }
   .linebox .timer { display: block; margin-top: 10px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
   .linebox .number { display: block; margin-top: 12px; font-size: 1.35rem; font-weight: 700; color: var(--text); text-decoration: none; }
   .linebox .btn { margin-top: 12px; }
@@ -468,7 +470,7 @@
   }
   function showLine(v) {
     if (v.state === 'signedout') { $('line').hidden = true; if (line) { line.stop(); line = null; } signedIn(null); return; }
-    $('line').hidden = false; $('line').className = 'linebox ' + v.state;
+    $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '');
     $('line-msg').textContent = v.text;
     $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
     const call = (v.state === 'open' || v.state === 'mine') && !!v.facetime;   // free, or the session is this visitor's
