@@ -48,6 +48,9 @@ window.BrodiePopup = (() => {
   .bp-go:disabled { background: var(--line); border-color: var(--line); color: var(--grey); cursor: default; transform: none; }
   .bp-done { margin-top: 12px; font-size: 0.95rem; padding: 10px 18px; background: none; cursor: pointer; }
   .bp-fine { font-size: 0.85rem; color: var(--grey); margin: 12px auto 0; max-width: 30em; }
+  .bp-wait { font-size: 0.92rem; line-height: 1.4; margin: 14px auto 0; max-width: 28em; padding: 10px 14px; border-radius: 12px;
+             border: 1px dashed var(--volt); color: var(--text, #EFE7DA); }
+  .bp-wait b { color: var(--volt); }
   .bp-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; color: #CFCBC3; }
   .bp-trust svg { width: 14px; height: 14px; fill: none; stroke: var(--volt); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .bp-qr { margin: 18px auto 0; width: 220px; height: 220px; padding: 12px; background: #fff; border-radius: 16px; }
@@ -136,7 +139,8 @@ window.BrodiePopup = (() => {
   function actions() {
     if (apple) return `<button type="button" class="btn primary bp-go" disabled>FaceTime Brodie now</button>
       <button type="button" class="btn ghost bp-done" hidden>I'm done dancing</button>
-      <p class="bp-fine bp-applefine">Opens FaceTime. Prop your phone up so Brodie sees you head to toe.</p>
+      <p class="bp-wait"><b>Brodie takes a few seconds to pick up.</b> Stay on, he's loading your next viral video 🎬</p>
+      <p class="bp-fine bp-applefine">Opens FaceTime. Prop your phone up and step back so you fit in the frame.</p>
       <p class="bp-fine bp-trust"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Never saved. No account needed.</p>`;
     if (device === 'android') return `<div class="bp-note"><p><b>Brodie teaches over FaceTime, and FaceTime calls can only be started from an iPhone, iPad or Mac.</b></p>
       <p>Got one nearby? Open this page on it and tap the big button.</p>
