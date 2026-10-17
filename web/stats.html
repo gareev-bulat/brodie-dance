@@ -43,6 +43,15 @@ button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; pa
 .ghost { background:none; color:var(--grey); padding:6px 0; font:600 13px 'Plus Jakarta Sans', Arial, sans-serif; text-decoration:underline }
 .err { color:#FF8A7A }
 .note { color:var(--grey); font-size:13px }
+h2 .badge { margin-left:10px; padding:4px 8px; border-radius:999px; background:var(--volt); color:#111; letter-spacing:1px; font-size:11px; vertical-align:middle }
+details.history { display:flex; flex-direction:column; gap:28px; border-top:1px solid var(--panel); padding-top:20px }
+details.history > summary { cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap }
+details.history > summary::-webkit-details-marker { display:none }
+details.history > summary h2::before { content:'▸ '; }
+details.history[open] > summary h2::before { content:'▾ '; }
+details.history[open] > summary { margin-bottom:20px }
+details.history > section + section { margin-top:28px }
+details.history .tile b { color:var(--grey) }
 .tile b.sm { font-size:22px; line-height:1.15; word-break:break-all }
 .state-open { color:var(--volt) } .state-busy { color:#FFB020 } .state-offline { color:var(--grey) }
 .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center }
@@ -96,19 +105,10 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
       </table></div>
     </section>
     <section>
-      <h2>Funnel</h2>
+      <h2>Live funnel <span class="badge">since Oct 17 · watch this</span></h2>
       <div class="tiles" id="funnel"></div>
       <p class="note" id="devices"></p>
-      <p class="note">Visitors = browsers that opened the site, once per day (counted from Oct 17). Tapped = clicked "FaceTime Brodie". FaceTime calls come from Brodie's worker (from Oct 17); "dialed directly" = called the number without tapping on the site. The Chert dashboard has every call since launch.</p>
-    </section>
-    <section>
-      <h2>Totals</h2>
-      <div class="tiles" id="totals"></div>
-    </section>
-    <section>
-      <h2>Retention</h2>
-      <div class="tiles" id="retention"></div>
-      <p class="note">Came back = called Brodie on 2 or more different days. Dn = of the people whose first call was at least n days ago, how many called again within n days. Team accounts in TEAM_EMAILS are left out.</p>
+      <p class="note">Visitors = browsers that opened the site, once per day. Tapped = clicked "FaceTime Brodie" (counted since Oct 15). FaceTime calls come from Brodie's worker; "dialed directly" = called the number without tapping on the site. The Chert dashboard has every call since launch.</p>
     </section>
     <section>
       <h2>By day</h2>
@@ -117,6 +117,18 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
         <tbody id="days"></tbody>
       </table></div>
     </section>
+    <details class="history">
+      <summary><h2>History</h2><span class="note">all time, mostly the old browser version (before Oct 17). Tap to open</span></summary>
+      <section>
+        <h2>Totals</h2>
+        <div class="tiles" id="totals"></div>
+      </section>
+      <section>
+        <h2>Retention</h2>
+        <div class="tiles" id="retention"></div>
+        <p class="note">Came back = called Brodie on 2 or more different days. Dn = of the people whose first call was at least n days ago, how many called again within n days. Team accounts in TEAM_EMAILS are left out.</p>
+      </section>
+    </details>
     <button class="ghost" id="forget">forget key on this device</button>
   </div>
 </main>
