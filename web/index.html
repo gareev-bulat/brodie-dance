@@ -377,6 +377,14 @@
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t).replace(/[<>&"]/g, (c) => '&#' + c.charCodeAt(0) + ';');
 
+  // Count this visit for the stats page (once per browser per day on the server; a random id, nothing personal)
+  try {
+    let vid = ''; try { vid = localStorage.getItem('brodie-vid') || ''; } catch (e) {}
+    if (!vid) { vid = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('brodie-vid', vid); } catch (e) {} }
+    const device = (window.BrodiePopup && BrodiePopup.device) || '';
+    if (!Q.get('preview')) fetch(API + '/api/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vid, device }), keepalive: true }).catch(() => {});
+  } catch (e) { /* the page works without it */ }
+
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
     if (c.fork) { $('foot-fork').href = c.fork; }
   }).catch(() => {});

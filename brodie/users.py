@@ -44,6 +44,44 @@ def init():
         c.execute('CREATE TABLE IF NOT EXISTS waitlist (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT "", '
                   'source TEXT NOT NULL DEFAULT "", created REAL NOT NULL)')
         c.execute('CREATE TABLE IF NOT EXISTS call_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, t REAL NOT NULL, dance TEXT NOT NULL DEFAULT "")')
+        # FaceTime calls, from Brodie's worker reports (brodie/line.py call_started / call_ended): uid = the visitor who tapped
+        # "FaceTime Brodie" (NULL: dialled the number directly); source site | direct | admin; t_end NULL while on (or unreported)
+        c.execute('CREATE TABLE IF NOT EXISTS ft_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, call_id TEXT NOT NULL DEFAULT "", uid INTEGER, '
+                  'source TEXT NOT NULL DEFAULT "", t_start REAL NOT NULL, t_end REAL)')
+        # one row per browser per day that opened the landing page (POST /api/visit): our own visit count, no analytics limit
+        c.execute('CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, vid TEXT NOT NULL, '
+                  'device TEXT NOT NULL DEFAULT "", t REAL NOT NULL, UNIQUE (day, vid))')
+
+
+TZ = 'America/New_York'
+
+
+def _zone(tz=TZ):
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(tz), tz
+    except Exception:   # no tz database on this machine (some slim images, Windows without tzdata): New York daylight time
+        return datetime.timezone(datetime.timedelta(hours=-4)), 'UTC-4'
+
+
+def _day(t, zone):
+    import datetime
+    return datetime.datetime.fromtimestamp(t, zone).date().isoformat()
+
+
+DEVICES = ('ios', 'mac', 'android', 'desktop')
+
+
+def visit(vid, device=''):
+    """A browser opened the landing page: counted once per browser per day. vid: the page's random id for this browser."""
+    vid = re.sub(r'[^A-Za-z0-9_-]', '', str(vid or ''))[:40]
+    if len(vid) < 8: raise ValueError('bad visitor id')
+    device = device if device in DEVICES else 'other'
+    t = time.time()
+    with _db() as c:
+        cur = c.execute('INSERT OR IGNORE INTO visits (day, vid, device, t) VALUES (?, ?, ?, ?)', (_day(t, _zone()[0]), vid, device, t))
+        return cur.rowcount == 1
 
 
 # ---- waitlist (launch day: emails first, accounts when the lesson opens) ----
@@ -145,33 +183,47 @@ def bump_calls(uid, dance=''):
 
 
 # ---- stats for the team: GET /api/stats?key=<ADMIN_KEY> ----
-def stats(tz='America/New_York', exclude=()):
-    """Totals, a per-day table and retention. Days are calendar days in tz. exclude: team emails left out of every number."""
+def stats(tz=TZ, exclude=()):
+    """Totals, a per-day table and retention. Days are calendar days in tz. exclude: team emails left out of every number.
+    Calls = FaceTime calls (ft_calls, reported by Brodie's worker) plus the old browser calls (call_log, before Oct 15). A
+    caller is a visitor (account or guest) who tapped "FaceTime Brodie" and then called; someone who dials the number directly
+    is counted as a call (direct_calls) but can't be told apart from other direct callers."""
     import datetime
-    try:
-        from zoneinfo import ZoneInfo
-        zone = ZoneInfo(tz)
-    except Exception:   # no tz database on this machine (some slim images, Windows without tzdata): New York daylight time
-        zone, tz = datetime.timezone(datetime.timedelta(hours=-4)), 'UTC-4'
-    day = lambda t: datetime.datetime.fromtimestamp(t, zone).date().isoformat()
+    zone, tz = _zone(tz)
+    day = lambda t: _day(t, zone)
     ex = {e.strip().lower() for e in exclude if e.strip()}
     with _db() as c:
         us = [dict(r) for r in c.execute('SELECT id, email, created FROM users').fetchall()]
         wl = [dict(r) for r in c.execute('SELECT email, created FROM waitlist').fetchall()]
-        calls = [dict(r) for r in c.execute('SELECT user_id, t FROM call_log ORDER BY t').fetchall()]
+        web_calls = [dict(r) for r in c.execute('SELECT user_id, t FROM call_log ORDER BY t').fetchall()]
+        ft = [dict(r) for r in c.execute('SELECT uid, source, t_start, t_end FROM ft_calls ORDER BY t_start').fetchall()]
+        vis = [dict(r) for r in c.execute('SELECT day, device FROM visits').fetchall()]
+        try: taps = [dict(r) for r in c.execute("SELECT t, actor FROM line_log WHERE event = 'busy' AND detail LIKE 'clicked%'").fetchall()]
+        except sqlite3.OperationalError: taps = []      # no line table yet
     team = {u['id'] for u in us if u['email'] in ex}
+    team_actors = {'visitor ' + e for e in ex}
     us = [u for u in us if u['id'] not in team]
     wl = [w for w in wl if w['email'] not in ex]
-    calls = [k for k in calls if k['user_id'] not in team]
-    signed_up = {u['id']: day(u['created']) for u in us}
+    web_calls = [k for k in web_calls if k['user_id'] not in team]
+    ft = [k for k in ft if k['uid'] not in team]
+    taps = [k for k in taps if k['actor'] not in team_actors]
+    guests = {u['id'] for u in us if is_guest(u)}
+    calls = sorted(web_calls + [{'user_id': k['uid'], 't': k['t_start']} for k in ft if k['uid'] is not None], key=lambda k: k['t'])
+    durs = [k['t_end'] - k['t_start'] for k in ft if k['t_end'] is not None]
+    signed_up = {u['id']: day(u['created']) for u in us if u['id'] not in guests}
     days_by_user = {}
     for k in calls: days_by_user.setdefault(k['user_id'], set()).add(day(k['t']))
     per = {}
-    def row(d): return per.setdefault(d, {'day': d, 'waitlist': 0, 'signups': 0, 'calls': 0, 'callers': set(), 'new_callers': 0})
+    def row(d): return per.setdefault(d, {'day': d, 'visitors': 0, 'taps': 0, 'waitlist': 0, 'signups': 0, 'guests': 0, 'calls': 0,
+                                          'callers': set(), 'new_callers': 0})
     for w in wl: row(day(w['created']))['waitlist'] += 1
-    for u in us: row(day(u['created']))['signups'] += 1
-    for k in calls:
-        r = row(day(k['t'])); r['calls'] += 1; r['callers'].add(k['user_id'])
+    for u in us: row(day(u['created']))['guests' if u['id'] in guests else 'signups'] += 1
+    for v in vis: row(v['day'])['visitors'] += 1
+    for k in taps: row(day(k['t']))['taps'] += 1
+    for k in web_calls: r = row(day(k['t'])); r['calls'] += 1; r['callers'].add(k['user_id'])
+    for k in ft:
+        r = row(day(k['t_start'])); r['calls'] += 1
+        if k['uid'] is not None: r['callers'].add(k['uid'])
     for uid, ds in days_by_user.items(): row(min(ds))['new_callers'] += 1
     table = [dict(r, callers=len(r['callers'])) for _, r in sorted(per.items(), reverse=True)]
     wl_emails = {w['email'] for w in wl}
@@ -188,7 +240,11 @@ def stats(tz='America/New_York', exclude=()):
             hit += any(0 < (datetime.date.fromisoformat(d) - first).days <= n for d in ds)
         return {'eligible': elig, 'returned': hit, 'pct': round(100 * hit / elig) if elig else None}
     return {
-        'totals': {'waitlist': len(wl), 'signups': len(us), 'callers': len(callers), 'calls': len(calls),
+        'totals': {'waitlist': len(wl), 'signups': len(signed_up), 'guests': len(guests), 'callers': len(callers),
+                   'calls': len(web_calls) + len(ft), 'facetime_calls': len(ft), 'browser_calls': len(web_calls),
+                   'direct_calls': sum(1 for k in ft if k['source'] == 'direct'), 'calls_30s': sum(1 for d in durs if d >= 30),
+                   'avg_call_s': round(sum(durs) / len(durs)) if durs else None, 'visitors': len(vis), 'taps': len(taps),
+                   'visitors_by_device': {d: sum(1 for v in vis if v['device'] == d) for d in DEVICES + ('other',)},
                    'came_back': len(came_back), 'came_back_pct': round(100 * len(came_back) / len(callers)) if callers else None,
                    'waitlist_signed_up': sum(1 for u in us if u['email'] in wl_emails),
                    'signed_up_never_called': sum(1 for u in signed_up if u not in callers)},

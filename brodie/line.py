@@ -156,6 +156,18 @@ def admin_extend(minutes=5):
 def cooldown_s(): return float(os.environ.get('LINE_COOLDOWN_S', '15'))
 
 
+def _ft_start(c, t, call_id, r, source):
+    """The stats' FaceTime call record (users.ft_calls): one row per call id (a repeated start report is ignored)."""
+    if call_id and c.execute('SELECT 1 FROM ft_calls WHERE call_id = ?', (call_id,)).fetchone(): return
+    uid = r['uid'] if source == 'site' else None
+    c.execute('INSERT INTO ft_calls (call_id, uid, source, t_start) VALUES (?, ?, ?, ?)', (call_id, uid, source, t))
+
+
+def _ft_end(c, t, call_id):
+    row = c.execute("SELECT id FROM ft_calls WHERE t_end IS NULL AND (call_id = ? OR ? = '') ORDER BY id DESC LIMIT 1", (call_id, call_id)).fetchone()
+    if row: c.execute('UPDATE ft_calls SET t_end = ? WHERE id = ?', (t, row['id']))
+
+
 def call_started(call_id=''):
     """Brodie's worker: a FaceTime caller is on. A free line (or one cooling down) becomes busy for the cap, so a caller who
     dialled without clicking on the site still shows as busy; a session someone already holds is left as it is (their call).
@@ -164,12 +176,15 @@ def call_started(call_id=''):
     try:
         r = _row(c); _expire(c, r, t); r = _row(c)
         if _busy(r, t) and r['source'] == 'visitor':    # the visitor who clicked: their call is on, the session now runs up to the cap
+            _ft_start(c, t, call_id, r, 'site')
             c.execute('UPDATE line SET until = ?, on_call = 1 WHERE id = 1', (t + cap_s(), ))
             _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}: up to {cap_s() / 60:g} min'.replace('  ', ' '))
             c.execute('COMMIT'); return r['source']
         if _busy(r, t) and r['source'] != 'cooldown':     # admin's Mark busy: left as it is
+            _ft_start(c, t, call_id, r, 'admin')
             c.execute('UPDATE line SET on_call = 1 WHERE id = 1')
             _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}'.rstrip()); c.execute('COMMIT'); return r['source']
+        _ft_start(c, t, call_id, r, 'direct')
         c.execute('UPDATE line SET source = "facetime", uid = NULL, t_start = ?, until = ?, on_call = 1 WHERE id = 1', (t, t + cap_s()))
         _log(c, t, 'busy', 'facetime', f'FaceTime call started {call_id[:8]} (nobody clicked on the site)'.replace('  ', ' '))
         c.execute('COMMIT'); return 'facetime'
@@ -183,6 +198,7 @@ def call_ended(call_id=''):
     An admin's Mark busy is left alone (the team blocking the line on purpose). Repeats are harmless. Returns seconds until free."""
     c = _tx(); t = now(); cd = cooldown_s()
     try:
+        _ft_end(c, t, call_id)
         r = _row(c); _expire(c, r, t); r = _row(c)
         if _busy(r, t) and r['source'] == 'admin':
             c.execute('UPDATE line SET on_call = 0 WHERE id = 1')
