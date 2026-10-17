@@ -96,6 +96,12 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
       </table></div>
     </section>
     <section>
+      <h2>Funnel</h2>
+      <div class="tiles" id="funnel"></div>
+      <p class="note" id="devices"></p>
+      <p class="note">Visitors = browsers that opened the site, once per day (counted from Oct 17). Tapped = clicked "FaceTime Brodie". FaceTime calls come from Brodie's worker (from Oct 17); "dialed directly" = called the number without tapping on the site. The Chert dashboard has every call since launch.</p>
+    </section>
+    <section>
       <h2>Totals</h2>
       <div class="tiles" id="totals"></div>
     </section>
@@ -107,7 +113,7 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
     <section>
       <h2>By day</h2>
       <div class="scroll"><table>
-        <thead><tr><th>Day</th><th>Waitlist</th><th>Sign-ups</th><th>Calls</th><th>Callers</th><th>First-time callers</th></tr></thead>
+        <thead><tr><th>Day</th><th>Visitors</th><th>Tapped</th><th>Calls</th><th>Callers</th><th>First-time callers</th><th>Sign-ups</th><th>Guests</th><th>Waitlist</th></tr></thead>
         <tbody id="days"></tbody>
       </table></div>
     </section>
@@ -136,12 +142,19 @@ async function load() {
   if (!r.ok) return fail('server error ' + r.status);
   const s = await r.json(), t = s.totals, ret = s.retention;
   $('err').hidden = true; $('login').hidden = true; $('body').hidden = false;
-  $('totals').innerHTML = tile(t.waitlist, 'on the waitlist') + tile(t.signups, 'signed up') + tile(t.callers, 'called Brodie', true) + tile(t.calls, 'calls in total')
-    + tile(t.waitlist_signed_up, 'waitlisters who signed up') + tile(t.signed_up_never_called, 'signed up, never called');
+  const secs = s => s == null ? '–' : s < 90 ? s + ' s' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  $('funnel').innerHTML = tile(t.visitors, 'visitors') + tile(t.taps, 'tapped FaceTime Brodie') + tile(t.facetime_calls, 'FaceTime calls', true)
+    + tile(t.calls_30s, 'calls of 30 s or more') + tile(secs(t.avg_call_s), 'average call') + tile(t.direct_calls, 'dialed directly');
+  const dv = t.visitors_by_device || {};
+  $('devices').textContent = 'Visitors by device: ' + [['iPhone/iPad', dv.ios], ['Mac', dv.mac], ['Android', dv.android], ['Windows/other computer', dv.desktop], ['unknown', dv.other]]
+    .filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(' · ') || 'Visitors by device: none yet';
+  $('totals').innerHTML = tile(t.callers, 'people who tapped and called', true) + tile(t.calls, 'calls in total') + tile(t.signups, 'signed up with email')
+    + tile(t.guests, 'guests (no email)') + tile(t.waitlist, 'on the waitlist') + tile(t.waitlist_signed_up, 'waitlisters who signed up')
+    + tile(t.signed_up_never_called, 'signed up, never called') + tile(t.browser_calls, 'browser calls (before Oct 15)');
   $('retention').innerHTML = tile(t.came_back, 'came back on another day', true) + tile(t.came_back_pct == null ? '–' : t.came_back_pct + '%', 'of callers came back', true)
     + tile(pct(ret.d1), `D1 return (${ret.d1.returned}/${ret.d1.eligible})`) + tile(pct(ret.d3), `D3 return (${ret.d3.returned}/${ret.d3.eligible})`) + tile(pct(ret.d7), `D7 return (${ret.d7.returned}/${ret.d7.eligible})`);
-  $('days').innerHTML = s.days.length ? s.days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.waitlist}</td><td>${d.signups}</td><td>${d.calls}</td><td>${d.callers}</td><td>${d.new_callers}</td></tr>`).join('')
-    : '<tr><td colspan="6">nothing yet</td></tr>';
+  $('days').innerHTML = s.days.length ? s.days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.visitors}</td><td>${d.taps}</td><td>${d.calls}</td><td>${d.callers}</td><td>${d.new_callers}</td>`
+    + `<td>${d.signups}</td><td>${d.guests}</td><td>${d.waitlist}</td></tr>`).join('') : '<tr><td colspan="9">nothing yet</td></tr>';
   $('meta').textContent = `updated ${new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} · days in ${s.tz}` + (s.excluded_team_accounts ? ` · ${s.excluded_team_accounts} team accounts hidden` : '');
   clearTimeout(timer); timer = setTimeout(load, 60000);
   loadLine();

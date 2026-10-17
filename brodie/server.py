@@ -12,8 +12,9 @@ Routes: /  landing (web/index.html)
         GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
         POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
         POST /api/line/call {event: start|end}   Brodie's worker: a FaceTime call started / ended (X-Brodie-Key)
+        POST /api/visit {vid, device}   the landing page opened (the stats page's visitor count, once per browser per day)
         GET /api/admin/line   POST /api/admin/line/busy?minutes=N | /free | /extend?minutes=5   the stats page (?key=ADMIN_KEY)
-The line is website-only (brodie/line.py): Brodie's worker reports nothing but its heartbeat.
+The line is kept by the website (brodie/line.py); Brodie's worker sends its heartbeat and reports when a FaceTime call starts and ends.
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
 import argparse, datetime, glob, hmac, json, os, time
@@ -316,6 +317,15 @@ async def stats(req):
     return web.json_response(users.stats(exclude=os.environ.get('TEAM_EMAILS', '').split(',')), headers={'Cache-Control': 'no-store'})
 
 
+async def visit(req):
+    """The landing page opened: POST /api/visit {vid, device}, counted once per browser per day for the stats page."""
+    try: d = await req.json()
+    except Exception: d = {}
+    try: new = users.visit((d or {}).get('vid'), (d or {}).get('device', ''))
+    except ValueError: return web.json_response({'ok': False}, status=400)
+    return web.json_response({'ok': True, 'new': new}, headers=NO_STORE)
+
+
 async def landing(_req): return web.FileResponse(os.path.join(WEB, 'index.html'))
 
 
@@ -328,7 +338,7 @@ def app():
                   web.get('/api/admin/line', admin_line), web.post('/api/admin/line/busy', admin_busy), web.post('/api/admin/line/free', admin_free),
                   web.post('/api/admin/line/reset', admin_free), web.post('/api/admin/line/extend', admin_extend), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),
-                  web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats),
+                  web.get('/api/waitlist/export', waitlist_export), web.get('/api/stats', stats), web.post('/api/visit', visit),
                   web.get('/', landing), web.get('/index.html', landing), web.static('/', WEB)])
     return a
 
