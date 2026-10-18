@@ -43,6 +43,8 @@ button { background:var(--volt); color:#0A0A0B; border:0; border-radius:10px; pa
 .ghost { background:none; color:var(--grey); padding:6px 0; font:600 13px 'Plus Jakarta Sans', Arial, sans-serif; text-decoration:underline }
 .err { color:#FF8A7A }
 .note { color:var(--grey); font-size:13px }
+.down-banner { margin:0; padding:12px 16px; border-radius:12px; background:rgba(255,176,32,.12); border:1px solid #FFB020; color:#FFD27A; font-size:14px; line-height:1.45 }
+.down-banner.on { background:rgba(255,107,107,.14); border-color:#FF6B6B; color:#FFB3B3 }
 h2 .badge { margin-left:10px; padding:4px 8px; border-radius:999px; background:var(--volt); color:#111; letter-spacing:1px; font-size:11px; vertical-align:middle }
 details.history { display:flex; flex-direction:column; gap:28px; border-top:1px solid var(--panel); padding-top:20px }
 details.history > summary { cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap }
@@ -87,11 +89,14 @@ td.l { text-align:left; white-space:normal; color:var(--grey); font-size:13px }
       <h2>Brodie's line</h2>
       <p class="big-state" id="big-state">–</p>
       <p class="by" id="line-by"></p>
+      <p class="down-banner" id="down-banner" hidden></p>
       <div class="controls">
         <label>minutes <input type="number" id="busy-min" min="1" max="15" step="1" value="15"></label>
         <button id="mark-busy">Mark busy</button>
         <button class="secondary" id="add-5">Add 5 minutes</button>
         <button class="danger" id="mark-free">Mark free</button>
+        <button class="secondary" id="mark-down">Mark line down</button>
+        <button id="mark-up" hidden>Mark line up</button>
         <span class="note" id="line-note"></span>
       </div>
       <div class="confirm" id="confirm" hidden>
@@ -178,7 +183,16 @@ const mmss = s => { s = Math.max(0, Math.ceil(s)); return String(Math.floor(s / 
 const when = t => new Date(t * 1000).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit' });
 function showLine(l) {
   lineInfo = l; freeAt = Date.now() + (l.seconds_left || 0) * 1000;
-  $('line-by').textContent = l.busy ? `started by ${l.started_by || 'unknown'}, ${ago(l.started_s_ago)}` : (l.state === 'offline' ? "Brodie's worker is not sending its heartbeat" : 'nobody on the line');
+  $('line-by').textContent = l.down ? '' : l.busy ? `started by ${l.started_by || 'unknown'}, ${ago(l.started_s_ago)}` : (l.state === 'offline' ? "Brodie's worker is not sending its heartbeat" : 'nobody on the line');
+  $('down-banner').hidden = !l.down && !l.dead_streak;
+  $('down-banner').textContent = l.down
+    ? (l.down_by === 'admin' ? `Marked down by the team ${ago(l.down_s)}.` : `${l.dead_streak} FaceTime calls in a row were answered but never reached Brodie (Chert). Down for ${ago(l.down_s).replace(' ago', '')}.`)
+      + ' The site tells visitors the line is having trouble. It comes back by itself when a call gets through'
+      + (l.retry_in_s != null ? `, or reopens on probation in ${Math.ceil(l.retry_in_s / 60)} min` : '') + '; or press Mark line up.'
+    : `Warning: the last FaceTime call never reached Brodie (${l.dead_streak} in a row; the site goes down at ${l.down_after}).`
+      + (l.dead_streak === l.down_after - 1 && l.down_after > 1 ? ' One more dead call and the line goes down.' : '');
+  $('down-banner').className = 'down-banner' + (l.down ? ' on' : '');
+  $('mark-down').hidden = !!l.down; $('mark-up').hidden = !l.down;
   $('line-tiles').innerHTML = tile(ago(l.heartbeat_s_ago), 'worker heartbeat') + tile(l.cap_s / 60 + ' min', 'session length');
   $('line-log').innerHTML = l.log.length ? l.log.map(e => `<tr><td>${esc(when(e.t))}</td><td>${esc(e.event)}</td><td>${esc(e.actor || '–')}</td>`
     + `<td class="l">${esc(e.detail || '')}</td></tr>`).join('') : '<tr><td colspan="4">nothing yet</td></tr>';
@@ -188,8 +202,8 @@ function tick() {
   const l = lineInfo; if (!l) return;
   const left = (freeAt - Date.now()) / 1000, busy = l.busy && left > 0;
   const el = $('big-state');
-  el.className = 'big-state state-' + (busy ? 'busy' : l.state === 'offline' ? 'offline' : 'open');
-  el.innerHTML = busy ? `busy <small>${mmss(left)} left</small>` : (l.state === 'offline' ? 'offline' : 'free');
+  el.className = 'big-state state-' + (l.down ? 'offline' : busy ? 'busy' : l.state === 'offline' ? 'offline' : 'open');
+  el.innerHTML = l.down ? 'down' : busy ? `busy <small>${mmss(left)} left</small>` : (l.state === 'offline' ? 'offline' : 'free');
   if (l.busy && left <= 0 && !lineInfo.refetching) { lineInfo.refetching = true; loadLine(); }
 }
 setInterval(tick, 500);
@@ -223,6 +237,8 @@ $('mark-free').addEventListener('click', async () => {
   $('confirm').hidden = false;
 });
 $('confirm-no').addEventListener('click', () => { $('confirm').hidden = true; });
+$('mark-down').addEventListener('click', () => act('down', 'Marked down: the site now says the line is having trouble.'));
+$('mark-up').addEventListener('click', () => act('up', 'Marked up: the line is open again.'));
 $('confirm-yes').addEventListener('click', async () => { $('confirm').hidden = true; await act('free', 'Marked free.'); });
 
 function fail(msg) { $('err').textContent = msg; $('err').hidden = false; }

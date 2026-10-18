@@ -36,6 +36,11 @@ def worker_online():
     return time.time() - _LAST_BEAT['t'] < HEARTBEAT_TTL
 
 
+def line_online():
+    """worker_online(), but False while the line is marked down (calls answered but not reaching Brodie): nobody can take it."""
+    return False if line.is_down() else worker_online()
+
+
 # ---- dev only: ?preview=free|busy|offline|loggedout shows each state of the landing page without a real call ----
 # Off unless DEV_PREVIEW=1 is set (never on the host): without it the parameter is ignored everywhere.
 PREVIEW_BUSY_S = 402                      # the busy preview counts down from 6:42, then turns free (the switch-over), then starts again
@@ -179,7 +184,7 @@ async def line_claim(req):
     """The visitor clicked "FaceTime Brodie": the line is theirs for 15 minutes (200 with the number), or 409 busy (no number).
     Offline: 503. Two clicks at once: one sqlite write transaction, the first wins."""
     u, new = current_user(req), False
-    if worker_online() is False: return web.json_response(dict(line.view(u['id'] if u else None, False), error='offline'), status=503, headers=NO_STORE)
+    if line_online() is False: return web.json_response(dict(line.view(u['id'] if u else None, False), error='offline'), status=503, headers=NO_STORE)
     if u is None:                                     # logged out: a guest session, but only when the line is free to take
         st = line.view(None, worker_online())
         if st['state'] != 'open': return web.json_response(st, status=409, headers=NO_STORE)
@@ -195,6 +200,31 @@ async def line_done(req):
     if u is None: return web.json_response({'error': 'sign up first'}, status=401, headers=NO_STORE)
     freed = line.done(u['id'])
     return web.json_response(dict(_line_view(u), freed=freed), headers=NO_STORE)
+
+
+async def line_health(req):
+    """facetime/line_watch.py on Brodie's worker: POST /api/line/health {event: dead, detail} (X-Brodie-Key): a FaceTime call was
+    answered but never reached Brodie. Two in a row mark the line down; the next call that reaches him marks it up."""
+    key = os.environ.get('HEARTBEAT_KEY', '')
+    if not key or not hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key):
+        return web.json_response({'error': 'forbidden'}, status=403)
+    b = await _body(req)
+    if str(b.get('event', '')) != 'dead': return web.json_response({'error': 'event must be dead'}, status=400)
+    return web.json_response(dict(line.call_dead(str(b.get('detail', '') or '')[:120]), ok=True))
+
+
+async def admin_down(req):
+    """Mark down: POST /api/admin/line/down?key=…: the site shows Brodie offline ("having trouble") until Mark up or a call gets through."""
+    if not _admin_ok(req): return _forbidden()
+    line.admin_down()
+    return web.json_response(_admin_view(), headers=NO_STORE)
+
+
+async def admin_up(req):
+    """Mark up: POST /api/admin/line/up?key=…: the line is back (clears an automatic or manual down mark)."""
+    if not _admin_ok(req): return _forbidden()
+    line.admin_up()
+    return web.json_response(_admin_view(), headers=NO_STORE)
 
 
 async def line_call(req):
@@ -334,7 +364,8 @@ def app():
     a = web.Application(client_max_size=64 * 1024)
     a.add_routes([web.post('/api/signup', signup), web.post('/api/login', login), web.post('/api/logout', logout), web.post('/api/start', start), web.get('/api/me', me),
                   web.get('/api/health', health), web.post('/api/heartbeat', heartbeat), web.get('/api/config', config),
-                  web.get('/api/line', line_status), web.post('/api/line/claim', line_claim), web.post('/api/line/done', line_done), web.post('/api/line/call', line_call),
+                  web.get('/api/line', line_status), web.post('/api/line/claim', line_claim), web.post('/api/line/done', line_done), web.post('/api/line/call', line_call), web.post('/api/line/health', line_health),
+                  web.post('/api/admin/line/down', admin_down), web.post('/api/admin/line/up', admin_up),
                   web.get('/api/admin/line', admin_line), web.post('/api/admin/line/busy', admin_busy), web.post('/api/admin/line/free', admin_free),
                   web.post('/api/admin/line/reset', admin_free), web.post('/api/admin/line/extend', admin_extend), web.get('/api/dances', dances),
                   web.post('/api/waitlist', waitlist_join), web.get('/api/waitlist', waitlist_count), web.options('/api/waitlist', waitlist_options),

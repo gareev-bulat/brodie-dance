@@ -33,8 +33,14 @@ def init():
         c.execute('CREATE TABLE IF NOT EXISTS line (id INTEGER PRIMARY KEY CHECK (id = 1), source TEXT NOT NULL DEFAULT "", '
                   'uid INTEGER, t_start REAL NOT NULL DEFAULT 0, until REAL NOT NULL DEFAULT 0)')
         c.execute('INSERT OR IGNORE INTO line (id) VALUES (1)')
-        if 'on_call' not in {r[1] for r in c.execute('PRAGMA table_info(line)')}:
+        lcols = {r[1] for r in c.execute('PRAGMA table_info(line)')}
+        if 'on_call' not in lcols:
             c.execute('ALTER TABLE line ADD COLUMN on_call INTEGER NOT NULL DEFAULT 0')   # 1 while a FaceTime call is on
+        if 'dead_streak' not in lcols:     # FaceTime calls in a row that never reached Brodie (facetime/line_watch.py)
+            c.execute('ALTER TABLE line ADD COLUMN dead_streak INTEGER NOT NULL DEFAULT 0')
+        if 'down_since' not in lcols:      # > 0: the line is down (Chert answers but the call never reaches Brodie); the site says so
+            c.execute('ALTER TABLE line ADD COLUMN down_since REAL NOT NULL DEFAULT 0')
+            c.execute('ALTER TABLE line ADD COLUMN down_by TEXT NOT NULL DEFAULT ""')
         c.execute('CREATE TABLE IF NOT EXISTS line_log (id INTEGER PRIMARY KEY AUTOINCREMENT, t REAL NOT NULL, event TEXT NOT NULL, '
                   'actor TEXT NOT NULL DEFAULT "", detail TEXT NOT NULL DEFAULT "")')
         cols = {r[1] for r in c.execute('PRAGMA table_info(line_log)')}
@@ -85,10 +91,77 @@ def _state(r, t, uid=None):
 
 
 def view(uid=None, online=None):
-    """What a visitor sees. online: the worker heartbeat (False = offline wins over everything; None = unknown, ignored)."""
-    if online is False: return {'state': 'offline', 'seconds_left': 0, 'cap_s': cap_s()}
+    """What a visitor sees. online: the worker heartbeat (False = offline wins over everything; None = unknown, ignored).
+    A line marked down (calls not getting through) is offline too, with reason 'down' so the page can say so."""
+    _maybe_retry()
     with users._db() as c: r = _row(c)
+    if r['down_since'] > 0: return {'state': 'offline', 'reason': 'down', 'seconds_left': 0, 'cap_s': cap_s()}
+    if online is False: return {'state': 'offline', 'reason': 'worker', 'seconds_left': 0, 'cap_s': cap_s()}
     return dict(_state(r, now(), uid), cap_s=cap_s())
+
+
+# ---- the line is down: Chert answers FaceTime calls but they never reach Brodie (Oct 15 morning, Oct 18 night) ----
+def down_after(): return max(1, int(os.environ.get('LINE_DOWN_AFTER', '2')))
+def retry_s(): return max(0.0, float(os.environ.get('LINE_DOWN_RETRY_S', '1200')))
+
+
+def _maybe_retry():
+    """An automatic down mark older than LINE_DOWN_RETRY_S (20 min) reopens the line on probation: nobody can call while it is
+    down, so nothing would ever show Chert is back. On probation one more dead call takes it down again (not two); a call
+    that reaches Brodie clears it. A down mark from the team (Mark line down) waits for Mark line up. 0 turns retries off."""
+    with users._db() as c: r = _row(c)
+    if not (r['down_since'] > 0 and r['down_by'] == 'auto' and retry_s() > 0 and now() - r['down_since'] >= retry_s()): return
+    c = _tx(); t = now()
+    try:
+        r = _row(c)
+        if r['down_since'] > 0 and r['down_by'] == 'auto' and t - r['down_since'] >= retry_s():
+            c.execute('UPDATE line SET down_since = 0, down_by = "", dead_streak = ? WHERE id = 1', (down_after() - 1,))
+            _log(c, t, 'retry', 'watch', f'down {int(round(t - r["down_since"]))} s: the line reopens on probation (one more dead call takes it down again)')
+        c.execute('COMMIT')
+    finally: c.close()
+
+
+def is_down():
+    _maybe_retry()
+    with users._db() as c: return _row(c)['down_since'] > 0
+
+
+def call_dead(detail=''):
+    """facetime/line_watch.py: a FaceTime call was answered but never reached Brodie. After LINE_DOWN_AFTER (2) in a row the
+    line is marked down: the site shows it offline ("having trouble") and the stats page shows it in red. The next call that
+    reaches Brodie (call_started) marks it up again. Returns {dead_streak, down}."""
+    c = _tx(); t = now()
+    try:
+        r = _row(c); streak = r['dead_streak'] + 1
+        c.execute('UPDATE line SET dead_streak = ? WHERE id = 1', (streak,))
+        _log(c, t, 'dead call', 'watch', f'answered but never reached Brodie ({streak} in a row){": " + detail if detail else ""}')
+        if streak >= down_after() and not r['down_since'] > 0:
+            c.execute('UPDATE line SET down_since = ?, down_by = "auto" WHERE id = 1', (t,))
+            _log(c, t, 'down', 'watch', f'{streak} calls in a row never reached Brodie: the site shows Brodie offline until a call gets through')
+        c.execute('COMMIT'); r = _row(c)
+        return {'dead_streak': streak, 'down': r['down_since'] > 0}
+    finally: c.close()
+
+
+def _mark_up(c, t, actor, detail):
+    r = _row(c)
+    if r['down_since'] > 0: _log(c, t, 'up', actor, detail + f' (down {int(round(t - r["down_since"]))} s)')
+    c.execute('UPDATE line SET dead_streak = 0, down_since = 0, down_by = "" WHERE id = 1')
+
+
+def admin_down():
+    c = _tx(); t = now()
+    try:
+        c.execute('UPDATE line SET down_since = ?, down_by = "admin" WHERE id = 1', (t,))
+        _log(c, t, 'down', 'admin', 'mark down: the site shows Brodie offline'); c.execute('COMMIT')
+    finally: c.close()
+
+
+def admin_up():
+    c = _tx(); t = now()
+    try:
+        _mark_up(c, t, 'admin', 'mark up'); c.execute('COMMIT')
+    finally: c.close()
 
 
 def claim(uid):
@@ -174,6 +247,7 @@ def call_started(call_id=''):
     Returns the source holding the line afterwards."""
     c = _tx(); t = now()
     try:
+        _mark_up(c, t, 'watch', 'a call reached Brodie')   # a call got through: the line works (clears a down mark and the streak)
         r = _row(c); _expire(c, r, t); r = _row(c)
         if _busy(r, t) and r['source'] == 'visitor':    # the visitor who clicked: their call is on, the session now runs up to the cap
             _ft_start(c, t, call_id, r, 'site')
@@ -218,12 +292,16 @@ def call_ended(call_id=''):
 
 def info(online=None):
     """The stats page: the public state plus who or what started the session."""
+    _maybe_retry()
     with users._db() as c: r = _row(c)
-    t = now(); busy = _busy(r, t)
-    state = 'offline' if online is False else ('busy' if busy else 'free')
+    t = now(); busy = _busy(r, t); down = r['down_since'] > 0
+    state = 'down' if down else 'offline' if online is False else ('busy' if busy else 'free')
     return {'state': state, 'busy': busy, 'seconds_left': _left(r, t) if busy else 0, 'cap_s': cap_s(),
             'source': r['source'] if busy else '', 'started_by': _who(r) if busy else '',
-            'started_s_ago': int(round(t - r['t_start'])) if busy else None, 'on_call': bool(r['on_call']) if busy else False}
+            'started_s_ago': int(round(t - r['t_start'])) if busy else None, 'on_call': bool(r['on_call']) if busy else False,
+            'down': down, 'down_by': r['down_by'] if down else '', 'down_s': int(round(t - r['down_since'])) if down else None,
+            'dead_streak': r['dead_streak'], 'down_after': down_after(),
+            'retry_in_s': int(round(max(0, retry_s() - (t - r['down_since'])))) if down and r['down_by'] == 'auto' and retry_s() > 0 else None}
 
 
 def log(limit=20):

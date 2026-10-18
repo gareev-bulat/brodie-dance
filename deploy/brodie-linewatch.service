@@ -1,0 +1,20 @@
+# Brodie's line watch (facetime/line_watch.py): a FaceTime call that Chert answers but never brings into Brodie's room is
+# reported to the website; two in a row and the site says the line is having trouble. Install on the worker VM:
+#   sudo cp deploy/brodie-linewatch.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now brodie-linewatch && journalctl -u brodie-linewatch -n 5
+[Unit]
+Description=Brodie line watch (dead FaceTime calls -> the website)
+After=brodie-worker.service brodie-chert.service
+
+[Service]
+User=ubuntu
+SupplementaryGroups=systemd-journal adm
+WorkingDirectory=/home/ubuntu/app
+EnvironmentFile=/home/ubuntu/app/.env.local
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/app/.venv/bin/python -m facetime.line_watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
