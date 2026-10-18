@@ -32,7 +32,8 @@ $missing = 'LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GEMINI_API_K
     Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue).Value -or (Get-Item "env:$_").Value -match '<' }
 if ($missing) { Write-Host "Fill in these lines in .env.local, save, then run this again: $($missing -join ', ')" -ForegroundColor Red; notepad .env.local; exit 1 }
 Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-$args_ = '--plan-file none --voice gemini --voice-name Puck --persona starter/persona.md --text --log-caller --dance --leave-grace-s -1'
+$persona = if ($env:DANCE_ROAST -eq '0') { 'starter/persona_friendly.md' } else { 'starter/persona.md' }   # DANCE_ROAST=0: the friendly coach
+$args_ = "--plan-file none --voice gemini --voice-name Puck --persona $persona --text --log-caller --dance --leave-grace-s -1"
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Brodie dance teacher'; & '$py' -m facetime.worker $args_ dev"
 Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='Brodie Dance website'; & '$py' -m brodie.server"
 Write-Host 'Starting... the site opens in your browser as soon as it is ready.'

@@ -1,0 +1,66 @@
+{
+ "Step back so I can fit you in the frame": {
+  "puck": {
+   "file": "puck/32a38a17c1be25294aaf3ef463009cb9650c1966.pcm",
+   "duration_s": 1.824,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": ""
+  },
+  "puck_au": {
+   "file": "puck_au/32a38a17c1be25294aaf3ef463009cb9650c1966.pcm",
+   "duration_s": 1.847,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": "(Australian accent, warm, upbeat trainer) "
+  }
+ },
+ "Perfect, you're in the frame": {
+  "puck": {
+   "file": "puck/03a4631f16c5cb9761bc69b6e6099e0cf6dc17de.pcm",
+   "duration_s": 1.253,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": ""
+  },
+  "puck_au": {
+   "file": "puck_au/03a4631f16c5cb9761bc69b6e6099e0cf6dc17de.pcm",
+   "duration_s": 1.507,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": "(Australian accent, warm, upbeat trainer) "
+  }
+ },
+ "Back up a little so you fit in the frame": {
+  "puck": {
+   "file": "puck/17fd5074be8c26f076877e63ec74ea36fe68bfdc.pcm",
+   "duration_s": 1.581,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": ""
+  },
+  "puck_au": {
+   "file": "puck_au/17fd5074be8c26f076877e63ec74ea36fe68bfdc.pcm",
+   "duration_s": 1.985,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": "(Australian accent, warm, upbeat trainer) "
+  }
+ },
+ "A bit further back, the moves need room": {
+  "puck": {
+   "file": "puck/7c264afce51a7153970d0ff1afa52491a7e6eedd.pcm",
+   "duration_s": 2.312,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": ""
+  },
+  "puck_au": {
+   "file": "puck_au/7c264afce51a7153970d0ff1afa52491a7e6eedd.pcm",
+   "duration_s": 2.274,
+   "model": "gemini-3.8-flash-tts",
+   "voice": "Puck",
+   "style": "(Australian accent, warm, upbeat trainer) "
+  }
+ }
+}

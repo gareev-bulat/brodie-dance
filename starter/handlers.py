@@ -5,18 +5,20 @@ Run the worker in dance mode (pose events, no workout script, the voice may spea
 Pick the dance with DANCE=<name> (data/dances/<name>.npz, made with starter/dance/reference.py); default: the first one there.
 
 The call:
-  1. The caller steps into view -> "Great, I can see you"; Brodie (Gemini) says hi and describes part 1.
+  1. The caller steps into view -> "Perfect, you're in the frame" (starter/voice/); Brodie (Gemini) says hi and describes part 1.
   2. Each 8-count part plays as ONE clip: that part of the song with "Five, six, seven, eight" and "One" .. "Eight" mixed
      on top (built here from the song and the bank's count clips, so music and counts never drift). The caller's poses are
      recorded while it plays.
   3. The poses go to starter/dance/judge.py (Steven's model, or the angle comparison against the creator's video).
-  4. Pass -> praise and the next part's moves. Miss -> one tip about the worst body part, and the part repeats
-     (at most MAX_TRIES times, then it moves on anyway).
+  4. One reaction per part (no canned praise): Brodie roasts the MOVE, never the person, in a rotating comic angle, with one
+     plain tip for the body part furthest off, then the next part (MAX_TRIES, default 1). A second low score in a row, or a
+     caller who asks him to stop, gets plain kindness instead (decided here in code). DANCE_ROAST=0 brings back the old
+     friendly coach (pair it with --persona starter/persona_friendly.md).
   5. Then the whole dance once with the music, judged part by part, and a wrap-up with the scores.
 
 on_event runs on the worker's event loop: never block. The judge runs in a thread; timers use loop.call_later.
 """
-import asyncio, collections, glob, os, random, sys, time
+import asyncio, collections, glob, os, random, re, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path: sys.path.insert(0, ROOT)
@@ -36,12 +38,83 @@ REST_S = float(os.environ.get('DANCE_REST_S', '5'))         # pause after the fe
 SETTLE_S = float(os.environ.get('DANCE_SETTLE_S', '1.0'))   # wait after a part's clip ends before judging it, so the last move counts
 NO_COUNT = (" Never count in or count beats aloud (no 'five, six, seven, eight'): the recorded counts and music do that, "
             'you only talk between parts.')                 # appended to every voice prompt: the caller hears ONE count-in
+ROAST = os.environ.get('DANCE_ROAST', '1') != '0'         # Brodie roasts the moves (testers: "bully me with broken humor"); 0 = friendly
 MOTIVATE = (' Style: a warm, high-energy dance coach who believes in them. Celebrate effort and progress, keep every line '
-            'positive and encouraging, never discouraging; short and punchy.')
+            'positive and encouraging, never discouraging; short and punchy.')      # DANCE_ROAST=0 (the worker then reads persona_friendly.md)
+ROAST_STYLE = (' Style: a loud, dramatic, unhinged roast of the MOVE, never the person; clean; no bragging about yourself. Slip '
+               'into the angle without naming it: never start with a label and a colon. Never say an arm, leg or any body part is '
+               'missing, lost, gone, broken or fell off. Use an opener, joke, sentence shape and tip verb (snap, lift, plant, pull) '
+               'not used yet this call. If they seemed upset, very young, mentioned pain or asked you to stop, no roast at all, '
+               'just kind.')
+PLAIN_STYLE = (' Style: short and plain, no bragging about yourself, one or two short sentences, 25 words max, in words you have '
+               'not used yet this call.')                     # every turn that is not a score reaction
+KIND_STYLE = (' Style: warm and plain, no jokes, roasting, comic voices or brags at all; this overrides anything above or in your '
+              'persona. One or two short sentences, 25 words max, nothing you already said this call.')
+FACTS = ('You know nothing else about the move: never say early, late, beats off, a direction to twist or turn, or anything '
+         'missing, unless it is written in this note. ')       # the judge gives a score, a limb and maybe a cue; Brodie must not invent more
 RATE = reference.AUDIO_RATE
 COUNT_IN = ['Five', 'Six', 'Seven', 'Eight']
 COUNT_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']
-PRAISE = ['Nice work', 'Great rhythm', 'Looking strong', "That's it", 'Keep it up']
+# (the canned praise clips 'Nice work' / 'Keep it up' ... played on every pass are gone: testers heard the same line every part)
+ANGLES = [                                                  # one per score reaction, in a fresh random order every call
+    'Lose it like a sports commentator screaming at the replay of the move, then the plain physical tip.',
+    'Give the move a furious one-star review, then the plain physical tip.',
+    'Throw a referee flag on the move with a made-up penalty name, then the plain physical tip.',
+    'Sound personally betrayed, like the move ghosted you mid-conversation, then the plain physical tip.',
+    'React like the move was a phone on one percent that died halfway through, then the plain physical tip.',
+    'Announce that the move left the group chat halfway through, then the plain physical tip to add it back.',
+    'React like the move is a video that started buffering at the worst possible moment, then the plain physical tip.',
+    'Give the plain physical tip first as one GPS turn instruction, without saying recalculating, then one dramatic line about how the move took that turn.',
+    'State the plain physical tip as a brand-new rule of the Brodie Dance Federation, then one outraged line about how this move treated it.',
+    'Read the move a dramatic courtroom verdict, then the plain physical tip as its sentence.',
+    'React like an elevator that stopped one floor short of where the move was going, then the plain physical tip.',
+    'Fuse the joke and the tip into one sentence, worded as a flat-pack furniture manual step for the move (the move is the furniture, never the dancer).',
+    'Deliver a reality-show judge\'s dramatic verdict to the move, then the plain physical tip.',
+]
+BANDS = {                                                   # by pass/miss, then how far past or short of the pass line
+    'low': ('It missed. One silly, over-the-top line about what the move did, playful rather than savage, never at them, and do '
+            'not say the score. Then the single easiest fix for the {part}, said very plainly.'),
+    'mid': ('Just under the line: sound comically robbed on their behalf, roasting the one bit of the move that cost it, without '
+            'saying so close or almost. Then the one precise fix for the {part} that would have tipped it over.'),
+    'pass': ('A pass: in a few words make clear the move landed (never good job or nice work), then a loud, savage jab at its one '
+             'flaw. Then one polish tip for the {part}.'),
+    'high': ('A strong pass: act dramatically betrayed that the move outdid your coaching, then still roast the one tiny thing left '
+             'to fix. Then one tiny polish tip for the {part}.'),
+    'kind': ('No roast this time. Warm and plain: if it passed, say it landed; if it missed, say this part is a tough one, and never '
+             'claim any bit of it went right. Then the single easiest fix for the {part}.'),
+    'rest': ('They mentioned pain or dizziness: no joke and no tip. In one short sentence tell them to skip or shrink any move that '
+             'hurts and to rest; the next part can wait.'),
+    'unseen': ('It could not be scored: they were out of the frame. No roast and no score: one plain, friendly line asking them to '
+               'stay in the frame.'),
+    'friendly_pass': 'They passed: celebrate it in one short sentence, then one polish tip for the {part}.',
+    'friendly_miss': 'They gave it a real go: one concrete, upbeat tip about their {part}.',
+}
+GREETS = [                                                  # one per call, at random: friends who call twice hear a new hello
+    'open like a ring announcer introducing yourself',
+    'open with an overdramatic weather report for today\'s dance floor',
+    'open by complaining that your clipboard has been waiting all day',
+    'open like an airport gate announcement that the lesson is now boarding',
+    'open like a hype man warming up a crowd',
+    'open with a fake breaking-news headline about this dance lesson',
+    'open like a game-show host revealing the next contestant',
+    'open by announcing you have warmed up for exactly this moment',
+]
+FULL_RUN_LINES = ['in five words or fewer, the full dance with the music is next', 'hype the full run in five words or fewer',
+                  'no more breaks, the whole thing with the music, six words max']
+END_JOKES = ['a tiny fake award ceremony for the dance', 'a movie-trailer voice for their comeback', 'a sports-desk final score',
+             'a dramatic all-clear on the dance floor', 'a one-line fake press conference', 'a mock-serious medal ceremony']
+END_PASS = ['they could post it today', 'the dance is theirs now', 'the next run is the one to film']
+END_MISS = ['the whole dance is in their head now', 'every run from here gets cleaner', 'the hard part is done']
+PART_WORDS = {'body': 'upper body, the lean and twist', None: 'timing', '': 'timing'}   # "tip about their body" sounded like a body insult
+# what the caller says (voice events, role caller; facetime/worker.py hands them to the handlers in memory only, never logged):
+# asking Brodie to stop or putting themselves down -> no more roasting this call; pain -> rest, no tips (decided in code)
+STOP_RE = re.compile(r"(?<!don't )(?<!dont )\bstop\b(?! the music)|\b(?:that's|thats|you're|youre|so|too|kinda|kind of|very) "
+                     r"(?:mean|rude|harsh)\b|\bnot (?:funny|cool|nice)\b|\bbe nice\b|\bquit it\b|\bcut it out\b|\bknock it off\b|"
+                     r"\bshut up\b|\bleave me alone\b|\bno more jokes\b|\bdon'?t roast\b|\bthat'?s enough\b|\benough already\b|"
+                     r"\bi'?m (?:so )?(?:bad|terrible|trash|sad|upset|crying)\b|\bi suck\b|\bi give up\b|\bi can'?t do (?:this|it)\b|"
+                     r"\bmakes me sad\b")
+PAIN_RE = re.compile(r"\b(?:hurts?|hurting|pain|painful|dizzy|can'?t breathe|out of breath|injur(?:y|ed)|sprain(?:ed)?|"
+                     r"my (?:knee|ankle|back|wrist|shoulder|neck|hip))\b")
 
 
 def _load_reference():
@@ -67,11 +140,14 @@ print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
 
 S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
-         last_step_back=0.0, play=None, last_pct=None, screen=False, first_event=0.0, greeted=False)
+         last_step_back=0.0, play=None, last_pct=None, screen=False, first_event=0.0, greeted=False,
+         angles=random.sample(range(len(ANGLES)), len(ANGLES)), angle_i=0, misses=0, kind=False, rest=False, ack='',
+         worst={}, full_worst={}, heard='', sb_i=0)
 GREET_AFTER_S = 3.0      # nobody in full view this long after the call starts: Brodie says hi and asks them to step back
-STEP_BACK_EVERY_S = 12.0  # then repeats "Step back so I can see your whole body" this often until the whole body is in view
+STEP_BACK_EVERY_S = 12.0  # then repeats "Step back so I can fit you in the frame" this often until the caller fits in frame
 SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
+SAID = collections.deque(maxlen=8)                          # Brodie's last spoken turns (voice events, role coach)
 
 
 def _loop():
@@ -106,8 +182,105 @@ def _ensure_screen(room=None):
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
 
 
-def _ask(prompt):
-    if S['ask']: S['ask'](prompt + MOTIVATE + NO_COUNT)
+def _style(react=False):
+    if S['kind'] or S['rest']: return KIND_STYLE
+    if not ROAST: return MOTIVATE
+    return ROAST_STYLE if react else PLAIN_STYLE
+
+
+def _fresh():
+    """Brodie's last spoken lines this call: the model must not reuse their openers, jokes or catchphrases."""
+    return (' You already said this call: ' + ' | '.join(f'"{x}"' for x in SAID) +
+            '. Do not reuse any of their openers, jokes, catchphrases, tip verbs or sentence shapes.') if SAID else ''
+
+
+def _ask(prompt, react=False):
+    """react=True only for a score reaction (the roast style); every other turn is short and plain."""
+    if not S['ask']: return
+    if S['ack']: prompt = S['ack'] + prompt; S['ack'] = ''       # first words after a stop or pain request: acknowledge it once
+    S['ask'](prompt + _fresh() + _style(react) + NO_COUNT)
+
+
+def _angle():
+    i = S['angle_i']; S['angle_i'] = i + 1
+    return ANGLES[S['angles'][i % len(S['angles'])]]
+
+
+def _part(p):
+    return PART_WORDS.get(p, p)
+
+
+def _reaction(k, pct, part, passed, cue=None):
+    """The note for one part's result: score, pass or miss, the body part furthest off, the judge's cue, and how to react. Two
+    misses in a row, a caller who asked to stop, or pain switch to plain kindness for the rest of the call, decided here in code."""
+    pl = PASS * 100
+    band = ('high' if pct >= max(75, pl + 15) else 'pass') if passed else ('low' if pct < min(35, pl * 0.7) else 'mid')
+    S['misses'] = 0 if passed else S['misses'] + 1
+    if S['misses'] >= 2 and not S['kind']:
+        S['kind'] = True; print('[dance] two misses in a row: kind mode for the rest of the call', flush=True)
+    head = (f'Part {k + 1} just ended: {pct}%, ' + ('a pass' if passed else 'under the pass line') +
+            f'; the part furthest from the creator was the {part}. ')
+    if cue: head += f'The judge saw: "{cue}". Build the joke and the tip on exactly that. '
+    head += FACTS
+    if S['rest']: return head + BANDS['rest']
+    if not ROAST: return head + BANDS['friendly_pass' if passed else 'friendly_miss'].format(part=part)
+    if S['kind']: return head + BANDS['kind'].format(part=part)
+    return head + BANDS[band].format(part=part) + f' Comic angle for this line: {_angle()}'
+
+
+# ---- Brodie's own recorded lines (starter/voice/, rendered with facetime.cues_tts in the bank's voice, kept in git) ----
+VOICE_DIR = os.path.join(ROOT, 'starter', 'voice')
+STEP_BACKS = ['Step back so I can fit you in the frame',     # was "Step back so I can see your whole body": testers found it creepy
+              'Back up a little so you fit in the frame', 'A bit further back, the moves need room']
+STEP_BACK = STEP_BACKS[0]
+IN_FRAME = "Perfect, you're in the frame"                # was "Great, I can see you"
+NEUTRAL = {IN_FRAME: "Let's go", **{t: 'Step further back' for t in STEP_BACKS}}   # bank lines if a clip is missing
+OLD_LINE = {IN_FRAME: 'Great, I can see you', **{t: 'Step back so I can see your whole body' for t in STEP_BACKS}}   # last resort only
+
+
+def _load_voice():
+    """Put starter/voice/*.pcm into the cue player's cache under their text (once per call), in the variant that matches the
+    bank the worker picked (plain Puck or the Australian Puck bank; either if one file is missing), so say_now plays them
+    like any bank string."""
+    player = _player()
+    if player is None or S.get('voice_loaded'): return
+    S['voice_loaded'] = True
+    try:
+        import json
+        from facetime.audio_out import normalize_level
+        from facetime import FRAME_SAMPLES
+        var = 'puck_au' if os.path.basename(str(getattr(player.bank, 'dir', '')).rstrip('/\\')).endswith('_au') else 'puck'
+        S['voice_variant'] = var
+        with open(os.path.join(VOICE_DIR, 'manifest.json')) as f: man = json.load(f)
+        got = []
+        for text, vs in man.items():
+            for v in dict.fromkeys((var, 'puck', 'puck_au')):
+                m = vs.get(v); path = m and os.path.join(VOICE_DIR, m['file'])
+                if path and os.path.exists(path):
+                    pcm = normalize_level(np.fromfile(path, np.int16))
+                    player.bank.cache[text] = np.concatenate([pcm, np.zeros((-len(pcm)) % FRAME_SAMPLES, np.int16)])
+                    got.append(text); break
+        missing = [t for t in [IN_FRAME, *STEP_BACKS] if t not in got]
+        print(f'[dance] own lines loaded ({var}): {len(got)}' + (f'; WARNING missing {missing}' if missing else ''), flush=True)
+    except Exception as e:
+        print(f'[dance] WARNING: own lines not loaded ({e!r}); falling back to neutral bank lines', flush=True)
+
+
+def _line(text, intent='visibility'):
+    """Say one of Brodie's recorded lines; if its clip is missing, a neutral bank line, and only as a last resort the old
+    wording, so the call never goes silent (Chert's bridge hangs up on an agent it has not heard from within ~5 s)."""
+    _load_voice()
+    bank = getattr(_player(), 'bank', None)
+    if bank is not None:
+        for t in (text, NEUTRAL.get(text), OLD_LINE.get(text)):
+            if t and (t in bank.cache or bank.get(t) is not None): text = t; break
+    return S['say'](text, intent)
+
+
+def _step_back():
+    """The step-back line, a different recording each time (the first one of a call is always STEP_BACK)."""
+    i = S['sb_i']; S['sb_i'] = i + 1
+    return _line(STEP_BACKS[i % len(STEP_BACKS)])
 
 
 def _lenient(score):
@@ -248,7 +421,8 @@ def start_preview():
     print('[dance] preview: the whole dance', flush=True)
     def done(_wins):
         S['state'] = 'waiting'
-        _ask(f'They just watched the whole {REF.name} dance. In ONE short sentence say now we learn it part by part, starting with part 1.' + _describe(0))
+        _ask('They just watched the whole dance; now part 1. Without the words "part by part" and without mentioning yourself '
+             '(no my, me or I):' + _describe(0))
         when_quiet(teach_part, min_wait=REST_S)
     play_parts(0, REF.n_chunks, False, done, preview=True)
 
@@ -258,7 +432,7 @@ def teach_part():
     if S['state'] in ('done', 'full'): return
     if not S['visible']:
         if time.time() - S['last_step_back'] > 6:
-            S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = time.time()
+            _step_back(); S['last_step_back'] = time.time()
         _loop().call_later(3.0, teach_part); return
     S['state'] = 'dancing'; k = S['chunk']
     print(f'[dance] part {k + 1}/{REF.n_chunks}, try {S["tries"] + 1}', flush=True)
@@ -269,33 +443,37 @@ def on_result(res):
     k = S['chunk']; S['tries'] += 1
     score = _lenient(float(res.get('score') or 0.0)); pct = int(round(score * 100)); S['last_pct'] = pct
     S['scores'][k] = max(S['scores'].get(k, 0), pct)
+    part = _part(res.get('worst_part')); S['worst'][k] = part
     print(f'[dance] part {k + 1} try {S["tries"]}: {pct}% (raw {float(res.get("score") or 0):.2f}, {res.get("source")}) '
           f'worst {res.get("worst_part")} {res.get("details", "")}', flush=True)
-    part = res.get('worst_part')
-    tip = f' One concrete, upbeat tip about their {part}.' if part else ' One upbeat tip about matching the timing.'
-    if score >= PASS or S['tries'] >= MAX_TRIES:                # one chance per part by default: praise or a tip, then onwards
-        if score >= PASS: S['say'](random.choice(PRAISE))
+    passed = score >= PASS
+    det = res.get('details') if isinstance(res.get('details'), dict) else {}
+    unseen = res.get('source') == 'error' or det.get('reason') in ('no poses', 'body not visible enough')
+    # no canned praise clip: one spoken reaction; an unscored part (out of frame, judge error) is never roasted
+    react = (f'Part {k + 1} just ended. ' + BANDS['unseen']) if unseen else _reaction(k, pct, part, passed, res.get('cue'))
+    if passed or S['tries'] >= MAX_TRIES:                       # one chance per part by default: a reaction, then onwards
         if k + 1 >= REF.n_chunks:
-            return start_full_run()
+            if S['rest']: return finish(react)                  # after pain: no full run, end the lesson gently
+            return start_full_run(react, not unseen)            # the last part's score gets its reaction too
         S['chunk'] += 1; S['tries'] = 0                          # last_pct stays: the bar keeps the score until the next result
-        if score >= PASS:
-            _ask(f'They nailed part {k + 1} of the {REF.name} dance with {pct}%. In ONE short sentence celebrate it, then introduce part {k + 2}.' + _describe(k + 1))
-        else:
-            _ask(f'They gave part {k + 1} of the {REF.name} dance a real go ({pct}%).{tip} Then, in the same breath, introduce part {k + 2}: '
-                 f'two short sentences total, all encouragement.' + _describe(k + 1))
+        nxt = REF.step(k + 1); first = nxt.split(' | ')[0] if nxt else ''
+        nxt_line = (f' Then say part {k + 2} starts in a little while, only if it feels fine.' if S['rest'] else
+                    f' Then one more sentence, under 10 words, introducing part {k + 2}' + (f', which starts with: "{first}"' if first else '') + '.')
+        _ask(react + nxt_line + ' This turn only: up to three short sentences, 35 words max.', react=not unseen)
     else:
-        steps = f' The moves are: "{REF.step(k).replace(" | ", ", ")}".' if REF.step(k) else ''
-        _ask(f'They scored {pct}% on part {k + 1} of the {REF.name} dance.{tip}{steps} In ONE or two short sentences, then say we go again.')
+        _ask(react + ' Then say we run this part again.', react=not unseen)
     S['state'] = 'waiting'
-    when_quiet(teach_part, min_wait=REST_S)                   # feedback, then a real pause before the next count-in
+    when_quiet(teach_part, min_wait=REST_S * (3 if S['rest'] else 1))   # feedback, then a real pause (longer after pain)
 
 
-def start_full_run():
+def start_full_run(react=None, roast=True):
+    """The whole dance once; react (the last part's reaction note) is spoken first, in the same turn."""
     if not FULL_RUN or REF.n_chunks < 2:
-        return finish()
+        return finish(react)
     S['state'] = 'full'
-    _ask(f'The caller has learned all {REF.n_chunks} parts of the {REF.name} dance. In ONE short sentence, hype them up: '
-         f'now the whole dance from the top' + (' with the music' if REF.audio is not None else '') + '; the count-in starts right after you speak.')
+    line = random.choice(FULL_RUN_LINES) + ', never saying the parts are learned'
+    if react: _ask(react + f' Then one more short sentence: {line}. This turn only: up to three short sentences, 35 words max.', react=roast)
+    else: _ask(f'In ONE short sentence: {line}.')
     def go():
         print('[dance] full run', flush=True)
         play_parts(0, REF.n_chunks, False, lambda wins: judge_async(sorted(wins.items()), on_full_result))
@@ -304,25 +482,41 @@ def start_full_run():
 
 def on_full_result(res):
     S['full_scores'] = {k: int(round(_lenient(float(r.get('score') or 0)) * 100)) for k, r in res.items()}
+    S['full_worst'] = {k: _part(r.get('worst_part')) for k, r in res.items()}
     print(f'[dance] full run: {S["full_scores"]}', flush=True)
     finish()
 
 
-def finish():
+def finish(react=None):
+    """The wrap-up: strongest part, one tip for the weakest (unless that tip was just given), a sincere ending in Brodie's own
+    words. react: a last part's reaction to speak first, in the same turn (no full run)."""
     S['state'] = 'done'
     learn = ', '.join(f'part {i + 1} {s}%' for i, s in sorted(S['scores'].items()))
     full = ''
     if S['full_scores']:
         avg = int(round(sum(S['full_scores'].values()) / len(S['full_scores'])))
         full = f' In the full run they scored {avg}% overall (' + ', '.join(f'part {i + 1} {s}%' for i, s in sorted(S['full_scores'].items())) + ').'
-    _ask(f'The caller finished the {REF.name} dance lesson. Best scores while learning: {learn}.{full} In two short sentences, '
-         f'celebrate, name their strongest part, and tell them they are ready to post it.')
+    final = S['full_scores'] or S['scores']
+    weak = min(final, key=final.get) if final else None
+    strong = max(final, key=final.get) if final else None
+    passed = bool(final) and sum(final.values()) / len(final) >= PASS * 100
+    limb = (S['full_worst'].get(weak) or S['worst'].get(weak) or 'timing') if weak is not None else None
+    last = REF.n_chunks - 1
+    just_said = weak == last and limb == S['worst'].get(last)    # the last part's tip was given a moment ago
+    weak_tip = (f' For part {weak + 1}, give one plain physical tip about the {limb}, worded unlike any tip you gave earlier.'
+                if weak is not None and weak != strong and not just_said else '')
+    end = random.choice(END_PASS if passed else END_MISS)
+    joke = '' if (S['kind'] or S['rest'] or not ROAST) else f'Open with one tiny joke framed as {random.choice(END_JOKES)}, never about your clipboard. '
+    strong_txt = f' (part {strong + 1})' if strong is not None else ''
+    pre = (react + ' Then, in the same turn: ') if react else ''
+    _ask(pre + f'The lesson is over. Best scores while learning: {learn}.{full} In two short sentences, 30 words max: {joke}name their '
+         f'strongest part{strong_txt}.{weak_tip} End sincerely, in your own words, meaning: {end}.')
 
 
 # ---- the events ----
 def _nudge_into_view():
     """Before the lesson, while the caller is not fully in view: a spoken hello and a step-back hint, then the hint every
-    STEP_BACK_EVERY_S. Without it the call starts silent until the whole body is in frame, and callers don't know what to do."""
+    STEP_BACK_EVERY_S. Without it the call starts silent until the caller fits in the frame, and callers don't know what to do."""
     if S['state'] != 'idle' or S['visible']: return
     now = time.time()
     if not S['first_event']:
@@ -330,15 +524,16 @@ def _nudge_into_view():
         # sends nothing while he is silent, and Chert's bridge hangs up on an agent it hasn't heard from within ~5 s of
         # connecting ("Agent failed", Oct 15 morning: every call dropped 4-7 s in, just before his first words).
         S['first_event'] = now; S['last_step_back'] = now
-        S['say']('Step back so I can see your whole body', 'visibility'); return
+        _step_back(); return
     if not S['greeted']:
         if now - S['first_event'] < GREET_AFTER_S: return
         S['greeted'] = True; S['last_step_back'] = now
-        _ask("A caller just joined the call and you already asked them to step back, but you can't see their whole body yet. "
-             "In ONE short, friendly sentence: say hi, say you're Brodie their dance coach, and that the lesson starts as soon "
-             "as you can see them head to toe.")
+        _ask("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In ONE "
+             f"short sentence, under 20 words: {random.choice(GREETS)}, say you are Brodie their dance coach in first person "
+             "(I'm Brodie), and say the lesson starts the moment they are set. Never say frame, fit, step back or camera, never "
+             "describe what you can or cannot see of them, and no tip.")
     elif now - S['last_step_back'] > STEP_BACK_EVERY_S:
-        S['say']('Step back so I can see your whole body', 'visibility'); S['last_step_back'] = now
+        _step_back(); S['last_step_back'] = now
 
 
 def on_event(event, say_now, ask_voice):
@@ -346,6 +541,21 @@ def on_event(event, say_now, ask_voice):
     _ensure_screen()
     _nudge_into_view()
     t = event['type']
+    if t == 'voice' and event.get('text'):
+        text = ' '.join(str(event['text']).split())
+        if event.get('role') == 'coach':
+            SAID.append(text[:160])                                 # what Brodie just said, so the next prompt can forbid repeats
+        elif event.get('role') == 'caller':
+            S['heard'] = (S['heard'] + ' ' + text.lower())[-300:]   # the last few caller turns, so a phrase split across turns still matches
+            if PAIN_RE.search(S['heard']) and not S['rest']:
+                S['rest'] = S['kind'] = True
+                S['ack'] = 'First, in a few words, tell them to take it easy and skip anything that hurts. '
+                print('[dance] caller mentioned pain: rest and kind mode for the rest of the call', flush=True)
+            elif STOP_RE.search(S['heard']) and not S['kind']:
+                S['kind'] = True                                    # "stop", "that's mean", "I'm so bad at this": no more roasting, decided in code
+                S['ack'] = 'First, in a few words, say sure, no more jokes from here. '
+                print('[dance] caller asked to stop or put themselves down: kind mode for the rest of the call', flush=True)
+        return
     if t == 'pose':
         S['kp'] = event['kp'] if event.get('ok') else None       # the latest pose for the screen's skeleton overlay
         if event.get('ok'): POSES.append((event['t_wall'], mediapipe_to_coco(event['kp'], event['wh'])))
@@ -353,8 +563,9 @@ def on_event(event, say_now, ask_voice):
         was = S['visible']; S['visible'] = event.get('state') == 'full'
         if S['visible'] and not was and S['state'] == 'idle':
             S['state'] = 'intro'
-            say_now('Great, I can see you', 'visibility')
+            _line(IN_FRAME)
             hi = 'do NOT say hi again (you already greeted them), ' if S['greeted'] else 'say hi, '   # one hello per call
-            _ask(f'The caller is in view and ready. In two short sentences: {hi}say today we learn the {REF.name} dance '
-                 f'in {REF.n_chunks} parts of eight counts, and that first they just watch the whole dance once.')
+            _ask(f'The caller now fits in the frame and just heard your recorded line saying so; do not repeat it. In ONE short '
+                 f'sentence, in words you choose: {hi}the whole dance plays once first and they only watch, no dancing yet. No jokes '
+                 f'about yourself, no roast and no tip, nothing has been danced yet.')
             when_quiet(start_preview, min_wait=max(4.0, REST_S))

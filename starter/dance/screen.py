@@ -3,7 +3,7 @@
   - while a part plays: the creator's video for exactly those beats, in sync with the music, mirrored like a dance studio
     mirror (DANCE_MIRROR_VIDEO=0 to turn that off), with the count ("5 6 7 8", then "1" .. "8") big on screen;
   - between parts: a card with the part number, the moves and the last score, over the creator's first pose of that part;
-  - before the lesson: "Step back so I can see your whole body".
+  - before the lesson: "Step back so I can fit you in the frame".
 
 The creator's video is data/dances/<name>.mp4 (reference.py copies it there; or copy it there yourself).
 """
@@ -206,7 +206,7 @@ class Screen:
         state = st.get('state')
         if state == 'idle' or not st.get('visible'):
             _text(img, 'BRODIE DANCE', (0, 150), 1.3, VOLT, 3, center=True)
-            for i, line in enumerate(['Step back so I can see', 'your whole body']):
+            for i, line in enumerate(['Step back so I can', 'fit you in the frame']):
                 _text(img, line, (0, 300 + 40 * i), 0.9, WHITE, 2, center=True)
             return self._finish(img, st, cam)
         if state == 'done':
@@ -255,7 +255,7 @@ class Screen:
         """Publish the video track and push frames at FPS_OUT until the room closes. get_cam() -> (rgb, kp) or None."""
         from livekit import rtc
         # publish first, then decode the creator's video in the background: until it is ready, render() shows the
-        # "Step back so I can see your whole body" card on black, so the caller never stares at a gray screen
+        # "Step back so I can fit you in the frame" card on black, so the caller never stares at a gray screen
         loading = asyncio.get_running_loop().run_in_executor(None, self.load)  # decoding the video must not block the call
         loading.add_done_callback(lambda f: f.cancelled() or f.exception() is None or print(f'[dance] video load failed: {f.exception()!r}', flush=True))
         self.source = rtc.VideoSource(W, H)

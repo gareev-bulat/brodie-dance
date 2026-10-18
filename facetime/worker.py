@@ -113,7 +113,8 @@ def build_parser():
     ap.add_argument('--voice', default=os.environ.get('VOICE', 'off'), choices=['off', 'gemini'], help='conversational layer between sets: gemini = Gemini Live through the cue track (facetime/voice.py; env VOICE)')
     ap.add_argument('--voice-model', default=os.environ.get('GEMINI_LIVE_MODEL') or None, help='Gemini Live model id (env GEMINI_LIVE_MODEL; default facetime.voice.DEFAULT_MODEL)')
     ap.add_argument('--voice-name', default=os.environ.get('GEMINI_VOICE', 'Puck'), help='Gemini Live voice (env GEMINI_VOICE; Puck is the cue bank voice)')
-    ap.add_argument('--persona', default=os.environ.get('PERSONA_FILE', os.path.join(STARTER_DIR, 'persona.md')), help='the voice persona prompt file (starter/persona.md)')
+    ap.add_argument('--persona', default=os.environ.get('PERSONA_FILE') or os.path.join(STARTER_DIR, 'persona_friendly.md' if os.environ.get('DANCE_ROAST', '1') == '0' else 'persona.md'),
+                    help='the voice persona prompt file (starter/persona.md, the roasting coach; DANCE_ROAST=0: starter/persona_friendly.md)')
     ap.add_argument('--handlers', default=os.environ.get('HANDLERS_FILE') or None, help='a module with on_event(event, say_now, ask_voice); default starter/handlers.py whenever that file exists, in every mode '
                                                                                         '(without --voice gemini, ask_voice returns None); --handlers none loads nothing')
     ap.add_argument('--log-caller', action='store_true', help='also emit and log the caller\'s transcribed turns as voice events (role caller); off by default: the caller\'s words never leave the model session (docs/STARTER_README.md section 8)')
@@ -637,7 +638,11 @@ class CoachJob:
     def emit_voice(self, role, text):
         """A model (or caller) turn as an event of type voice {text, t, role}: the queue, the JSONL log, the console (own seq counter)."""
         if role == 'caller' and not getattr(self.a, 'log_caller', False):
-            print(f'[voice] caller spoke ({len(text.split())} words; not logged, --log-caller to keep transcripts)', flush=True); return
+            print(f'[voice] caller spoke ({len(text.split())} words; not logged, --log-caller to keep transcripts)', flush=True)
+            # in memory only, for the handlers (Brodie Dance: a caller asking him to stop, or mentioning pain, switches off the
+            # roast in code): never written to the event log, printed or published on the data channel
+            self.events.put_nowait(dict(type='voice', role='caller', text=text, t_wall=round(time.time(), 3), producer='voice', private=True))
+            return
         t = round(time.monotonic() - (self.per.t0 if self.per is not None else self.t0), 3)
         ev = dict(v=EVENT_SCHEMA_VERSION, t=t, t_wall=round(time.time(), 3), seq=self.voice_seq, type='voice', text=text, role=role, producer='voice')
         self.voice_seq += 1
