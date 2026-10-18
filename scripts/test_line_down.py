@@ -60,6 +60,22 @@ async def main():
     feed(w, WARM_NOISE and [(0, '  09:00:00  Call ended.')], t)
     check('a stray "Call ended" with no call: ignored', len(got) == 2)
 
+    print('\n1b. as the live watcher reads it: journalctl -o json, coloured text, lines handed over in one burst')
+    import json as _j
+    def jline(msg, t, as_bytes=False):
+        m = list(msg.encode()) if as_bytes else msg
+        return _j.dumps({'MESSAGE': m, '__REALTIME_TIMESTAMP': str(int(t * 1e6)), '_SYSTEMD_UNIT': 'brodie-chert.service'})
+    got2 = []; w2 = line_watch.Watch(got2.append); T = 1792305294.0
+    burst = [jline('\x1b[2m  06:34:54  \x1b[0mIncoming FaceTime Video call.', T, True),
+             jline('\x1b[32m✓\x1b[0m 06:34:54  Answered in 0.0 s.', T, True),
+             jline('✓ 06:35:03  Video and audio are coming from "agent-AJ_FFEYw8PHB58d".', T + 9),
+             jline('\x1b[2m  06:35:11  \x1b[0mCall ended.', T + 17, True), 'not json', jline('', T + 18)]
+    for raw in burst:                                        # all read at the same moment: the journal's times decide
+        msg, t = line_watch.entry(raw)
+        if msg is not None: w2.line(msg, t)
+    check("tonight's 06:34 call (coloured, bytes, one burst): a dead call of 17 s", len(got2) == 1 and '17 s' in got2[0], got2)
+    msg, t = line_watch.entry(jline('\x1b[1mhello\x1b[0m', T, True)); check('colour codes stripped, journal time kept', msg == 'hello' and t == T, (msg, t))
+
     print('\n2. reports reach the website: two dead calls in a row take the line down')
     srv = TestServer(server.app()); v = TestClient(srv); await v.start_server()
     adm = TestClient(srv); await adm.start_server()

@@ -19,9 +19,26 @@ puts it back. A caller who hangs up within MIN_CALL_S is not counted (Chert need
 import argparse, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
 MIN_CALL_S = float(os.environ.get('LINE_WATCH_MIN_CALL_S', '8'))
-INCOMING = re.compile(r'Incoming FaceTime')
-BOUND = re.compile(r"\[worker\] bound to 'chert-bridge-")
-ENDED = re.compile(r'Call ended|Agent failed', re.I)
+ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]')                  # the Chert CLI colours its output
+INCOMING = re.compile(r'Incoming\s+FaceTime', re.I)
+BOUND = re.compile(r"\[worker\]\s+bound to\s+'chert-bridge-")
+ENDED = re.compile(r'Call\s+ended|Agent\s+failed', re.I)
+
+
+def entry(raw):
+    """One line of `journalctl -o json` -> (message without colour codes, time it was logged in s), or (None, None).
+    The journal's own timestamp, not the time we read it: journalctl can hand several lines over at once. MESSAGE is a
+    list of byte values when the line has control characters (the CLI's colours)."""
+    try: d = json.loads(raw)
+    except ValueError: return None, None
+    m = d.get('MESSAGE')
+    if isinstance(m, list):
+        try: m = bytes(m).decode('utf-8', 'replace')
+        except (TypeError, ValueError): return None, None
+    if not isinstance(m, str): return None, None
+    try: t = int(d.get('__REALTIME_TIMESTAMP')) / 1e6
+    except (TypeError, ValueError): t = time.time()
+    return ANSI.sub('', m), t
 
 
 class Watch:
@@ -31,6 +48,7 @@ class Watch:
         self.t_in = None; self.bound = False; self.dead = 0; self.ok = 0
 
     def line(self, text, t):
+        text = ANSI.sub('', text)
         if INCOMING.search(text):
             self.t_in = t; self.bound = False
         elif BOUND.search(text):
@@ -66,15 +84,22 @@ def main():
     ap.add_argument('--stdin', action='store_true', help='read log lines from stdin instead of following journalctl')
     a = ap.parse_args()
     w = Watch(post)
-    if a.stdin:
-        for ln in sys.stdin: w.line(ln, time.time())
+    if a.stdin:                                                   # `journalctl ... -o json` lines, or plain text lines
+        for ln in sys.stdin:
+            msg, t = entry(ln) if ln.lstrip().startswith('{') else (ln, time.time())
+            if msg is not None: w.line(msg, t)
         return
-    cmd = ['journalctl', '-u', 'brodie-chert', '-u', 'brodie-worker', '-f', '-n', '0', '-o', 'cat', '--no-pager']
+    cmd = ['journalctl', '-u', 'brodie-chert', '-u', 'brodie-worker', '-f', '-n', '0', '-o', 'json', '--no-pager']
     print(f'[line-watch] watching: {" ".join(cmd)} (a call of {MIN_CALL_S:g} s+ that never reaches Brodie counts as dead)', flush=True)
     while True:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, bufsize=1)
-        for ln in p.stdout: w.line(ln, time.monotonic())
-        print('[line-watch] journalctl stopped; restarting in 5 s', flush=True); time.sleep(5)
+        n = 0
+        for ln in p.stdout:
+            msg, t = entry(ln)
+            if msg is None: continue
+            n += 1; w.line(msg, t)
+            if INCOMING.search(msg) or ENDED.search(msg) or BOUND.search(msg): print(f'[line-watch] saw: {msg.strip()[:90]}', flush=True)
+        print(f'[line-watch] journalctl stopped after {n} lines; restarting in 5 s', flush=True); time.sleep(5)
 
 
 if __name__ == '__main__':
