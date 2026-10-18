@@ -200,6 +200,8 @@ def stats(tz=TZ, exclude=()):
         vis = [dict(r) for r in c.execute('SELECT day, device FROM visits').fetchall()]
         try: taps = [dict(r) for r in c.execute("SELECT t, actor FROM line_log WHERE event = 'busy' AND detail LIKE 'clicked%'").fetchall()]
         except sqlite3.OperationalError: taps = []      # no line table yet
+        try: failed = [r['t'] for r in c.execute("SELECT t FROM line_log WHERE event = 'dead call'").fetchall()]   # facetime/line_watch.py
+        except sqlite3.OperationalError: failed = []
     team = {u['id'] for u in us if u['email'] in ex}
     team_actors = {'visitor ' + e for e in ex}
     us = [u for u in us if u['id'] not in team]
@@ -214,12 +216,13 @@ def stats(tz=TZ, exclude=()):
     days_by_user = {}
     for k in calls: days_by_user.setdefault(k['user_id'], set()).add(day(k['t']))
     per = {}
-    def row(d): return per.setdefault(d, {'day': d, 'visitors': 0, 'taps': 0, 'waitlist': 0, 'signups': 0, 'guests': 0, 'calls': 0,
+    def row(d): return per.setdefault(d, {'day': d, 'visitors': 0, 'taps': 0, 'failed': 0, 'waitlist': 0, 'signups': 0, 'guests': 0, 'calls': 0,
                                           'callers': set(), 'new_callers': 0})
     for w in wl: row(day(w['created']))['waitlist'] += 1
     for u in us: row(day(u['created']))['guests' if u['id'] in guests else 'signups'] += 1
     for v in vis: row(v['day'])['visitors'] += 1
     for k in taps: row(day(k['t']))['taps'] += 1
+    for t in failed: row(day(t))['failed'] += 1
     for k in web_calls: r = row(day(k['t'])); r['calls'] += 1; r['callers'].add(k['user_id'])
     for k in ft:
         r = row(day(k['t_start'])); r['calls'] += 1
@@ -244,6 +247,7 @@ def stats(tz=TZ, exclude=()):
                    'calls': len(web_calls) + len(ft), 'facetime_calls': len(ft), 'browser_calls': len(web_calls),
                    'direct_calls': sum(1 for k in ft if k['source'] == 'direct'), 'calls_30s': sum(1 for d in durs if d >= 30),
                    'avg_call_s': round(sum(durs) / len(durs)) if durs else None, 'visitors': len(vis), 'taps': len(taps),
+                   'failed_calls': len(failed),
                    'visitors_by_device': {d: sum(1 for v in vis if v['device'] == d) for d in DEVICES + ('other',)},
                    'came_back': len(came_back), 'came_back_pct': round(100 * len(came_back) / len(callers)) if callers else None,
                    'waitlist_signed_up': sum(1 for u in us if u['email'] in wl_emails),

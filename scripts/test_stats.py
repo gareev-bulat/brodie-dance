@@ -60,6 +60,8 @@ async def main():
         await lazy.post('/api/line/claim'); CLOCK[0] += 130
         check('the lazy tap expired', line.view()['state'] == 'open')
 
+        from brodie import line as _line
+        _line.call_dead('call ended after 16 s'); _line.call_dead('call ended after 17 s'); _line.admin_up()
         r = await stats(); s = await r.json(); t = s['totals']
         print('   totals:', {k: t[k] for k in ('visitors', 'taps', 'facetime_calls', 'calls', 'callers', 'signups', 'guests', 'direct_calls', 'calls_30s', 'avg_call_s')})
         check('visitors: 4 browsers (a repeat visit not counted)', t['visitors'] == 4, t['visitors'])
@@ -73,6 +75,8 @@ async def main():
         check('sign-ups with email: Ana only (guests apart, team hidden)', t['signups'] == 1 and t['guests'] == 2, (t['signups'], t['guests']))
         check('signed up, never called: 0 (Ana called)', t['signed_up_never_called'] == 0)
         check('browser calls: 0', t['browser_calls'] == 0)
+        check('calls that failed (Chert): 2, and not counted as FaceTime calls', t['failed_calls'] == 2 and t['facetime_calls'] == 3, (t['failed_calls'], t['facetime_calls']))
+        check('by day: failed 2', s['days'][0]['failed'] == 2, s['days'][0]['failed'])
         d = s['days'][0]
         check('by day: visitors, taps, calls, callers, first-time callers, sign-ups, guests',
               (d['visitors'], d['taps'], d['calls'], d['callers'], d['new_callers'], d['signups'], d['guests']) == (4, 3, 3, 2, 2, 1, 2), d)
