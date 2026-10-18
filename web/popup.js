@@ -51,6 +51,7 @@ window.BrodiePopup = (() => {
   .bp-wait { font-size: 0.92rem; line-height: 1.4; margin: 14px auto 0; max-width: 28em; padding: 10px 14px; border-radius: 12px;
              border: 1px dashed var(--volt); color: var(--text, #EFE7DA); }
   .bp-wait b { color: var(--volt); }
+  .bp-wait[hidden] { display: none; }
   .bp-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; color: #CFCBC3; }
   .bp-trust svg { width: 14px; height: 14px; fill: none; stroke: var(--volt); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .bp-qr { margin: 18px auto 0; width: 220px; height: 220px; padding: 12px; background: #fff; border-radius: 16px; }
@@ -182,6 +183,7 @@ window.BrodiePopup = (() => {
       'This updates by itself, no need to refresh.'];
     if (s === 'mine' && v.precall) return ['mine', `He's yours! Call within ${BrodieLine.mmss(left)}.`, 'After that the line goes to the next person.'];
     if (s === 'mine') return ['mine', "You're on with Brodie. Have fun!", ''];
+    if (s === 'offline' && v.reason === 'down') return ['offline', "Brodie's FaceTime line is having trouble.", "We're on it. Check back soon."];
     if (s === 'offline') return ['offline', 'Brodie is offline right now.', 'Check back soon.'];
     if (s === 'unknown') return ['unknown', 'Brodie teaches over FaceTime.', ''];
     return ['loading', 'Checking if Brodie is free…', ''];
@@ -196,6 +198,7 @@ window.BrodiePopup = (() => {
     if (go) {
       const onCall = v.state === 'mine' && !v.precall;
       go.hidden = onCall; done.hidden = !onCall; $('.bp-applefine').hidden = onCall; $('.bp-trust').hidden = onCall;
+      const wait = $('.bp-wait'); if (wait) wait.hidden = onCall || v.state === 'offline';   // no "stay on" tip while nobody can call
       go.disabled = !(v.state === 'open' || v.state === 'mine');
       go.textContent = v.state === 'busy' ? "Brodie's busy" : v.state === 'offline' ? 'Brodie is offline' : 'FaceTime Brodie now';
     }
