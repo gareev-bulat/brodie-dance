@@ -3,11 +3,12 @@
   - while a part plays: the creator's video for exactly those beats, in sync with the music, mirrored like a dance studio
     mirror (DANCE_MIRROR_VIDEO=0 to turn that off), with the count ("5 6 7 8", then "1" .. "8") big on screen;
   - between parts: a card with the part number, the moves and the last score, over the creator's first pose of that part;
-  - before the lesson: "Step back so I can fit you in the frame".
+  - before the lesson: "Step back so I can fit you in the frame", and while the caller may still pick a dance the numbered
+    menu of lessons (the handler's st['menu']); Screen.set_ref switches the lesson to a video already in memory.
 
 The creator's video is data/dances/<name>.mp4 (reference.py copies it there; or copy it there yourself).
 """
-import asyncio, os, textwrap, time
+import asyncio, os, textwrap, threading, time
 import numpy as np
 
 _SIZE = os.environ.get('DANCE_VIDEO_SIZE', '540x960')      # portrait; the receiver scales it (720x1280 costs more CPU per frame)
@@ -84,7 +85,20 @@ def cam_panel(cam, pw, ph, dim=1.0):
     return panel
 
 
-_MEM = {}   # path -> (frames, fps): decoded once per process
+_MEM = {}   # _key(path) -> (frames, fps): decoded once per process
+
+
+def _key(path, fps=FPS_OUT):
+    """The frame cache key (memory and disk) of a video: its name, the output size, layout, fps, mirror, its mtime and size."""
+    st = os.stat(path)
+    return (f'{os.path.splitext(os.path.basename(path))[0]}_{W}x{H}_{LAYOUT}_{fps}fps_{"mirror" if MIRROR else "plain"}'
+            f'_{int(st.st_mtime)}_{st.st_size}.pkl')
+
+
+def ready(path):
+    """The video's frames are already in this process's memory (prewarm): showing it costs no decode and no disk read. Memory only."""
+    try: return bool(path) and _key(path) in _MEM
+    except OSError: return False
 
 
 def cached_frames(path, fps=FPS_OUT):
@@ -92,9 +106,7 @@ def cached_frames(path, fps=FPS_OUT):
     next ones. Decoding the creator's video takes ~8 s of both CPUs on the server; done at call time it starved the call
     (Brodie's video sent no frames) and Chert hung up with "Agent failed". From the cache it loads in well under a second."""
     import pickle
-    st = os.stat(path)
-    key = (f'{os.path.splitext(os.path.basename(path))[0]}_{W}x{H}_{LAYOUT}_{fps}fps_{"mirror" if MIRROR else "plain"}'
-           f'_{int(st.st_mtime)}_{st.st_size}.pkl')
+    key = _key(path, fps)
     if key in _MEM: return _MEM[key]
     cdir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(path))), 'tmp', 'screen_cache')   # data/tmp/screen_cache
     cpath = os.path.join(cdir, key)
@@ -167,12 +179,26 @@ class Screen:
         self.ref = ref; self.video_path = video_path
         self.frames, self.fps = [], FPS_OUT                       # JPEG-encoded frames (load_frames)
         self.source = None
+        self._gen = 0; self._lock = threading.Lock()              # set_ref bumps _gen: a load still decoding then keeps its frames to itself
 
     def load(self):
-        p = self.video_path
-        if p and os.path.exists(p): self.frames, self.fps = cached_frames(p)
+        p, g = self.video_path, self._gen                         # runs in an executor thread (run): set_ref may switch meanwhile
+        if p and os.path.exists(p):
+            out = cached_frames(p)
+            with self._lock:
+                if self._gen == g: self.frames, self.fps = out
         print(f'[dance] screen: {len(self.frames)} frames of the creator\'s video' + ('' if len(self.frames) else f' (none: put the video at {p})')
               + (', mirrored' if MIRROR and len(self.frames) else ''), flush=True)
+
+    def set_ref(self, ref, video_path):
+        """Switch the lesson (the caller picked another dance; loop thread only, before the preview): the dance and its frames
+        together, only from memory (ready), never a decode or a disk read during a call. False, nothing changed, if not preloaded."""
+        try: out = _MEM.get(_key(video_path)) if video_path else None   # = ready(video_path), and the frames it found
+        except OSError: out = None
+        if out is None: return False
+        with self._lock:
+            self._gen += 1; self.ref, self.video_path = ref, video_path; self.frames, self.fps = out
+        return True
 
     def frame_at(self, t):
         if not len(self.frames): return np.zeros((H, W, 3), np.uint8)
@@ -204,6 +230,18 @@ class Screen:
         # between parts: a card over the creator's first pose of the next part, darkened; you stay bottom-right
         img = (self.frame_at(ref.first_beat_s + 8 * min(k, n - 1) * ref.beat_s) * 0.35).astype(np.uint8)
         state = st.get('state')
+        if state in ('idle', 'intro') or not st.get('visible'):
+            menu = st.get('menu')                                      # [(number, title, is the current one)] while the caller may pick
+            if menu:                                                   # every line above y 415 (the caller's camera) and below the bar
+                set_ = state == 'intro' and st.get('visible')          # in frame, the preview is next: the menu stays up until it starts
+                _text(img, 'BRODIE DANCE', (0, 120), 1.1, VOLT, 3, center=True)
+                for i, line in enumerate(['The whole dance', 'plays once first'] if set_ else ['Step back so I can', 'fit you in the frame']):
+                    _text(img, line, (0, 170 + 34 * i), 0.8, WHITE, 2, center=True)
+                _text(img, 'SAY A NAME OR NUMBER TO PICK', (0, 262), 0.6, WHITE, 1, center=True)
+                for i, (num, title, cur) in enumerate(menu[:3]):
+                    _text(img, f'{"> " if cur else ""}{num}  {str(title).upper()}', (0, 302 + 38 * i), 0.75 if cur else 0.65,
+                          VOLT if cur else WHITE, 2 if cur else 1, center=True)
+                return self._finish(img, st, cam)
         if state == 'idle' or not st.get('visible'):
             _text(img, 'BRODIE DANCE', (0, 150), 1.3, VOLT, 3, center=True)
             for i, line in enumerate(['Step back so I can', 'fit you in the frame']):
@@ -215,6 +253,7 @@ class Screen:
             for i, (kk, s) in enumerate(sorted(fs.items())):
                 _text(img, f'Part {kk + 1}: {s}%', (0, 290 + 45 * i), 1.0, WHITE, 2, center=True)
             return self._finish(img, st, cam)
+        if st.get('title'): _text(img, str(st['title']), (0, 100), 0.6, WHITE, 1, center=True)   # the lesson's name (a picked dance)
         title = 'FULL DANCE NEXT' if state == 'full' else f'PART {k + 1}/{n}'
         _text(img, title, (0, 140), 1.4, VOLT, 3, center=True)
         last = st.get('last_pct')

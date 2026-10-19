@@ -1,9 +1,10 @@
 """Brodie's one line, kept by the website: one FaceTime session at a time. Brodie's worker is not involved (it only sends
 its heartbeat, which decides online / offline).
 
-    line.claim(uid)                      # a signed-in visitor clicked "FaceTime Brodie": (True, view) or (False, view) when busy
+    line.claim(uid, dance='')            # a signed-in visitor clicked "FaceTime Brodie": (True, view) or (False, view) when busy
     line.done(uid)                       # that visitor clicked "I'm done dancing": the line is free for everyone
-    line.view(uid, online)               # what a visitor sees: open | busy (seconds_left) | mine (their own session) | offline
+    line.view(uid, online)               # what a visitor sees: open | busy (seconds_left) | mine (their own session, + dance) | offline
+    line.call_started(call_id)           # Brodie's worker: (source, dance); dance is the holder's pick, '' unless a visitor picked
     line.admin_busy(minutes) / admin_free() / admin_extend(minutes)   # the stats page's controls (ADMIN_KEY checked by the server)
     line.info(online), line.log()        # the stats page: state, who started the session, time left; the recent events
 
@@ -12,11 +13,15 @@ t_start to t_until and frees on its own at t_until: a click holds the line LINE_
 Brodie's worker reports the call (call_started), up to LINE_CAP_S (15 min); after the hang-up (call_ended), LINE_COOLDOWN_S. source is 'visitor' (uid
 set) or 'admin'. Every claim, done, expiry and admin action goes into line_log (and stdout) with the time.
 The claim is one sqlite write transaction (BEGIN IMMEDIATE): two visitors clicking at once, the first gets the line.
+dance: the lesson the holder picked on the site (a lesson id the server checked against the worker's list, '' = none). Only the
+holder sees it; the worker gets it back in its call start reply; it is cleared with the session (kept through the 15 s cooldown,
+so a redial keeps the pick).
 """
-import os, time
+import os, re, time
 from brodie import users
 
 now = time.time                      # tests replace this
+DANCE_ID = re.compile(r'[a-z0-9_]{1,40}')
 
 
 def cap_s(): return float(os.environ.get('LINE_CAP_S', '900'))
@@ -41,6 +46,8 @@ def init():
         if 'down_since' not in lcols:      # > 0: the line is down (Chert answers but the call never reaches Brodie); the site says so
             c.execute('ALTER TABLE line ADD COLUMN down_since REAL NOT NULL DEFAULT 0')
             c.execute('ALTER TABLE line ADD COLUMN down_by TEXT NOT NULL DEFAULT ""')
+        if 'dance' not in lcols:           # the lesson the holder picked on the site ('' = none, Brodie's default or the caller's voice)
+            c.execute('ALTER TABLE line ADD COLUMN dance TEXT NOT NULL DEFAULT ""')
         c.execute('CREATE TABLE IF NOT EXISTS line_log (id INTEGER PRIMARY KEY AUTOINCREMENT, t REAL NOT NULL, event TEXT NOT NULL, '
                   'actor TEXT NOT NULL DEFAULT "", detail TEXT NOT NULL DEFAULT "")')
         cols = {r[1] for r in c.execute('PRAGMA table_info(line_log)')}
@@ -74,7 +81,7 @@ def _expire(c, r, t):
     if r['source'] and not _busy(r, t):
         never = r['source'] == 'visitor' and not r['on_call'] and r['until'] - r['t_start'] <= claim_s() + 1
         _log(c, r['until'], 'expired', _who(r), f'clicked but no call within {claim_s():g} s' if never else 'the session ran out its time')
-        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0 WHERE id = 1')
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0, dance = "" WHERE id = 1')
 
 
 def _tx():
@@ -86,7 +93,7 @@ def _state(r, t, uid=None):
     if not _busy(r, t): return {'state': 'open', 'seconds_left': 0}
     mine = r['source'] == 'visitor' and uid is not None and r['uid'] == uid
     st = {'state': 'mine' if mine else 'busy', 'seconds_left': _left(r, t)}
-    if mine: st['on_call'] = bool(r['on_call'])      # False: they clicked but haven't called yet (claim_s to start the call)
+    if mine: st['on_call'] = bool(r['on_call']); st['dance'] = r['dance']   # on_call False: clicked, no call yet; dance: their pick (theirs only)
     return st
 
 
@@ -164,16 +171,22 @@ def admin_up():
     finally: c.close()
 
 
-def claim(uid):
-    """The visitor clicked "FaceTime Brodie". Free: the line is theirs for the cap. Their own session: unchanged.
-    Someone else's: (False, busy view)."""
+def claim(uid, dance=''):
+    """The visitor clicked "FaceTime Brodie". Free: the line is theirs for the claim time, with their pick (dance, checked by the
+    server). Their own session: unchanged, except a new pick before the call starts (an empty one keeps the stored pick: an
+    old cached page sends none). Someone else's: (False, busy view)."""
+    dance = str(dance or ''); dance = dance if DANCE_ID.fullmatch(dance) else ''
     c = _tx(); t = now()
     try:
         r = _row(c); _expire(c, r, t); r = _row(c)
         if _busy(r, t):
-            c.execute('COMMIT'); st = _state(r, t, uid); return st['state'] == 'mine', dict(st, cap_s=cap_s())
-        c.execute('UPDATE line SET source = "visitor", uid = ?, t_start = ?, until = ?, on_call = 0 WHERE id = 1', (uid, t, t + claim_s()))
-        r = _row(c); _log(c, t, 'busy', _who(r), f'clicked FaceTime Brodie: {claim_s():g} s to start the call')
+            st = _state(r, t, uid)
+            if st['state'] == 'mine' and not r['on_call'] and dance and dance != r['dance']:   # a new pick while they haven't called yet
+                c.execute('UPDATE line SET dance = ? WHERE id = 1', (dance,)); _log(c, t, 'pick', _who(r), f'song {dance}')
+                r = _row(c); st = _state(r, t, uid)
+            c.execute('COMMIT'); return st['state'] == 'mine', dict(st, cap_s=cap_s())
+        c.execute('UPDATE line SET source = "visitor", uid = ?, t_start = ?, until = ?, on_call = 0, dance = ? WHERE id = 1', (uid, t, t + claim_s(), dance))
+        r = _row(c); _log(c, t, 'busy', _who(r), f'clicked FaceTime Brodie{f" ({dance})" if dance else ""}: {claim_s():g} s to start the call')
         c.execute('COMMIT'); return True, dict(_state(r, t, uid), cap_s=cap_s())
     finally: c.close()
 
@@ -185,7 +198,7 @@ def done(uid):
         r = _row(c)
         if not (_busy(r, t) and r['source'] == 'visitor' and r['uid'] == uid): c.execute('ROLLBACK'); return False
         _log(c, t, 'free', _who(r), f"I'm done dancing, {_left(r, t)} s were left")
-        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0 WHERE id = 1')
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0, dance = "" WHERE id = 1')
         c.execute('COMMIT'); return True
     finally: c.close()
 
@@ -196,7 +209,7 @@ def admin_busy(minutes=15):
     c = _tx(); t = now()
     try:
         r = _row(c); _expire(c, r, t); r = _row(c); before = f'{_who(r)} with {_left(r, t)} s left' if _busy(r, t) else 'free'
-        c.execute('UPDATE line SET source = "admin", uid = NULL, t_start = ?, until = ?, on_call = 0 WHERE id = 1', (t, t + m * 60))
+        c.execute('UPDATE line SET source = "admin", uid = NULL, t_start = ?, until = ?, on_call = 0, dance = "" WHERE id = 1', (t, t + m * 60))
         _log(c, t, 'busy', 'admin', f'mark busy {m:g} min (before: {before})')
         c.execute('COMMIT'); return m
     finally: c.close()
@@ -207,7 +220,7 @@ def admin_free():
     c = _tx(); t = now()
     try:
         r = _row(c); _expire(c, r, t); r = _row(c); before = f'{_who(r)} with {_left(r, t)} s left' if _busy(r, t) else 'free'
-        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0 WHERE id = 1')
+        c.execute('UPDATE line SET source = "", uid = NULL, t_start = 0, until = 0, on_call = 0, dance = "" WHERE id = 1')
         _log(c, t, 'free', 'admin', f'mark free (before: {before})')
         c.execute('COMMIT'); return before
     finally: c.close()
@@ -244,7 +257,7 @@ def _ft_end(c, t, call_id):
 def call_started(call_id=''):
     """Brodie's worker: a FaceTime caller is on. A free line (or one cooling down) becomes busy for the cap, so a caller who
     dialled without clicking on the site still shows as busy; a session someone already holds is left as it is (their call).
-    Returns the source holding the line afterwards."""
+    Returns (source holding the line afterwards, dance): dance is the visitor's pick on a visitor's line, else ''."""
     c = _tx(); t = now()
     try:
         _mark_up(c, t, 'watch', 'a call reached Brodie')   # a call got through: the line works (clears a down mark and the streak)
@@ -252,16 +265,16 @@ def call_started(call_id=''):
         if _busy(r, t) and r['source'] == 'visitor':    # the visitor who clicked: their call is on, the session now runs up to the cap
             _ft_start(c, t, call_id, r, 'site')
             c.execute('UPDATE line SET until = ?, on_call = 1 WHERE id = 1', (t + cap_s(), ))
-            _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}: up to {cap_s() / 60:g} min'.replace('  ', ' '))
-            c.execute('COMMIT'); return r['source']
+            _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}: up to {cap_s() / 60:g} min'.replace('  ', ' ') + (f', lesson {r["dance"]}' if r['dance'] else ''))
+            c.execute('COMMIT'); return r['source'], r['dance']
         if _busy(r, t) and r['source'] != 'cooldown':     # admin's Mark busy: left as it is
             _ft_start(c, t, call_id, r, 'admin')
             c.execute('UPDATE line SET on_call = 1 WHERE id = 1')
-            _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}'.rstrip()); c.execute('COMMIT'); return r['source']
+            _log(c, t, 'call', _who(r), f'FaceTime call started {call_id[:8]}'.rstrip()); c.execute('COMMIT'); return r['source'], ''
         _ft_start(c, t, call_id, r, 'direct')
-        c.execute('UPDATE line SET source = "facetime", uid = NULL, t_start = ?, until = ?, on_call = 1 WHERE id = 1', (t, t + cap_s()))
+        c.execute('UPDATE line SET source = "facetime", uid = NULL, t_start = ?, until = ?, on_call = 1, dance = "" WHERE id = 1', (t, t + cap_s()))
         _log(c, t, 'busy', 'facetime', f'FaceTime call started {call_id[:8]} (nobody clicked on the site)'.replace('  ', ' '))
-        c.execute('COMMIT'); return 'facetime'
+        c.execute('COMMIT'); return 'facetime', ''
     finally: c.close()
 
 
@@ -278,13 +291,13 @@ def call_ended(call_id=''):
             c.execute('UPDATE line SET on_call = 0 WHERE id = 1')
             _log(c, t, 'call ended', 'admin', f'FaceTime call ended {call_id[:8]}; the admin session stays'.replace('  ', ' '))
             c.execute('COMMIT'); return _left(r, t)
-        if _busy(r, t):
+        if _busy(r, t):                                   # a visitor's pick stays: a redial within the cooldown keeps it
             until = min(r['until'], t + cd)
             c.execute('UPDATE line SET until = ?, on_call = 0 WHERE id = 1', (until,))
             _log(c, t, 'call ended', _who(r), f'FaceTime call ended {call_id[:8]}: free in {int(round(until - t))} s (was {_left(r, t)} s)'.replace('  ', ' '))
         else:
             until = t + cd
-            c.execute('UPDATE line SET source = "cooldown", uid = NULL, t_start = ?, until = ?, on_call = 0 WHERE id = 1', (t, until))
+            c.execute('UPDATE line SET source = "cooldown", uid = NULL, t_start = ?, until = ?, on_call = 0, dance = "" WHERE id = 1', (t, until))
             _log(c, t, 'call ended', 'facetime', f'FaceTime call ended {call_id[:8]}: cooling down {int(cd)} s'.replace('  ', ' '))
         c.execute('COMMIT'); return int(round(until - t))
     finally: c.close()

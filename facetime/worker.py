@@ -25,6 +25,9 @@ Cues the player finished or dropped go to --cue-log / RTCOACH_CUE_LOG (the coach
 
 Plan: --plan, else env PLAN, else starter/plan.txt (the hackathon script; ships with the demo plan), else the demo plan (DEFAULT_PLAN);
 --exercise for one exercise, --auto for auto-detect. Job metadata is read for chert_call and media and logged (never acted on).
+Brodie Dance song pick: the FaceTime call start report's reply (facetime/line_report.py) names the lesson the site visitor holding the
+line picked; job.site_pick is None until it answered, then that id or '' (the handlers switch to it before the preview). The heartbeat
+lists the pickable lessons (starter/dance/lessons.py) and prewarm preloads each one's video.
 
 Voice (--voice gemini, default off: the default and events-only modes are untouched): facetime/voice.py runs Gemini Live (voice Puck)
 in this same participant, its audio mixed into the cue player's one track through CuePlayer.attach_mixer() (ducked about 10 dB under a
@@ -55,7 +58,7 @@ Run:
   GEMINI_API_KEY=... .venv/bin/python -m facetime.worker --voice gemini dev                                      # + GEMINI_LIVE_MODEL, GEMINI_VOICE
 The flags before the LiveKit subcommand are ours; `dev`, `start`, `connect`, `download-files` and their options are the LiveKit Agents CLI's.
 """
-import argparse, asyncio, collections, json, logging, os, sys, threading, time
+import argparse, asyncio, collections, json, logging, os, re, sys, threading, time
 from livekit import rtc
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli
 from facetime import DATA, AUDIO_TRACK_NAME
@@ -209,19 +212,49 @@ def prewarm(proc: JobProcess):
     if not a.events_only:
         from facetime.audio_out import CueBank
         proc.userdata['bank'] = CueBank()
-    if os.environ.get('DANCE') and os.environ.get('DANCE_VIDEO', '1') != '0':   # Brodie Dance: the lesson video decoded now, not during a call
-        try:
-            from starter.dance import reference, screen
-            t_v = time.time(); n = screen.preload(reference.load(os.environ['DANCE']).video_path)
-            print(f'[worker] prewarm: dance video ready ({n} frames in {time.time() - t_v:.1f} s)', flush=True)
-        except Exception as e:
-            print(f'[worker] prewarm: dance video not preloaded ({e!r}); it loads on the first call instead', flush=True)
+    prewarm_dances(a)                                          # Brodie Dance: every lesson's video decoded now, not during a call
     if perception_off(a):
         print(f'[worker] prewarm: loaded in {time.time() - t:.1f} s (perception OFF: no pose model, no session script; voice {a.voice}, vision {"on" if a.vision else "off"}, '
               f'floor {a.floor}, audio {"OFF (events only)" if a.events_only else "cue bank"})', flush=True)
     else:
         print(f'[worker] prewarm: loaded in {time.time() - t:.1f} s (pose {proc.userdata["pipe"].pose_variant}, counter {cfg.counter}, trigger {proc.userdata["pipe"].trigger_path or "off"}, '
               f'mode {cfg.mode} ({a.plan or a.exercise or "auto-detect"}), audio {"OFF (events only)" if a.events_only else "cue bank"})', flush=True)
+
+
+def offered_dances(a=None):
+    """The lessons a caller can pick here (starter/dance/lessons.py names(), menu order): [] outside dance mode (a given without
+    --dance), with DANCE_PICK=0, or on any error. The heartbeat lists them; the website shows its picker only for 2 or more.
+    Like the handlers (starter/handlers.py MENU): nothing when DANCE is set but not one of them, since that job never switches."""
+    if a is not None and not getattr(a, 'dance', False): return []
+    try:
+        from starter.dance import lessons
+        ns = list(lessons.names())
+        d = os.path.splitext(os.path.basename(os.environ.get('DANCE') or ''))[0]
+        return ns if len(ns) >= 2 and (not d or d in ns) else []
+    except Exception as e:
+        print(f'[worker] no lesson list ({type(e).__name__}): callers cannot pick a dance', flush=True); return []
+
+
+def prewarm_dances(a):
+    """Brodie Dance (DANCE set, or --dance): the DANCE video and, in dance mode, every pickable lesson's video decoded now (or read
+    from the screen cache), not during a call: the handlers switch lessons only to a video already in memory. Each in its own try;
+    one that fails stays out of the menu. Returns {lesson id: frames}. DANCE_VIDEO=0: nothing."""
+    dance = os.environ.get('DANCE')
+    if os.environ.get('DANCE_VIDEO', '1') == '0' or not (dance or getattr(a, 'dance', False)): return {}
+    try: from starter.dance import lessons, screen
+    except Exception as e:
+        print(f'[worker] prewarm: dance videos not preloaded ({type(e).__name__}); they load on the first call instead', flush=True); return {}
+    out = {}
+    for n in dict.fromkeys(([dance] if dance else []) + offered_dances(a)):
+        try:
+            t_v = time.time(); r = lessons.ref(n)
+            if r is None: raise LookupError(n)
+            out[n] = screen.preload(r.video_path)
+            print(f'[worker] prewarm: dance video {n} ready ({out[n]} frames in {time.time() - t_v:.1f} s)', flush=True)
+        except Exception as e:
+            print(f'[worker] prewarm: dance video {n} not preloaded ({type(e).__name__}): '
+                  + ('it loads on the first call instead, no switching lessons' if n == dance else 'callers cannot switch to it'), flush=True)
+    return out
 
 
 def describe_mode(a):
@@ -261,6 +294,8 @@ class CoachJob:
         self.voice_mode = perception_off(a)                       # --perception off: no Perception; the worker emits its own session/status events
         self.t0 = time.monotonic(); self.ev_seq = 0; self.vision = None; self.vision_logged = False; self.session_opened = False; self.open_task = None
         self.line_call = None; self.line_ended = False    # the FaceTime call reported to the website's line (facetime/line_report.py)
+        self.site_pick = None; self.line_task = None      # the lesson the visitor holding the line picked on the site: None until the start report
+                                                          # answered, '' for none (handlers: getattr(job, 'site_pick', ''))
 
     # ---- lifecycle ----
     async def run(self):
@@ -432,14 +467,30 @@ class CoachJob:
         extra = getattr(self.event_writer, 'extra', None)                   # the JSONL lines carry the call id from the bind on (null before it)
         if isinstance(extra, dict): extra['call_id'] = self.call_id
         print(f'[worker] bound to {participant.identity!r} (call id {self.call_id or "n/a"}): {what}', flush=True)
-        if participant.identity.startswith(BRIDGE_PREFIX) and self.line_call is None and not self.closed:   # a FaceTime caller
-            self.line_call = self.call_id or participant.identity
-            asyncio.create_task(asyncio.to_thread(line_report.report, 'start', self.line_call), name='line-start')
+        if participant.identity.startswith(BRIDGE_PREFIX):
+            if self.line_call is None and not self.closed:                  # a FaceTime caller: report the start (never awaited here)
+                self.line_call = self.call_id or participant.identity
+                self.line_task = asyncio.create_task(self._line_start(), name='line-start')
+        elif self.site_pick is None: self.site_pick = ''                    # not a FaceTime caller: no site pick
         if self.voice_mode:
             if not self.session_opened and self.open_task is None:
                 self.open_task = asyncio.create_task(self._open_session(participant.identity), name='voice-start')
         elif self.voice is not None and self.voice.model is not None and not self.voice.started:
             asyncio.create_task(self.voice.on_caller(participant.identity, room=self.room), name='voice-start')
+
+    async def _line_start(self):
+        """The call start report (one try, 3 s, in a thread). Its reply names the lesson the visitor holding the line picked on the
+        site: site_pick is then that id, else '' (not configured, an error, a direct FaceTime caller, a bad name). Prints ids only."""
+        pick = ''
+        try:
+            d = await asyncio.to_thread(line_report.report, 'start', self.line_call)
+            v = d.get('dance') if isinstance(d, dict) and d.get('source') == 'visitor' else ''
+            pick = v if isinstance(v, str) and re.fullmatch(r'[a-z0-9_]{1,40}', v) else ''
+        except Exception as e:
+            print(f'[line] call start not reported ({type(e).__name__}): no site pick', flush=True)
+        finally:
+            self.site_pick = pick                                           # also when cancelled: the handlers never wait on a dead task
+        if pick: print(f'[line] the visitor picked {pick} on the site', flush=True)
 
     async def _open_session(self, identity):
         """Voice mode: the model session (when there is one), then ONE session event {state: open, mode: voice} for the handlers."""
@@ -671,18 +722,25 @@ def worker_options(a):
                          initialize_process_timeout=90.0, job_memory_warn_mb=3000)
 
 
-def start_heartbeat(agent_name):
+def heartbeat_body(agent_name, dances=()):
+    """The heartbeat's JSON: {agent, dances} (the lesson ids callers can pick; the website shows its picker only for 2 or more)."""
+    return {'agent': agent_name, 'dances': list(dances or [])}
+
+
+def start_heartbeat(agent_name, dances=None):
     """Tell the web server this worker is up: POST {BRODIE_SERVER}/api/heartbeat every 20 s with BRODIE_HEARTBEAT_KEY.
-    Off unless both are set. The website shows "brodie is online" and hands out calls only while these arrive."""
+    Off unless both are set. The website shows "brodie is online" and hands out calls only while these arrive.
+    dances: the pickable lessons (default offered_dances(), computed once here)."""
     url, key = os.environ.get('BRODIE_SERVER', '').rstrip('/'), os.environ.get('BRODIE_HEARTBEAT_KEY', '')
     if not url or not key: return
     import threading, urllib.request
+    hb = heartbeat_body(agent_name, offered_dances() if dances is None else dances); body = json.dumps(hb).encode()
 
     def beat():
         warned = False
         while True:
             try:
-                req = urllib.request.Request(url + '/api/heartbeat', data=json.dumps({'agent': agent_name}).encode(), method='POST',
+                req = urllib.request.Request(url + '/api/heartbeat', data=body, method='POST',
                                              headers={'Content-Type': 'application/json', 'X-Brodie-Key': key})
                 urllib.request.urlopen(req, timeout=5).read()
                 if warned: print('[worker] heartbeat: reaching the server again', flush=True); warned = False
@@ -690,7 +748,7 @@ def start_heartbeat(agent_name):
                 if not warned: print(f'[worker] heartbeat to {url} failed: {e!r} (the website will show brodie as offline)', flush=True); warned = True
             time.sleep(20)
     threading.Thread(target=beat, name='brodie-heartbeat', daemon=True).start()
-    print(f'[worker] heartbeat -> {url}/api/heartbeat every 20 s', flush=True)
+    print(f'[worker] heartbeat -> {url}/api/heartbeat every 20 s (lessons to pick: {", ".join(hb["dances"]) or "none"})', flush=True)
 
 
 def main(argv=None):
@@ -708,7 +766,7 @@ def main(argv=None):
           f'audio {"OFF (events only)" if a.events_only else "cue player"}; voice {a.voice}{" (" + (a.voice_model or "default model") + ", " + a.voice_name + ")" if a.voice != "off" else ""}; '
           f'handlers {a.handlers or "none"}; data channel {"on" if a.publish_data else "off"}; events -> {a.event_log}', flush=True)
     sys.argv = [sys.argv[0]] + rest                           # the LiveKit Agents CLI parses the rest (dev | start | connect | download-files)
-    if rest and rest[0] in ('dev', 'start'): start_heartbeat(a.agent_name)
+    if rest and rest[0] in ('dev', 'start'): start_heartbeat(a.agent_name, offered_dances(a))
     cli.run_app(worker_options(a))
     return 0
 

@@ -3,6 +3,9 @@
 Run the worker in dance mode (pose events, no workout script, the voice may speak any time):
   python -m facetime.worker --voice gemini --dance --leave-grace-s -1 dev
 Pick the dance with DANCE=<name> (data/dances/<name>.npz, made with starter/dance/reference.py); default: the first one there.
+The caller may switch it before the preview (starter/dance/lessons.py): the visitor's pick on the site (job.site_pick, from the
+line start report), else by saying a title or a number from Brodie's on-screen menu; a voice pick beats a site pick, and the
+lesson is locked once the preview starts. DANCE_PICK=0: no picking, the flow and prompts of before.
 
 The call:
   1. The caller steps into view -> "Perfect, you're in the frame" (starter/voice/); Brodie (Gemini) says hi and describes part 1.
@@ -26,6 +29,8 @@ import numpy as np  # noqa: E402
 from starter.dance.keypoints import mediapipe_to_coco, resample, FPS  # noqa: E402
 from starter.dance import judge as judge_mod  # noqa: E402
 from starter.dance import reference  # noqa: E402
+from starter.dance import lessons  # noqa: E402
+from starter.dance import screen as screen_mod  # noqa: E402   (cv2 and LiveKit are imported inside its functions only)
 
 PASS = float(os.environ.get('DANCE_PASS', '0.5'))           # score that counts as nailing a part (praise instead of a tip)
 MAX_TRIES = int(os.environ.get('DANCE_MAX_TRIES', '1'))     # one chance per part: tip or praise, then the next part
@@ -115,12 +120,30 @@ STOP_RE = re.compile(r"(?<!don't )(?<!dont )\bstop\b(?! the music)|\b(?:that's|t
                      r"\bmakes me sad\b")
 PAIN_RE = re.compile(r"\b(?:hurts?|hurting|pain|painful|dizzy|can'?t breathe|out of breath|injur(?:y|ed)|sprain(?:ed)?|"
                      r"my (?:knee|ankle|back|wrist|shoulder|neck|hip))\b")
+# picking the lesson ({t} the title, {menu} the titles in menu order, {a}/{b} two titles): the caller's words never go in a prompt
+GREET_MENU = ("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In TWO "
+              "short sentences, 35 words max: {greet}, say you are Brodie their dance coach in first person (I'm Brodie), then say "
+              "they pick the dance by saying its name, {menu}, word for word, or it's \"{t}\". Never say frame, fit, step back or "
+              "camera, never describe what you can or cannot see of them, and no tip.")
+GREET_TITLE = ("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In ONE "
+               "short sentence, under 25 words: {greet}, say you are Brodie their dance coach in first person (I'm Brodie), say "
+               "today's dance is \"{t}\" word for word and that the lesson starts the moment they are set. Never say frame, fit, "
+               "step back or camera, never describe what you can or cannot see of them, and no tip.")
+CONFIRM_VOICE = ('They picked "{t}". In ONE short sentence, under 12 words: say "{t}" word for word as locked in, hype the dance '
+                 'itself, and say it starts the moment they are set. Never say frame, fit, step back or camera; no roast, no tip.')
+CONFIRM_SITE = ('The dance they picked on the website is "{t}". In ONE short sentence, under 12 words, say so word for word and '
+                'that it starts the moment they are set. Never say frame, fit, step back or camera; no roast, no tip.')
+CHANGE = ('Change of plan: the dance is now "{t}". In ONE short sentence say that title word for word; it still plays once first '
+          'and they only watch. No roast, no tip.')
+ANNOUNCE = ('The dance is "{t}". In ONE short sentence say that title word for word; it still plays once first and they only '
+            'watch. No roast, no tip.')
+NARROW = 'They said a word two dances share. ONE short question, under 12 words: "{a}" or "{b}"? Both names word for word, no roast.'
 
 
 def _load_reference():
     name = os.environ.get('DANCE')
     try:
-        if name: return reference.load(name)
+        if name: return lessons.ref(name) or reference.load(name)   # lessons.ref: one copy per process, shared with the pick menu
         found = sorted(glob.glob(os.path.join(reference.DANCES_DIR, '*.npz')), key=os.path.getmtime, reverse=True)   # newest first
         return reference.Reference(found[0]) if found else None
     except Exception as e:
@@ -135,17 +158,34 @@ class _Practice:
     def step(self, k): return None
 
 
+SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 REF = _load_reference() or _Practice()
 print(f'[dance] dance {REF.name!r}: {REF.n_chunks} parts of 8 counts at {REF.bpm:g} bpm; pass {PASS:.0%}; '
       f'music {"yes" if REF.audio is not None else "no"}; moves described: {sum(1 for k in range(REF.n_chunks) if REF.step(k))}', flush=True)
+# the lessons this call may switch to: on the menu (lessons.names) and, with the video on, already in memory (the worker's prewarm),
+# so a switch never decodes a video during the call; the default must be one of them too, or this job never switches
+PICK_ON = lessons.on() and not isinstance(REF, _Practice) and REF.name in lessons.TITLES
+MENU = [n for n in lessons.names() if lessons.ref(n) and (not SHOW_VIDEO or screen_mod.ready(lessons.ref(n).video_path))] if PICK_ON else []
+if PICK_ON and REF.name not in MENU: MENU = []
+SITE_WAIT_S = float(os.environ.get('DANCE_SITE_WAIT_S') or 6)   # the preview waits this long after the first event for the site's pick
+# after the menu, the preview waits for this much quiet on both sides: Gemini finalizes the caller's words only once its own reply
+# has played (livekit google realtime: the final transcript comes at turn_complete), so a pick lands after that reply, not before
+ANSWER_S = float(os.environ.get('DANCE_ANSWER_S') or 3)
+ANSWER_MAX_S = 25.0      # but never longer than this after the menu was offered
+MENU_TAIL = ' This turn only: two short sentences, up to 35 words, so every title fits.'
+print(f'[dance] pick menu: {", ".join(MENU)} (default {REF.name})' if len(MENU) >= 2 else
+      '[dance] pick off' + ('' if not PICK_ON else ' (fewer than 2 lessons ready)'), flush=True)
 
 S = dict(state='idle', visible=False, chunk=0, tries=0, scores={}, full_scores=None, say=None, ask=None,
          last_step_back=0.0, play=None, last_pct=None, screen=False, first_event=0.0, greeted=False,
          angles=random.sample(range(len(ANGLES)), len(ANGLES)), angle_i=0, misses=0, kind=False, rest=False, ack='',
-         worst={}, full_worst={}, heard='', sb_i=0)
+         worst={}, full_worst={}, heard='', sb_i=0,
+         # picking: open until start_preview; pick_by default|site|voice; site_done once job.site_pick answered; gen / say_gen cancel a
+         # stale preview start / confirmation; told_title: the dance Brodie last named; title and menu: for the screen
+         pick_open=len(MENU) >= 2, pick_by='default', site_done=False, gen=0, say_gen=0, menu_told=False, narrowed=False,
+         told_title='', title=lessons.title(REF.name) if PICK_ON else '', menu=[], screen_obj=None, t_busy=0.0, menu_t=0.0)
 GREET_AFTER_S = 3.0      # nobody in full view this long after the call starts: Brodie says hi and asks them to step back
 STEP_BACK_EVERY_S = 12.0  # then repeats "Step back so I can fit you in the frame" this often until the caller fits in frame
-SHOW_VIDEO = os.environ.get('DANCE_VIDEO', '1') != '0'      # Brodie's video track: the creator's dance + counts + cards
 POSES = collections.deque(maxlen=FPS * 60)                  # (t_wall, coco (17, 3)) of the last minute
 SAID = collections.deque(maxlen=8)                          # Brodie's last spoken turns (voice events, role coach)
 
@@ -158,6 +198,20 @@ def _player():
     """The worker's cue player, reached through say_now (VoiceLayer.say_now -> job.player); None in events-only mode."""
     try: return S['say'].__self__.job.player
     except Exception: return None
+
+
+def _job():
+    """The worker's job (VoiceLayer.say_now -> job), for job.site_pick; None before the first event or without one."""
+    try: return S['say'].__self__.job
+    except Exception: return None
+
+
+def _menu_card():
+    """The screen's numbered menu, [(number, title, is the current one)], while the caller may still pick; [] once locked."""
+    S['menu'] = [(i + 1, lessons.title(n), n == REF.name) for i, n in enumerate(MENU)] if S['pick_open'] else []
+
+
+_menu_card()
 
 
 def on_room(room):
@@ -178,7 +232,8 @@ def _ensure_screen(room=None):
     except Exception as e:
         print(f'[dance] no video track: {e!r}', flush=True); return
     path = getattr(REF, 'video_path', None) or os.path.join(reference.DANCES_DIR, f'{REF.name}.mp4')
-    task = _loop().create_task(Screen(REF, path).run(room, lambda: S, _cam))
+    scr = Screen(REF, path); S['screen_obj'] = scr                 # kept: set_dance switches its lesson
+    task = _loop().create_task(scr.run(room, lambda: S, _cam))
     task.add_done_callback(lambda t: t.cancelled() or t.exception() is None or print(f'[dance] video stopped: {t.exception()!r}', flush=True))
 
 
@@ -194,11 +249,12 @@ def _fresh():
             '. Do not reuse any of their openers, jokes, catchphrases, tip verbs or sentence shapes.') if SAID else ''
 
 
-def _ask(prompt, react=False):
-    """react=True only for a score reaction (the roast style); every other turn is short and plain."""
+def _ask(prompt, react=False, tail=''):
+    """react=True only for a score reaction (the roast style); every other turn is short and plain. tail: after the style (a
+    one-turn length that the style's cap would otherwise contradict)."""
     if not S['ask']: return
     if S['ack']: prompt = S['ack'] + prompt; S['ack'] = ''       # first words after a stop or pain request: acknowledge it once
-    S['ask'](prompt + _fresh() + _style(react) + NO_COUNT)
+    S['ask'](prompt + _fresh() + _style(react) + tail + NO_COUNT)
 
 
 def _angle():
@@ -335,7 +391,7 @@ def play_parts(k0, k1, count_dance, then, preview=False):
     if player is None:
         print('[dance] no cue player (events-only mode): cannot play the clip', flush=True); return
     pcm, dance_off = build_clip(k0, k1, count_dance)
-    key = f'[dance {k0}-{k1} {"counts" if count_dance else "quiet"}]'
+    key = f'[dance {REF.name} {k0}-{k1} {"counts" if count_dance else "quiet"}]'
     player.bank.cache[key] = pcm                                    # the bank serves cached clips by key: say() plays it
     rec = S['say'](key, 'announce')
     S['play'] = dict(rec=rec, k0=k0, k1=k1, dance_off=dance_off, then=then, dur=len(pcm) / RATE, t_said=time.time(), preview=preview)
@@ -393,9 +449,9 @@ def _practice_score(kps):
 
 def judge_async(items, then):
     """items: [(k, (t0, t1))] -> then({k: result}) on the loop; the judge runs in a thread."""
-    data = [(k, _window_poses(*w)) for k, w in items]
+    data = [(k, _window_poses(*w)) for k, w in items]; ref = REF   # the lesson these poses were danced to, read on the loop
     def work():
-        return {k: (_practice_score(u) if isinstance(REF, _Practice) else judge_mod.judge(u, REF, k)) for k, u in data}
+        return {k: (_practice_score(u) if isinstance(ref, _Practice) else judge_mod.judge(u, ref, k)) for k, u in data}
     fut = _loop().run_in_executor(None, work)
     def done(f):
         try: res = f.result()
@@ -414,7 +470,9 @@ PREVIEW = os.environ.get('DANCE_PREVIEW', '1') != '0'      # play the whole danc
 
 
 def start_preview():
-    """Show the entire dance once, then teach part 1."""
+    """Show the entire dance once, then teach part 1. The lesson is locked from here: later picks are ignored."""
+    if PICK_ON:
+        S['pick_open'] = False; _menu_card(); print(f"[dance] lesson locked: {REF.name} ({S['pick_by']})", flush=True)
     if not PREVIEW or isinstance(REF, _Practice):
         return teach_part()
     S['state'] = 'preview'
@@ -513,6 +571,113 @@ def finish(react=None):
          f'strongest part{strong_txt}.{weak_tip} End sincerely, in your own words, meaning: {end}.')
 
 
+# ---- picking the lesson (loop thread only; open from the first event until start_preview) ----
+def set_dance(name):
+    """Switch the lesson to `name` (on MENU): REF, the screen (to a video already in memory), the part counters, the title and
+    the menu card. False, nothing changed, when it is not on the menu or its video is not preloaded."""
+    global REF
+    new = lessons.ref(name) if name in MENU else None
+    if new is None: return False
+    scr = S['screen_obj']
+    if SHOW_VIDEO and scr is not None and not scr.set_ref(new, new.video_path):
+        print(f'[dance] lesson {name} not switched: video not preloaded', flush=True); return False
+    REF = new; S['chunk'] = S['tries'] = 0; S['title'] = lessons.title(name); _menu_card()
+    return True
+
+
+def _choose(name, by):
+    """A pick, by 'site' (the visitor's tile) or 'voice' (a title or number the caller said), while the menu is open; a voice pick
+    beats a site pick. Before the greeting the greeting names it; idle after it, a short confirmation; during the intro, the new
+    title, and the preview waits for it. True when the pick holds."""
+    if not S['pick_open'] or S['play'] is not None or S['state'] not in ('idle', 'intro'): return False
+    if by == 'site' and S['pick_by'] == 'voice': return False
+    if name == REF.name: S['pick_by'] = by; return True
+    if not set_dance(name): return False
+    S['pick_by'] = by; t = S['title']
+    print(f'[dance] lesson {name} ({"picked on the site" if by == "site" else "picked by voice"})', flush=True)
+    if S['state'] == 'intro':                                       # the stale preview start (old gen) does nothing; this one waits
+        S['gen'] += 1; g = S['gen']
+        _ask((CHANGE if S['told_title'] not in ('', name) else ANNOUNCE).format(t=t)); S['told_title'] = name
+        when_quiet(lambda: _start_preview_gated(g), min_wait=max(4.0, REST_S))
+    elif S['greeted']:                                              # after Gemini's own reply to the turn, only the latest pick's
+        S['say_gen'] += 1; sg = S['say_gen']; prompt = (CONFIRM_VOICE if by == 'voice' else CONFIRM_SITE).format(t=t)
+        def confirm():
+            if sg != S['say_gen'] or S['state'] != 'idle': return
+            S['told_title'] = name; _ask(prompt)
+        when_quiet(confirm, min_wait=2.0, quiet_s=0.6)
+    return True
+
+
+def _check_site_pick():
+    """The visitor's pick on the site, applied once it is known: job.site_pick (facetime/worker.py, from the line start report) is
+    None until the report answered, '' for no pick (no report, a direct caller, an error)."""
+    if S['site_done'] or not PICK_ON: return
+    sp = getattr(_job(), 'site_pick', '')
+    if sp is None: return
+    S['site_done'] = True
+    if sp in MENU: _choose(sp, 'site')
+    elif sp: print(f"[dance] site pick {sp} not on this call's menu (video not preloaded?): kept {REF.name}", flush=True)
+
+
+def _note_busy():
+    """S['t_busy']: the last time any of Brodie's audio (a recorded clip, the music, the model's reply) was playing or queued."""
+    pl = _player()
+    if pl is None: return
+    mix = getattr(pl, 'mix', None)
+    if (getattr(pl, 'playing', None) is not None or getattr(pl, 'pending', None) is not None or getattr(pl, 'urgent', None) is not None
+            or (mix is not None and (getattr(mix, 'active', False) or (getattr(mix, 'pending', 0) or 0) > 0))):
+        S['t_busy'] = time.time()
+
+
+def _quiet_for():
+    """Seconds since Brodie's audio played or the caller was heard talking (the model's interim transcripts, last_caller_t)."""
+    _note_busy(); q = time.time() - S['t_busy']
+    try: q = min(q, time.monotonic() - float(S['say'].__self__.model.last_caller_t))
+    except Exception: pass
+    return q
+
+
+def _start_preview_gated(g):
+    """start_preview once the site's pick is known, or SITE_WAIT_S after the first event (then the dance as it is); after the
+    spoken menu, not before ANSWER_S of quiet (time to answer it). g: S['gen'] when this was scheduled; a pick in between
+    re-schedules it, and the stale call does nothing."""
+    if g != S['gen'] or S['state'] != 'intro': return
+    _check_site_pick()
+    if g != S['gen']: return                                        # that site pick switched the lesson: its announcement re-scheduled it
+    now = time.time()
+    if (S['pick_open'] and not S['site_done'] and S['pick_by'] != 'voice'          # (a voice pick beats any site pick: no wait)
+            and now - (S['first_event'] or now) < SITE_WAIT_S):
+        _loop().call_later(0.25, _start_preview_gated, g); return
+    if (S['pick_open'] and S['pick_by'] == 'default' and (S['menu_told'] or S['narrowed'])   # nobody picked yet: room to answer
+            and now - S['menu_t'] < ANSWER_MAX_S and _quiet_for() < ANSWER_S):
+        _loop().call_later(0.25, _start_preview_gated, g); return
+    start_preview()
+
+
+def _voice_pick(text):
+    """A spoken pick in the caller's newest turn only (never S['heard']), while the menu is open: a title, a word only one title
+    has, or a number on the screen. Nothing of the turn is printed or kept; a matcher error is printed by its type only. Brodie's
+    own menu heard back on a speakerphone names every title: lessons.match refuses two or more whole titles in one turn."""
+    if not S['pick_open'] or S['state'] not in ('idle', 'intro') or S['play'] is not None: return
+    low = text.lower()
+    if PAIN_RE.search(low) or STOP_RE.search(low): return            # "my chest hurts", "stop, twist": never a pick
+    try:
+        n = lessons.match(text, MENU, strict=S['pick_by'] == 'site')   # strict: only a title, two of its words or a number beat the site
+        amb = None if n else lessons.ambiguous(text, MENU)
+    except Exception as e:
+        print(f'[dance] pick matcher failed ({type(e).__name__})', flush=True); n = amb = None
+    if n: _choose(n, 'voice')
+    elif amb and not S['narrowed'] and S['pick_by'] == 'default':     # a bare "sweep": ask which, once, in menu order
+        S['narrowed'] = True; S['menu_t'] = time.time(); prompt = NARROW.format(a=lessons.title(amb[0]), b=lessons.title(amb[1]))
+        g = None
+        if S['state'] == 'intro': S['gen'] += 1; g = S['gen']          # the question holds the preview: the answer still counts
+        def narrow():
+            if not S['pick_open']: return
+            _ask(prompt)
+            if g is not None: when_quiet(lambda: _start_preview_gated(g), min_wait=max(4.0, REST_S))
+        when_quiet(narrow, min_wait=2.0, quiet_s=0.6)
+
+
 # ---- the events ----
 def _nudge_into_view():
     """Before the lesson, while the caller is not fully in view: a spoken hello and a step-back hint, then the hint every
@@ -528,10 +693,17 @@ def _nudge_into_view():
     if not S['greeted']:
         if now - S['first_event'] < GREET_AFTER_S: return
         S['greeted'] = True; S['last_step_back'] = now
-        _ask("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In ONE "
-             f"short sentence, under 20 words: {random.choice(GREETS)}, say you are Brodie their dance coach in first person "
-             "(I'm Brodie), and say the lesson starts the moment they are set. Never say frame, fit, step back or camera, never "
-             "describe what you can or cannot see of them, and no tip.")
+        if not PICK_ON:
+            _ask("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In ONE "
+                 f"short sentence, under 20 words: {random.choice(GREETS)}, say you are Brodie their dance coach in first person "
+                 "(I'm Brodie), and say the lesson starts the moment they are set. Never say frame, fit, step back or camera, never "
+                 "describe what you can or cannot see of them, and no tip.")
+        elif S['pick_open'] and S['pick_by'] == 'default':          # nobody picked yet: the menu by name (the screen numbers it)
+            S['menu_told'] = True; S['menu_t'] = now; S['told_title'] = REF.name
+            _ask(GREET_MENU.format(greet=random.choice(GREETS), menu=lessons.spoken(MENU), t=S['title']), tail=MENU_TAIL)
+        else:                                                       # picked on the site (or by voice already), or nothing to pick
+            S['told_title'] = REF.name
+            _ask(GREET_TITLE.format(greet=random.choice(GREETS), t=S['title']))
     elif now - S['last_step_back'] > STEP_BACK_EVERY_S:
         _step_back(); S['last_step_back'] = now
 
@@ -539,6 +711,8 @@ def _nudge_into_view():
 def on_event(event, say_now, ask_voice):
     S['say'] = say_now; S['ask'] = ask_voice
     _ensure_screen()
+    if S['pick_open']: _note_busy()
+    _check_site_pick()
     _nudge_into_view()
     t = event['type']
     if t == 'voice' and event.get('text'):
@@ -555,6 +729,7 @@ def on_event(event, say_now, ask_voice):
                 S['kind'] = True                                    # "stop", "that's mean", "I'm so bad at this": no more roasting, decided in code
                 S['ack'] = 'First, in a few words, say sure, no more jokes from here. '
                 print('[dance] caller asked to stop or put themselves down: kind mode for the rest of the call', flush=True)
+            _voice_pick(text)
         return
     if t == 'pose':
         S['kp'] = event['kp'] if event.get('ok') else None       # the latest pose for the screen's skeleton overlay
@@ -565,7 +740,14 @@ def on_event(event, say_now, ask_voice):
             S['state'] = 'intro'
             _line(IN_FRAME)
             hi = 'do NOT say hi again (you already greeted them), ' if S['greeted'] else 'say hi, '   # one hello per call
-            _ask(f'The caller now fits in the frame and just heard your recorded line saying so; do not repeat it. In ONE short '
-                 f'sentence, in words you choose: {hi}the whole dance plays once first and they only watch, no dancing yet. No jokes '
-                 f'about yourself, no roast and no tip, nothing has been danced yet.')
-            when_quiet(start_preview, min_wait=max(4.0, REST_S))
+            one, note, wait, tail = 'ONE short sentence', '', max(4.0, REST_S), ''
+            known = PICK_ON and (S['site_done'] or S['pick_by'] != 'default')   # the lesson is known (not while the site may still pick)
+            if known: note = f' The dance is "{S["title"]}": say that title word for word.'; S['told_title'] = REF.name
+            if S['pick_open'] and S['pick_by'] == 'default' and not S['menu_told']:   # in frame before the greeting: the menu now
+                S['menu_told'] = True; S['menu_t'] = time.time(); one, wait, tail = 'TWO short sentences', max(8.0, REST_S), MENU_TAIL
+                note += (f' Then say they can still switch by saying another name: {lessons.spoken([n for n in MENU if n != REF.name])}.'
+                         if known else f' Then say they pick the dance by saying its name: {lessons.spoken(MENU)}.')
+            _ask(f'The caller now fits in the frame and just heard your recorded line saying so; do not repeat it. In {one}, '
+                 f'in words you choose: {hi}the whole dance plays once first and they only watch, no dancing yet. No jokes '
+                 f'about yourself, no roast and no tip, nothing has been danced yet.' + note, tail=tail)
+            g = S['gen']; when_quiet(lambda: _start_preview_gated(g), min_wait=wait)

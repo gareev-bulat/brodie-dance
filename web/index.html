@@ -385,8 +385,16 @@
     if (!Q.get('preview')) fetch(API + '/api/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vid, device }), keepalive: true }).catch(() => {});
   } catch (e) { /* the page works without it */ }
 
+  // pick: the lessons the live worker can teach. Two or more: the pop-up's tiles and a "play it with brodie" on each of their
+  // cards; none (an older worker, or offline): the page as before (the button on the live card only)
   fetch(API + '/api/config').then((r) => r.json()).then((c) => {
     if (c.fork) { $('foot-fork').href = c.fork; }
+    const pick = Array.isArray(c.pick) ? [...new Set(c.pick.filter((n) => typeof n === 'string' && DANCE_ID.test(n)))] : [];
+    if (pick.length > 1) {
+      PICK = pick;
+      BrodiePopup.setDances(PICK.map((n) => ({ name: n, title: TITLES[n] || credit(n) })), c.dance);
+      renderDances(lastList);
+    }
   }).catch(() => {});
 
   // ---- now playing: the lessons from the server when it is reachable, else the list baked in at the last deploy ----
@@ -396,20 +404,29 @@
   const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave' };   // display names for lessons whose id is the creator's handle
   const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
+  const DANCE_ID = /^[a-z0-9_]{1,40}$/;
+  let PICK = [], lastList = FALLBACK_DANCES, lineDance = '', linePrecall = false;   // PICK: /api/config pick; lineDance: the server's pick for this visitor
   function renderDances(list) {
-    $('dances-list').innerHTML = list.filter((x) => !x.error).sort((a, b) => !!b.live - !!a.live).map((x) => {
+    lastList = list;
+    const picking = PICK.length > 1, can = (x) => (picking ? PICK.includes(x.name) : !!x.live), mine = picking ? BrodiePopup.pick() : '';
+    $('dances-list').innerHTML = list.filter((x) => !x.error).sort((a, b) => can(b) - can(a) || (picking ? PICK.indexOf(a.name) - PICK.indexOf(b.name) : 0)).map((x) => {   // menu order: the numbers on Brodie's screen
       const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="moves">'
         + s.split('|').map((t) => t.trim()).filter(Boolean).map((t) => '<span>' + esc(t) + '</span>').join('') + '</div></li>').join('');
       const stats = [x.bpm ? Math.round(x.bpm) + ' bpm' : '', x.parts + (x.parts === 1 ? ' part' : ' parts'),Math.round(x.seconds) + ' seconds', x.music ? 'with the song' : ''].filter(Boolean);
       return '<article class="trackcard"><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt=""></div><div class="info">'
-        + (x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
+        + (picking ? (can(x) ? '<span class="live-tag" data-pick="' + esc(x.name) + '"' + (x.name === mine ? '' : ' hidden') + '><i></i>your pick</span>' : '')
+          : x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
         + '<div class="title game">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
         + (TITLES[x.name] ? '<div class="by">dance by ' + esc(credit(x.name)) + '</div>' : '')
         + '<div class="stats">' + stats.map((s) => '<span>' + esc(s) + '</span>').join('') + '</div>'
         + (parts ? '<ul class="parts">' + parts + '</ul>' : '')
-        + (x.live ? '<button type="button" class="btn primary play">play it with brodie</button>' : '') + '</div></article>';
+        + (can(x) ? '<button type="button" class="btn primary play"' + (picking ? ' data-dance="' + esc(x.name) + '" aria-label="play ' + esc(TITLES[x.name] || credit(x.name)) + ' with brodie"' : '') + '>play it with brodie</button>' : '') + '</div></article>';
     }).join('');
-    for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => BrodiePopup.open());
+    for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => (b.dataset.dance ? BrodiePopup.open({ dance: b.dataset.dance }) : BrodiePopup.open()));
+  }
+  function markPick() {                              // the "your pick" tag moves to the picked card (no re-render: the focus stays put)
+    const p = BrodiePopup.pick();
+    for (const t of document.querySelectorAll('#dances-list [data-pick]')) t.hidden = t.dataset.pick !== p;
   }
   renderDances(FALLBACK_DANCES);
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
@@ -511,7 +528,11 @@
     $('start-box').hidden = true;
     const freed = lineState === 'busy' && v.state === 'open';     // he just freed up while this page was open
     $('line').hidden = false; $('line').className = 'linebox ' + v.state + (v.precall ? ' precall' : '') + (freed ? ' freed' : '');
-    $('line-msg').textContent = v.text;
+    const nd = v.state === 'mine' && PICK.length > 1 && DANCE_ID.test(v.dance || '') ? v.dance : '';   // no picker: the page as before
+    if (nd !== lineDance) { lineDance = nd; markPick(); }   // the "your pick" tag follows the server's pick (the pop-up already did)
+    linePrecall = !!v.precall;
+    const song = lineDance ? 'Song: ' + (TITLES[lineDance] || credit(lineDance)) + '.' : '';   // after the first sentence: the precall text runs into the timer
+    $('line-msg').textContent = !song ? v.text : /^[^.!?]*[.!?] /.test(v.text) ? v.text.replace(/^([^.!?]*[.!?]) /, (m, a) => a + ' ' + song + ' ') : v.text + ' ' + song;
     $('line-timer').hidden = !v.timer; $('line-timer').textContent = v.timer;
     // free, or the session is this visitor's. A guest sees the button before the number: the click takes the line, then dials
     const call = (v.state === 'open' || v.state === 'mine') && (!!v.facetime || guestMode);
@@ -520,11 +541,14 @@
     $('line-number').textContent = v.facetime || ''; $('line-number').hidden = !v.facetime;
     $('line-facetime').href = lastDial ? 'facetime:' + lastDial : '#';
   }
-  // "FaceTime Brodie": take the line first (two clicks at once: the server gives it to the first), then open FaceTime
+  // "FaceTime Brodie": take the line first (two clicks at once: the server gives it to the first), then open FaceTime. The pick
+  // goes with the claim; already theirs with the same pick (or no picker): straight to FaceTime, else a re-claim updates the pick
+  const dialNow = () => { const want = BrodiePopup.pick(); return lineState === 'mine' && !!lastDial && (!want || want === lineDance); };
   async function callBrodie() {
-    if (lineState === 'mine' && lastDial) { location.href = 'facetime:' + lastDial; return; }   // already theirs: straight to FaceTime
+    if (dialNow()) { location.href = 'facetime:' + lastDial; return; }
     try {
-      const r = await post('/api/line/claim' + PREVIEW), d = await r.json().catch(() => ({}));
+      const want = BrodiePopup.pick();
+      const r = await post('/api/line/claim' + PREVIEW, want ? { dance: want } : undefined), d = await r.json().catch(() => ({}));
       if (r.status === 401) { BrodiePopup.needEmail(); BrodiePopup.open(); return; }
       if (d.state) { watchLine(); line.apply(d); }
       const n = d.facetime_dial || dial(d.facetime);
@@ -536,7 +560,7 @@
   }
   $('line-facetime').addEventListener('click', (e) => {
     if (!BrodiePopup.apple) { e.preventDefault(); return BrodiePopup.open(); }   // Android, Windows: the pop-up explains / shows the QR
-    if (lineState === 'mine' && lastDial) return;                                 // the link itself opens FaceTime
+    if (dialNow()) return;                                                        // the link itself opens FaceTime
     e.preventDefault(); callBrodie();
   });
   $('line-done').addEventListener('click', async () => { $('line-done').disabled = true; try { await doneDancing(); } finally { $('line-done').disabled = false; } });
@@ -545,6 +569,15 @@
     call: callBrodie,
     done: doneDancing,
     hasEmail: () => !!(user && !user.guest),
+    async pick(name) {                               // a tile or a card: the "your pick" tag moves; their line before the call: the new pick
+      try {
+        markPick();
+        if (lineState === 'mine' && linePrecall) {
+          const r = await post('/api/line/claim' + PREVIEW, { dance: name }), d = await r.json().catch(() => ({}));
+          if (d.state && line) line.apply(d);
+        }
+      } catch (err) {}
+    },
     async start(email) {                             // a server without guest sessions wants an email before it shows the line
       try {
         const r = await post('/api/start', { email }), d = await r.json();

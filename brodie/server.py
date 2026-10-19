@@ -6,18 +6,22 @@ Routes: /  landing (web/index.html)
         POST /api/signup {name, email, password}   POST /api/login {email, password}   POST /api/logout   GET /api/me
         GET /api/line   Brodie's line, open | busy (seconds_left) | mine | offline; the FaceTime number only to a signed-in visitor
                         (email or guest) when open or mine. Logged out: the state and time left, never the number
-        POST /api/line/claim   the visitor clicked "FaceTime Brodie": the session is theirs, or 409 busy. Logged out and the
-                        line free: a guest session (cookie, no email) is made first, so one tap gets the number
+        POST /api/line/claim {dance?}   the visitor clicked "FaceTime Brodie": the session is theirs, or 409 busy. Logged out and
+                        the line free: a guest session (cookie, no email) is made first, so one tap gets the number. dance: the
+                        lesson they picked (one of /api/config pick, else ignored); a re-claim before the call changes it
         POST /api/line/done    "I'm done dancing": the visitor's session ends, the line is free for everyone
-        GET /api/config  public settings (dance, fork; no number, no status)   GET /api/dances   GET /api/health
-        POST /api/heartbeat  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page comes from it
-        POST /api/line/call {event: start|end}   Brodie's worker: a FaceTime call started / ended (X-Brodie-Key)
+        GET /api/config  public settings (dance, fork, pick: the lessons the live worker can teach; no number, no status)
+        GET /api/dances   GET /api/health
+        POST /api/heartbeat {agent, dances}  Brodie's worker saying it is up (X-Brodie-Key: HEARTBEAT_KEY); "offline" on the page
+                        comes from it; dances: the lessons it can switch to (the site's picker shows only with two or more)
+        POST /api/line/call {event: start|end}   Brodie's worker: a FaceTime call started / ended (X-Brodie-Key); the start reply
+                        carries {source, dance}: dance is the holder's pick when a visitor holds the line, else ''
         POST /api/visit {vid, device}   the landing page opened (the stats page's visitor count, once per browser per day)
         GET /api/admin/line   POST /api/admin/line/busy?minutes=N | /free | /extend?minutes=5   the stats page (?key=ADMIN_KEY)
 The line is kept by the website (brodie/line.py); Brodie's worker sends its heartbeat and reports when a FaceTime call starts and ends.
 Sessions are a signed cookie (brodie/users.py); HOST/PORT come from the environment on a hosting service (docs/HOSTING.md).
 """
-import argparse, datetime, glob, hmac, json, os, time
+import argparse, datetime, glob, hmac, json, os, re, time
 from aiohttp import web
 from brodie import line, users
 
@@ -27,13 +31,19 @@ COOKIE = 'bd_session'
 # Brodie's worker runs on another machine; it POSTs /api/heartbeat every ~20 s (facetime/worker.py, BRODIE_SERVER +
 # BRODIE_HEARTBEAT_KEY). With HEARTBEAT_KEY set here, "online" means a heartbeat in the last HEARTBEAT_TTL seconds.
 HEARTBEAT_TTL = float(os.environ.get('HEARTBEAT_TTL', '75'))
-_LAST_BEAT = {'t': 0.0, 'agent': ''}
+_LAST_BEAT = {'t': 0.0, 'agent': '', 'dances': []}
+DANCE_ID = re.compile(r'[a-z0-9_]{1,40}')
 
 
 def worker_online():
     """True / False when the worker heartbeat is configured (HEARTBEAT_KEY), None when it is not (unknown)."""
     if not os.environ.get('HEARTBEAT_KEY'): return None
     return time.time() - _LAST_BEAT['t'] < HEARTBEAT_TTL
+
+
+def pickable():
+    """The lessons a visitor can pick: the live worker's heartbeat list ([] when it is offline, sent none, or no HEARTBEAT_KEY)."""
+    return list(_LAST_BEAT['dances']) if worker_online() else []
 
 
 def line_online():
@@ -150,12 +160,14 @@ async def health(req):
 
 
 async def heartbeat(req):
-    """Brodie's worker says it is up: POST /api/heartbeat with header X-Brodie-Key: <HEARTBEAT_KEY>."""
+    """Brodie's worker says it is up: POST /api/heartbeat {agent, dances} with header X-Brodie-Key: <HEARTBEAT_KEY>. dances: the
+    lesson ids it can switch to (untrusted all the same: only [a-z0-9_]{1,40}, at most 8; an older worker sends none)."""
     key = os.environ.get('HEARTBEAT_KEY', '')
     if not key or not hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key):
         return web.json_response({'error': 'forbidden'}, status=403)
-    b = await _body(req)
+    b = await _body(req); ds = b.get('dances')
     _LAST_BEAT['t'] = time.time(); _LAST_BEAT['agent'] = str(b.get('agent', ''))[:64]
+    _LAST_BEAT['dances'] = list(dict.fromkeys(s for s in ds if isinstance(s, str) and DANCE_ID.fullmatch(s)))[:8] if isinstance(ds, list) else []
     return web.json_response({'ok': True})
 
 
@@ -182,14 +194,17 @@ async def line_status(req):
 
 async def line_claim(req):
     """The visitor clicked "FaceTime Brodie": the line is theirs for 15 minutes (200 with the number), or 409 busy (no number).
-    Offline: 503. Two clicks at once: one sqlite write transaction, the first wins."""
+    Offline: 503. Two clicks at once: one sqlite write transaction, the first wins. Body {dance}: their pick, kept only when it is
+    one of pickable() (anything else is dropped silently: a bad pick never fails a claim). Their own line before the call: a
+    new pick replaces the stored one."""
     u, new = current_user(req), False
+    b = await _body(req); dance = str(b.get('dance') or '')[:40]; dance = dance if dance in pickable() else ''
     if line_online() is False: return web.json_response(dict(line.view(u['id'] if u else None, False), error='offline'), status=503, headers=NO_STORE)
     if u is None:                                     # logged out: a guest session, but only when the line is free to take
         st = line.view(None, worker_online())
         if st['state'] != 'open': return web.json_response(st, status=409, headers=NO_STORE)
         u, new = users.guest(), True
-    ok, _ = line.claim(u['id'])
+    ok, _ = line.claim(u['id'], dance)
     resp = web.json_response(dict(_line_view(u), user=_public(u)), status=200 if ok else 409, headers=NO_STORE)
     return _with_session(resp, req, u['id']) if new else resp
 
@@ -229,13 +244,16 @@ async def admin_up(req):
 
 async def line_call(req):
     """Brodie's worker reporting a FaceTime call: POST /api/line/call {event: start|end, call_id}, X-Brodie-Key: HEARTBEAT_KEY.
-    start: a free line shows busy (callers who dialled without the site); end: the line frees after the cooldown (Chert's
-    pause between calls) instead of at the end of the 15-minute session."""
+    start: a free line shows busy (callers who dialled without the site); the reply {ok, source, dance}: dance is the lesson the
+    visitor holding the line picked on the site ('' for everyone else), so Brodie teaches it. end: the line frees after the
+    cooldown (Chert's pause between calls) instead of at the end of the 15-minute session."""
     key = os.environ.get('HEARTBEAT_KEY', '')
     if not key or not hmac.compare_digest(req.headers.get('X-Brodie-Key', ''), key):
         return web.json_response({'error': 'forbidden'}, status=403)
     b = await _body(req); ev = str(b.get('event', '')); call_id = str(b.get('call_id', '') or '')[:64]
-    if ev == 'start': return web.json_response({'ok': True, 'source': line.call_started(call_id)})
+    if ev == 'start':
+        src, dance = line.call_started(call_id)
+        return web.json_response({'ok': True, 'source': src, 'dance': dance})
     if ev == 'end': return web.json_response({'ok': True, 'free_in_s': line.call_ended(call_id)})
     return web.json_response({'error': 'event must be start or end'}, status=400)
 
@@ -286,9 +304,11 @@ async def admin_extend(req):
 
 
 async def config(_req):
-    """Public settings for the landing page. No FaceTime number and no status here: those are for signed-in visitors (/api/line)."""
-    return web.json_response({'ok': True, 'dance': os.environ.get('DANCE', ''),
-                              'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance')})
+    """Public settings for the landing page. No FaceTime number and no status here: those are for signed-in visitors (/api/line).
+    pick: the lessons a visitor can pick (pickable(); [] hides the picker and the page works as before). Not cached: pick follows
+    the worker's heartbeat."""
+    return web.json_response({'ok': True, 'dance': os.environ.get('DANCE', ''), 'pick': pickable(),
+                              'fork': os.environ.get('FORK_URL', 'https://github.com/zxpeng2007/ivyhacks-brodie-dance')}, headers=NO_STORE)
 
 
 async def dances(_req):

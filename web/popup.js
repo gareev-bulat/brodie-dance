@@ -1,9 +1,12 @@
 // The "FaceTime Brodie now" pop-up: opens the moment a visitor lands, so they can call in one tap.
 //
-//   BrodiePopup.mount({ call, done, start, waitlist, hasEmail })   once, from index.html
+//   BrodiePopup.mount({ call, done, start, waitlist, hasEmail, pick })   once, from index.html
 //   BrodiePopup.update(v)       every change of Brodie's line (the same view BrodieLine.watch gives the hero box)
 //   BrodiePopup.needEmail()     the server wants an email before it shows the line (no guest sessions there)
-//   BrodiePopup.open() / close()
+//   BrodiePopup.open({dance}?) / close()   dance: open with that lesson picked
+//   BrodiePopup.setDances([{name, title}], def)   the lessons the live worker can teach (/api/config pick): with two or more,
+//                               tiles to pick one (from ?dance=, else the last pick in this browser, else def); fewer: no picker
+//   BrodiePopup.pick() / select(name, byUser)    the picked lesson id ('' with no picker); a pick by the visitor calls pick(name)
 //
 // What it shows depends on the device (BrodiePopup.device, ?device=ios|mac|android|desktop overrides it for testing):
 //   iPhone, iPad, Mac  one big button that opens FaceTime with a facetime: link (the call() callback takes the line first)
@@ -66,6 +69,15 @@ window.BrodiePopup = (() => {
   .bp form .btn { justify-content: center; cursor: pointer; }
   .bp-skip { margin-top: 4px; background: none; border: 0; color: var(--grey); font: inherit; font-size: 0.9rem; cursor: pointer; text-decoration: underline; }
   .bp-err { color: #FF8A8A; font-size: 0.9rem; min-height: 1.2em; margin: 6px 0 0; }
+  .bp-pick { margin: 16px 0 0; }
+  .bp-pick-label { margin: 0 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--grey); }
+  .bp-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .bp-dance { min-height: 48px; padding: 8px 6px; white-space: normal; text-align: center; font: inherit; line-height: 1.15; font-size: 0.9rem; font-weight: 600;
+    color: var(--text); background: rgba(244,242,238,0.06); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+  .bp-dance:hover { border-color: rgba(217,255,61,0.5); }
+  .bp-dance[aria-pressed="true"] { border-color: var(--volt); background: rgba(217,255,61,0.12); color: var(--volt); }
+  .bp-dance:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+  @media (max-height: 680px) { .bp.picking img.bp-face { display: none; } }   /* room for the tiles on short screens */
   @keyframes bp-fade { from { opacity: 0; } }
   @keyframes bp-up { from { opacity: 0; transform: translateY(28px) scale(0.92); } }
   .bp.open .bp-dot, .bp.mine .bp-dot { animation: bp-live 1.6s ease-out infinite; }
@@ -76,9 +88,13 @@ window.BrodiePopup = (() => {
   @media (max-width: 520px) { .bp { padding: 22px 18px 18px; } .bp h2 { font-size: 1.7rem; } .bp img.bp-face { width: 72px; height: 72px; } }
   @media (prefers-reduced-motion: reduce) { .bp-back, .bp, .bp-status.freed { animation: none; } .bp .bp-dot { animation: none !important; } }`;
 
-  let opts = {}, el = {}, v = { state: 'loading', left: 0 }, freeAt = 0, mode = 'line', sawCall = false, lastFocus = null, qrDone = false;
+  let opts = {}, el = {}, v = { state: 'loading', left: 0 }, freeAt = 0, mode = 'line', sawCall = false, lastFocus = null;
+  let dances = [], sel = '', qrDrawn = '', qrLoad = null;     // the pickable lessons [{name, title}], the picked one, the URL in the QR
   const $ = (sel) => el.root.querySelector(sel);
   const mins = (s) => Math.max(1, Math.ceil(s / 60));
+  const ID = /^[a-z0-9_]{1,40}$/, PICKED = 'brodie-dance';
+  const valid = (n) => typeof n === 'string' && ID.test(n) && dances.some((d) => d.name === n);
+  const titleOf = (n) => (dances.find((d) => d.name === n) || {}).title || '';
 
   function mount(o) {
     opts = o;
@@ -92,6 +108,7 @@ window.BrodiePopup = (() => {
         <div class="bp-line">
           <span class="bp-status" aria-live="polite"><i class="bp-dot"></i><span class="bp-text">Checking if Brodie is free…</span></span>
           <p class="bp-sub" hidden></p>
+          <div class="bp-pick" role="group" aria-label="pick your dance" hidden><p class="bp-pick-label">pick your dance</p><div class="bp-tiles"></div></div>
           <div class="bp-act"></div>
         </div>
         <div class="bp-email" hidden>
@@ -132,6 +149,7 @@ window.BrodiePopup = (() => {
       finally { f.querySelector('button').disabled = false; }
     };
     $('.bp-skip').onclick = () => close(true);
+    tiles();
     setInterval(paint, 1000);                       // the "free in about N minutes" text and the call countdown tick between polls
     let opened = false; try { opened = sessionStorage.getItem(SEEN) === '1'; } catch (e) {}
     if (!opened) open();
@@ -147,25 +165,74 @@ window.BrodiePopup = (() => {
       <p>Got one nearby? Open this page on it and tap the big button.</p>
       <button type="button" class="btn ghost bp-share">send this link to my iPhone</button></div>`;
     return `<div class="bp-qr" role="img" aria-label="QR code that opens this page on your phone"></div>
-      <p class="bp-sub">Scan with your iPhone camera. This page opens there with a one-tap FaceTime button.</p>
+      <p class="bp-sub bp-qrcap">Scan with your iPhone camera. This page opens there with a one-tap FaceTime button.</p>
       <p class="bp-fine">Brodie is on FaceTime, so you need an iPhone, iPad or Mac.</p>`;
   }
 
   async function shareLink() {
-    const url = location.origin + '/';
+    const url = location.origin + '/' + (sel ? '?dance=' + encodeURIComponent(sel) : '');     // the pick goes along to the iPhone
     try { if (navigator.share) { await navigator.share({ title: 'Brodie Dance', text: 'FaceTime Brodie, your dance coach', url }); return; } } catch (e) { return; }
     try { await navigator.clipboard.writeText(url); $('.bp-share').textContent = 'link copied'; } catch (e) { $('.bp-share').textContent = url; }
   }
 
+  // the QR opens this page on the iPhone with the same pick (?dance=): redrawn when the pick changes. The desktop never claims the
+  // line for the phone (another browser, another guest): the pick only rides along in the link
   function qr() {
-    if (qrDone || device !== 'desktop') return; qrDone = true;
+    if (device !== 'desktop' || !el.root || el.root.hidden) return;
+    const url = location.origin + '/?from=qr' + (sel ? '&dance=' + encodeURIComponent(sel) : '');
+    if (qrDrawn === url) return; qrDrawn = url;
     const draw = () => {
-      const q = qrcode(0, 'M'); q.addData(location.origin + '/?from=qr'); q.make();
-      $('.bp-qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+      if (qrDrawn !== url || !window.qrcode) return;               // a newer pick won while the library loaded
+      const q = qrcode(0, 'M'); q.addData(url); q.make();
+      const box = $('.bp-qr'), t = titleOf(sel), cap = $('.bp-qrcap');
+      box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 0, scalable: true }); box.dataset.url = url;
+      box.setAttribute('aria-label', 'QR code that opens this page on your phone' + (t ? ' with ' + t + ' picked' : ''));
+      if (cap) cap.textContent = 'Scan with your iPhone camera. This page opens there with ' + (t ? t + ' picked and ' : '') + 'a one-tap FaceTime button.';
     };
     if (window.qrcode) return draw();
-    const s = document.createElement('script'); s.src = 'vendor/qrcode.js'; s.onload = draw; document.head.append(s);
+    if (!qrLoad) qrLoad = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/qrcode.js'; s.onload = res; s.onerror = rej; document.head.append(s); });
+    qrLoad.then(draw, () => {});
   }
+
+  // ---- the dance picker: tiles above the button; the pick goes with the claim (index.html) and rides along in the QR / share link ----
+  function setDances(list, def) {
+    const seen = new Set();
+    dances = (Array.isArray(list) ? list : []).filter((d) => d && typeof d.name === 'string' && ID.test(d.name) && !seen.has(d.name) && seen.add(d.name))
+      .map((d) => ({ name: d.name, title: String(d.title || d.name).slice(0, 60) }));
+    if (dances.length < 2) { dances = []; sel = ''; tiles(); paint(); return; }
+    const url = Q.get('dance'); let kept = '';
+    try { kept = localStorage.getItem(PICKED) || ''; } catch (e) {}
+    sel = [url, kept, def, dances[0].name].find(valid);
+    if (sel === url) { try { localStorage.setItem(PICKED, sel); } catch (e) {} }   // a pick from the QR / share link survives a reload
+    try {                                                            // no ?dance / ?from left in the address bar (or in a shared link)
+      if (Q.has('dance') || Q.has('from')) { const u = new URL(location.href); u.searchParams.delete('dance'); u.searchParams.delete('from'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); }
+    } catch (e) {}
+    tiles(); paint();
+  }
+
+  function tiles() {
+    if (!el.root) return;
+    const box = $('.bp-tiles'); box.textContent = '';
+    for (const d of dances) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'bp-dance'; b.dataset.dance = d.name;
+      b.textContent = d.title; b.setAttribute('aria-pressed', String(d.name === sel)); b.onclick = () => select(d.name, true);
+      box.append(b);
+    }
+  }
+
+  // byUser: the visitor tapped (a tile, or a card's "play it with brodie"): remembered, and opts.pick tells the page (a re-claim
+  // before the call). Otherwise the page follows the server's view of their own line
+  function select(name, byUser) {
+    if (!valid(name)) return false;
+    const changed = name !== sel; sel = name;
+    try { localStorage.setItem(PICKED, name); } catch (e) {}
+    if (el.root) for (const b of el.root.querySelectorAll('.bp-dance')) b.setAttribute('aria-pressed', String(b.dataset.dance === name));
+    paint();
+    if (byUser && opts.pick) Promise.resolve().then(() => opts.pick(name)).catch(() => {});
+    return changed;
+  }
+
+  function pick() { return sel; }
 
   function showMode(m) {
     if (!el.root) return;
@@ -181,8 +248,9 @@ window.BrodiePopup = (() => {
     if (s === 'open') return ['open', 'Brodie is free right now.', ''];
     if (s === 'busy') return ['busy', left <= 90 ? 'Busy right now. Free in about 1 minute.' : `Busy right now. Free in under ${mins(left)} minutes.`,
       'This updates by itself, no need to refresh.'];
-    if (s === 'mine' && v.precall) return ['mine', `He's yours! Call within ${BrodieLine.mmss(left)}.`, 'After that the line goes to the next person.'];
-    if (s === 'mine') return ['mine', "You're on with Brodie. Have fun!", ''];
+    const song = s === 'mine' ? titleOf(v.dance) : '';               // the lesson the server holds for them ('' without a picker)
+    if (s === 'mine' && v.precall) return ['mine', `He's yours! Call within ${BrodieLine.mmss(left)}${song ? ' to learn ' + song : ''}.`, 'After that the line goes to the next person.'];
+    if (s === 'mine') return ['mine', song ? `You're on with Brodie to learn ${song}. Have fun!` : "You're on with Brodie. Have fun!", ''];
     if (s === 'offline' && v.reason === 'down') return ['offline', "Brodie's FaceTime line is having trouble.", "We're on it. Check back soon."];
     if (s === 'offline') return ['offline', 'Brodie is offline right now.', 'Check back soon.'];
     if (s === 'unknown') return ['unknown', 'Brodie teaches over FaceTime.', ''];
@@ -202,12 +270,15 @@ window.BrodiePopup = (() => {
       go.disabled = !(v.state === 'open' || v.state === 'mine');
       go.textContent = v.state === 'busy' ? "Brodie's busy" : v.state === 'offline' ? 'Brodie is offline' : 'FaceTime Brodie now';
     }
+    const picking = dances.length > 1 && v.state !== 'offline' && !(v.state === 'mine' && !v.precall);   // not while on the call
+    $('.bp-pick').hidden = !picking; el.card.classList.toggle('picking', picking);
     if (!el.root.hidden) qr();
   }
 
   function update(nv) {
     if (nv.state === 'signedout') return;
     const was = v; v = nv; freeAt = Date.now() + (nv.left || 0) * 1000;
+    if (nv.state === 'mine' && nv.dance && nv.dance !== sel && valid(nv.dance)) select(nv.dance, false);   // follow the server's pick for them
     if (el.root && was.state === 'busy' && nv.state === 'open') {          // he just freed up while the pop-up was open: a little pop
       const st = $('.bp-status'); st.classList.remove('freed'); void st.offsetWidth; st.classList.add('freed');
     }
@@ -225,7 +296,8 @@ window.BrodiePopup = (() => {
     else { v = { state: 'unknown' }; paint(); }
   }
 
-  function open() {
+  function open(o) {
+    if (o && o.dance) select(o.dance, true);                         // a card's "play it with brodie": that lesson picked
     if (!el.root || !el.root.hidden) return;
     lastFocus = document.activeElement; el.root.hidden = false; document.body.style.overflow = 'hidden'; paint();
     setTimeout(() => (mode === 'email' ? $('.bp-start input') : $('.bp-go') || $('.bp-x')).focus({ preventScroll: true }), 50);
@@ -239,5 +311,5 @@ window.BrodiePopup = (() => {
     if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
   }
 
-  return { mount, update, needEmail, open, close, device, apple };
+  return { mount, update, needEmail, open, close, setDances, pick, select, device, apple };
 })();

@@ -108,9 +108,9 @@ async def main():
         r = await A.post('/api/line/call', json={'event': 'nope'}, headers={'X-Brodie-Key': 'k3y'}); check('a bad event: 400', r.status == 400, r.status)
         good = os.environ['BRODIE_SERVER']; os.environ['BRODIE_SERVER'] = 'http://127.0.0.1:9'   # nothing listens there
         t = time.monotonic(); ok = await worker('end')
-        check('website unreachable: the report fails quietly and quickly (the call is never held up)', ok is False and time.monotonic() - t < 15, f'{time.monotonic() - t:.1f} s')
+        check('website unreachable: the report fails quietly and quickly (the call is never held up)', not ok and time.monotonic() - t < 15, f'{time.monotonic() - t:.1f} s')
         os.environ['BRODIE_SERVER'] = good
-        os.environ.pop('BRODIE_HEARTBEAT_KEY'); check('worker without the key: reporting is off', await worker('end') is False)
+        os.environ.pop('BRODIE_HEARTBEAT_KEY'); check('worker without the key: reporting is off', not await worker('end'))
         os.environ['BRODIE_HEARTBEAT_KEY'] = 'k3y'
         log = line.log(40); events = [e['event'] for e in log]
         check('the stats log shows the call starts and ends', 'call ended' in events and ('call' in events or 'busy' in events), sorted(set(events)))
