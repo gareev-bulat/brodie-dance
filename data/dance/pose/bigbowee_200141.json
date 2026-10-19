@@ -1,0 +1,78 @@
+{
+  "video": "data/dance/raw/bigbowee_200141.mp4",
+  "width": 576,
+  "height": 1024,
+  "fps": 30.0,
+  "frames": 198,
+  "frames_probed": 198,
+  "mirrored": true,
+  "model": "/home/steven/.yolo/yolo11x-pose.pt",
+  "ultralytics": "8.4.175",
+  "imgsz": 960,
+  "device": "0",
+  "tracker": "bytetrack.yaml",
+  "tracker_conf": 0.1,
+  "nms_iou": 0.5,
+  "min_box_conf": 0.25,
+  "kp_conf": 0.3,
+  "gap_iou": 0.5,
+  "max_gap": 60,
+  "track_id": 2,
+  "member_ids": [
+    2
+  ],
+  "main_dancer_ambiguous": false,
+  "ranked_ids": [
+    1,
+    2
+  ],
+  "frames_with_dancer": 198,
+  "coverage": 1.0,
+  "first_frame": 0,
+  "last_frame": 197,
+  "gap_filled_frames": {},
+  "untracked_frames": 0,
+  "other_tracks": {
+    "1": {
+      "frames": 198,
+      "first_frame": 0,
+      "last_frame": 197,
+      "mean_box_area": 207992.5,
+      "frames_overlapping_main": 198,
+      "mean_iou_with_main": 0.052,
+      "used_to_fill_gaps": 0
+    }
+  },
+  "mean_keypoint_conf": {
+    "nose": 0.997,
+    "left_eye": 0.986,
+    "right_eye": 0.988,
+    "left_ear": 0.804,
+    "right_ear": 0.86,
+    "left_shoulder": 0.997,
+    "right_shoulder": 0.996,
+    "left_elbow": 0.961,
+    "right_elbow": 0.963,
+    "left_wrist": 0.891,
+    "right_wrist": 0.912,
+    "left_hip": 0.993,
+    "right_hip": 0.994,
+    "left_knee": 0.419,
+    "right_knee": 0.428,
+    "left_ankle": 0.009,
+    "right_ankle": 0.01
+  },
+  "weak_joints_frac_below_0.5": {
+    "left_knee": 0.732,
+    "right_knee": 0.783,
+    "left_ankle": 1.0,
+    "right_ankle": 1.0
+  },
+  "video_frames_written": 198,
+  "video_error": null,
+  "outputs": {
+    "npz": "data/dance/pose/bigbowee_200141.npz",
+    "csv": "data/dance/pose/bigbowee_200141.csv",
+    "video": "data/dance/pose/bigbowee_200141.pose.mp4"
+  }
+}

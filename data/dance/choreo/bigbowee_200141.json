@@ -1,0 +1,35 @@
+{
+  "dance": "bigbowee_200141",
+  "description": "Reference choreography from the @bigbowee TikTok (6.6 s, already trimmed before the end card). A couple under a pergola, framed roughly waist/knee up; both dance the same side-to-side palm sways in sync. The reference is the woman in the leopard top on the screen right (tracker id 2): the man in the cap is cut off by the left frame edge and his screen-left arm is lost in ~40% of frames, while all four of her arm joints are tracked in 100% of frames over 1.0-4.8 s. Move boundaries from the wrist trajectories (hip-relative, torso-scaled) and motion energy of data/dance/pose/bigbowee_200141.npz, checked against frame strips of data/dance/pose/bigbowee_200141.pose.mp4 (see docs/DANCE_MODEL_INTERFACE.md section 4 for the schema). Sides are given as seen on screen; the learner mirrors the screen.",
+  "npz": "data/dance/pose/bigbowee_200141.npz",
+  "video": "data/dance/raw/bigbowee_200141.mp4",
+  "mirrored": true,
+  "learner_mirrors_screen": true,
+  "fps_source": 30.0,
+  "bpm": 120,
+  "bpm_estimate_note": "Estimated from the clip audio and the pose, not from a track id. A low-frequency (kick) onset hits once per second at 0.19, 1.18, 2.19, 3.18, 4.18, 5.19, 6.19 s (fit 119.8 bpm), with a dembow-like 16th-note pattern between kicks, so beats fall on x.19 and x.69 (the 0.69 s onset is the earlier 'first strong beat'). Onset-envelope comb filter: 60/120 bpm score 0.41/0.37 vs 0.19 at 96 bpm, and the kick band scores 0.24 at 120 bpm but 0.0 at 95.7 bpm, so the 95.7 bpm auto estimate (spacing between a 16th pickup and the next beat) is rejected. The dancers' side arrivals land on the kicks (1.2, 2.2, 3.2, 4.2, 4.7, arms up 5.2 s) and the wrist-x pattern repeats every ~1.9-2.0 s (4 beats). Treat as 120 +/- 1 bpm; beat grid 0.19 + 0.5k s.",
+  "count_in_s": 1.19,
+  "moves": [
+    {"id": "ready",            "name": "Ready: hands on the hips, still; on the last half-beat the hands drop off the hips into the first sway",                                                  "t0": 0.0,  "t1": 1.19},
+    {"id": "sway_right_left",  "name": "Open palms sway right, then left at the waist (palm-up hands to the screen right on counts 1-2, across to the screen left on 3-4, small bounce on 2 and 4)", "t0": 1.19, "t1": 3.19},
+    {"id": "sway_switch",      "name": "Sway right again, then a quick switch left on 7 and right on 8 (palms up, hands a little higher, about chest height)",                                   "t0": 3.19, "t1": 4.8},
+    {"id": "arms_up",          "name": "Both arms swing up by the head, landing on count 1 of the next phrase",                                                                                 "t0": 4.8,  "t1": 5.4},
+    {"id": "wave_hold",        "name": "Wave by the head and hold, the screen-right hand waving beside the head while the screen-left arm stays up at shoulder height (around her partner) to the end", "t0": 5.4,  "t1": 6.6}
+  ],
+  "thresholds": {
+    "score_clean": 0.7,
+    "score_rough": 0.4,
+    "none_below": 0.4,
+    "fault_p": 0.3,
+    "lost_calls": 6
+  },
+  "notes": [
+    "Clip is 198 frames (6.6 s) and the woman (tracker id 2, re-extracted with --track-id 2) is ok in all of them; the last move ends at the clip end, 6.6 s.",
+    "Lesson 8-count: first_beat_s = count_in_s = 1.19 s, 120 bpm, so the one full 8-count spans 1.19-5.19 s (counts: right 1-2, left 3-4, right 5-6, quick left 7, right 8, arms up landing on the next 1 at 5.19 s). A second 8-count would end at 9.19 s, past the clip, so the lesson has one part.",
+    "'ready' is the count-in: hands rest on the hips until ~0.77 s, then drop off the hips as a pickup into count 1 at 1.19 s.",
+    "Framing is waist/knee up: knees are below 0.5 confidence in ~75% of frames and ankles are never visible, so the 'legs' fault should not be relied on for this dance; arms and torso carry the choreography.",
+    "The man (tracker id 1) dances the same sways in sync (wrist-x correlation 0.84 on the same side) but ends with both hands on his cap instead of waving; he is cut off by the left frame edge, so his screen-left elbow/wrist are below 0.5 confidence in ~40% of frames.",
+    "In wave_hold her screen-left arm rests on her partner's shoulders at shoulder height; a solo learner matches it by holding that arm out at shoulder height.",
+    "Screen-left/right in move names are image sides of the mirrored clip; with learner_mirrors_screen the learner's own right hand follows the screen-right side."
+  ]
+}

@@ -390,15 +390,17 @@
   }).catch(() => {});
 
   // ---- now playing: the lessons from the server when it is reachable, else the list baked in at the last deploy ----
-  const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true}];
-  const TITLES = { sbbyj: 'Chest Sweep Twist' };            // display names for lessons whose id is the creator's handle
-  const ART = { sbbyj: 'assets/hero/dance.jpg' };           // a still of the creator's video per lesson; others show Brodie
+  const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true},
+    {"name":"deatonioo","parts":1,"bpm":90.0,"seconds":8.7,"steps":["Slow sweeps at stomach height | Quick double sweep | Both arms shoot up overhead"],"music":true,"live":false},
+    {"name":"bigbowee","parts":1,"bpm":90.0,"seconds":8.8,"steps":["Open palms sway right | Sway right again | Both arms swing up by the head"],"music":true,"live":false}];
+  const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave' };   // display names for lessons whose id is the creator's handle
+  const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
   function renderDances(list) {
-    $('dances-list').innerHTML = list.filter((x) => !x.error).map((x) => {
+    $('dances-list').innerHTML = list.filter((x) => !x.error).sort((a, b) => !!b.live - !!a.live).map((x) => {
       const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="moves">'
         + s.split('|').map((t) => t.trim()).filter(Boolean).map((t) => '<span>' + esc(t) + '</span>').join('') + '</div></li>').join('');
-      const stats = [x.bpm ? Math.round(x.bpm) + ' bpm' : '', x.parts + ' parts', Math.round(x.seconds) + ' seconds', x.music ? 'with the song' : ''].filter(Boolean);
+      const stats = [x.bpm ? Math.round(x.bpm) + ' bpm' : '', x.parts + (x.parts === 1 ? ' part' : ' parts'),Math.round(x.seconds) + ' seconds', x.music ? 'with the song' : ''].filter(Boolean);
       return '<article class="trackcard"><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt=""></div><div class="info">'
         + (x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
         + '<div class="title game">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
