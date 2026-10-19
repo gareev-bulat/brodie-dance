@@ -149,34 +149,57 @@
   .s-ground { background: var(--ground); }
   .s-night { background: var(--night); }
 
-  /* ---- now playing ---- */
-  .np { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-  .trackcard { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; padding: 20px; border-radius: 26px; background: var(--panel); border: 2px solid var(--volt); box-shadow: 0 0 60px rgba(217,255,61,0.15); }
-  .trackcard + .trackcard { margin-top: 18px; }
-  .trackcard .art { border-radius: 18px; overflow: hidden; aspect-ratio: 9 / 16; background: #000; }
-  .trackcard .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .trackcard .info { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  /* ---- pick your dance: a row of cards (a swipe on phones), then the dances coming soon ---- */
+  .np-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; margin-bottom: 28px; }
+  .np-head h2 { margin: 0; }
+  .np-head p { margin: 0; font-size: 16px; color: var(--muted); }
+  #dances-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .trackcard { display: flex; flex-direction: column; gap: 14px; padding: 14px; border-radius: 24px; background: var(--panel); border: 2px solid rgba(217,255,61,0.28); transition: border-color .2s, box-shadow .2s; }
+  .trackcard.picked { border-color: var(--volt); box-shadow: 0 0 0 2px var(--volt), 0 0 50px rgba(217,255,61,0.28); }
+  .trackcard .art { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 4 / 5; background: #000; }
+  .trackcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
+  .trackcard .art .live-tag { position: absolute; top: 10px; left: 10px; }
+  .trackcard .info { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 0 4px 4px; }
   .live-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; background: var(--volt); color: var(--ink); font-size: 13px; font-weight: 700; }
   .live-tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
-  .trackcard .title { font-size: clamp(32px, 3.4vw, 42px); line-height: 0.95; }
-  .trackcard .by { font-size: 15px; color: var(--muted); }
-  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-  .stats span { padding: 6px 12px; border-radius: 10px; background: rgba(53,230,255,0.12); border: 1px solid rgba(53,230,255,0.5); font-size: 14px; font-weight: 600; }
-  .parts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-  .parts li { padding: 12px 14px; border-radius: 14px; background: var(--deep); }
-  .parts .label { font-size: 13px; font-weight: 600; color: var(--magenta); margin-bottom: 8px; }
+  .trackcard .title { font-size: clamp(26px, 2.4vw, 32px); line-height: 0.95; }
+  .trackcard .song { font-size: 15px; font-weight: 600; color: var(--text); }
+  .trackcard .by { font-size: 14px; color: var(--muted); }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px; }
+  .stats span { padding: 4px 10px; border-radius: 10px; background: rgba(53,230,255,0.12); border: 1px solid rgba(53,230,255,0.5); font-size: 13px; font-weight: 600; }
+  .trackcard details { font-size: 14px; }
+  .trackcard summary { cursor: pointer; color: var(--soft); font-weight: 600; list-style: none; }
+  .trackcard summary::-webkit-details-marker { display: none; }
+  .trackcard summary::after { content: ' ▾'; }
+  .trackcard details[open] summary::after { content: ' ▴'; }
+  .parts { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .parts li { padding: 10px 12px; border-radius: 12px; background: var(--deep); }
+  .parts .label { font-size: 12px; font-weight: 600; color: var(--magenta); margin-bottom: 6px; }
   .moves { display: flex; flex-wrap: wrap; gap: 6px; }
   .moves span { padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(244,242,238,0.25); font-size: 13px; color: #E7E3F7; }
-  .trackcard .btn { align-self: flex-start; margin-top: 8px; font-size: 19px; padding: 16px 28px; }
-  .next h3 { margin: 0 0 18px; padding-top: 84px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: -0.02em; text-transform: lowercase; color: var(--soft); }
-  .locked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .locked li { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 14px; background: rgba(244,242,238,0.04); border: 1px solid rgba(244,242,238,0.10); }
-  .locked svg { flex: none; width: 20px; height: 20px; fill: none; stroke: #8E86B8; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .locked b { display: block; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; text-transform: lowercase; }
-  .locked span { font-size: 13px; color: var(--grey); }
-  .vote { margin-top: 16px; display: flex; justify-content: center; padding: 16px; border-radius: 14px; border: 2px dashed var(--magenta); color: var(--text); text-decoration: none;
-    font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; text-transform: lowercase; }
-  .vote:hover { background: rgba(255,62,165,0.08); }
+  .trackcard .btn { align-self: stretch; justify-content: center; text-align: center; margin-top: 4px; font-size: 18px; padding: 15px 20px; }
+  .dots { display: none; justify-content: center; gap: 8px; margin-top: 14px; }
+  .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(244,242,238,0.25); transition: background .2s, width .2s; }
+  .dots i.on { width: 22px; border-radius: 4px; background: var(--volt); }
+  .soon { margin-top: 30px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .soon > b { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; text-transform: lowercase; color: var(--soft); margin-right: 4px; }
+  .locked { list-style: none; margin: 0; padding: 0; display: contents; }
+  .locked li { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(244,242,238,0.04); border: 1px solid rgba(244,242,238,0.12); font-size: 14px; font-weight: 600; color: var(--soft); }
+  .locked svg { flex: none; width: 14px; height: 14px; fill: none; stroke: #8E86B8; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .vote { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; padding: 12px 22px; border-radius: 14px; background: var(--magenta); color: #fff; text-decoration: none;
+    font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; text-transform: lowercase;
+    box-shadow: 0 5px 0 #B0206F, 0 12px 34px rgba(255,62,165,0.35); transition: transform .15s, box-shadow .15s; }
+  .vote:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #B0206F, 0 16px 44px rgba(255,62,165,0.45); }
+  @media (max-width: 820px) {          /* phones: swipe sideways; the next card peeks in so people know there's more */
+    #dances-list { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; margin: -20px -20px 0; padding: 20px 20px 24px; scrollbar-width: none; }
+    #dances-list::-webkit-scrollbar { display: none; }
+    .trackcard { flex: 0 0 82%; scroll-snap-align: center; }
+    .trackcard.picked { box-shadow: 0 0 0 2px var(--volt), 0 0 18px rgba(217,255,61,0.25); }
+    .dots { margin-top: 0; }
+    .vote { flex-basis: 100%; justify-content: center; margin: 8px 0 0; }
+    .trackcard .art { aspect-ratio: 1 / 1; }
+    .dots { display: flex; }
+  }
 
   /* ---- house rules ---- */
   .rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
@@ -226,9 +249,7 @@
     section { padding: 64px 0; }
     .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
     .levels-wrap::before { display: none; }
-    .np, .trackcard, .rules, .follow-grid { grid-template-columns: minmax(0, 1fr); }
-    .trackcard .art { max-width: 220px; }
-    .next h3 { padding-top: 0; }
+    .rules, .follow-grid { grid-template-columns: minmax(0, 1fr); }
     .rules { gap: 20px; }
     .wave { width: 160px; justify-self: end; }
     .follow-row a { flex: 1 1 100%; }
@@ -309,15 +330,17 @@
 </section>
 
 <section id="dances" class="s-night">
-  <div class="wrap np">
-    <div>
-      <h2 class="game" style="margin-bottom: 28px">now playing</h2>
-      <div id="dances-list"><p class="fine">Loading the lesson list…</p></div>
+  <div class="wrap">
+    <div class="np-head">
+      <h2 class="game">pick your dance</h2>
+      <p>Tap one, then FaceTime Brodie. He teaches it move by move.</p>
     </div>
-    <div class="next">
-      <h3>up next</h3>
+    <div id="dances-list"><p class="fine">Loading the lesson list…</p></div>
+    <div class="dots" id="dance-dots" aria-hidden="true"></div>
+    <div class="soon">
+      <b>coming soon</b>
       <ul class="locked" id="soon-list"></ul>
-      <a class="vote" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">vote for the next dance</a>
+      <a class="vote" href="https://docs.google.com/forms/d/e/1FAIpQLSehplxvPb2wgNymwh69-gPjUK4VdHF9GVcajhDY993eHGV_Aw/viewform" target="_blank" rel="noopener">vote for the next dance →</a>
     </div>
   </div>
 </section>
@@ -402,6 +425,8 @@
     {"name":"deatonioo","parts":1,"bpm":90.0,"seconds":8.7,"steps":["Slow sweeps at stomach height | Quick double sweep | Both arms shoot up overhead"],"music":true,"live":false},
     {"name":"bigbowee","parts":1,"bpm":90.0,"seconds":8.8,"steps":["Open palms sway right | Sway right again | Both arms swing up by the head"],"music":true,"live":false}];
   const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave' };   // display names for lessons whose id is the creator's handle
+  // the song each lesson dances to, shown on its card ("Song, Artist"); a lesson missing here just shows no song line
+  const SONGS = {};
   const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
   const DANCE_ID = /^[a-z0-9_]{1,40}$/;
@@ -412,21 +437,38 @@
     $('dances-list').innerHTML = list.filter((x) => !x.error).sort((a, b) => can(b) - can(a) || (picking ? PICK.indexOf(a.name) - PICK.indexOf(b.name) : 0)).map((x) => {   // menu order: the numbers on Brodie's screen
       const parts = (x.steps || []).map((s, i) => '<li><div class="label">part ' + (i + 1) + '</div><div class="moves">'
         + s.split('|').map((t) => t.trim()).filter(Boolean).map((t) => '<span>' + esc(t) + '</span>').join('') + '</div></li>').join('');
-      const stats = [x.bpm ? Math.round(x.bpm) + ' bpm' : '', x.parts + (x.parts === 1 ? ' part' : ' parts'),Math.round(x.seconds) + ' seconds', x.music ? 'with the song' : ''].filter(Boolean);
-      return '<article class="trackcard"><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt=""></div><div class="info">'
+      const stats = [Math.round(x.seconds) + ' sec', x.parts + (x.parts === 1 ? ' part' : ' parts')];
+      const picked = picking ? x.name === mine : !!x.live;
+      return '<article class="trackcard' + (picked ? ' picked' : '') + '"' + (picking && can(x) ? ' data-card="' + esc(x.name) + '"' : '') + '><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt="">'
         + (picking ? (can(x) ? '<span class="live-tag" data-pick="' + esc(x.name) + '"' + (x.name === mine ? '' : ' hidden') + '><i></i>your pick</span>' : '')
           : x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
+        + '</div><div class="info">'
         + '<div class="title game">' + esc(TITLES[x.name] || credit(x.name)) + '</div>'
+        + (SONGS[x.name] ? '<div class="song">♪ ' + esc(SONGS[x.name]) + '</div>' : '')
         + (TITLES[x.name] ? '<div class="by">dance by ' + esc(credit(x.name)) + '</div>' : '')
         + '<div class="stats">' + stats.map((s) => '<span>' + esc(s) + '</span>').join('') + '</div>'
-        + (parts ? '<ul class="parts">' + parts + '</ul>' : '')
+        + (parts ? '<details><summary>see the moves</summary><ul class="parts">' + parts + '</ul></details>' : '')
         + (can(x) ? '<button type="button" class="btn primary play"' + (picking ? ' data-dance="' + esc(x.name) + '" aria-label="play ' + esc(TITLES[x.name] || credit(x.name)) + ' with brodie"' : '') + '>play it with brodie</button>' : '') + '</div></article>';
     }).join('');
     for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => (b.dataset.dance ? BrodiePopup.open({ dance: b.dataset.dance }) : BrodiePopup.open()));
+    dots();
+  }
+  // phones: one dot per card under the swipe row, the card in view lit up
+  function dots() {
+    const row = $('dances-list'), cards = [...row.querySelectorAll('.trackcard')], d = $('dance-dots');
+    d.innerHTML = cards.length > 1 ? cards.map(() => '<i></i>').join('') : '';
+    const lit = () => {
+      const mid = row.scrollLeft + row.clientWidth / 2;
+      let best = 0, gap = Infinity;
+      cards.forEach((c, i) => { const g = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid); if (g < gap) { gap = g; best = i; } });
+      [...d.children].forEach((x, i) => x.classList.toggle('on', i === best));
+    };
+    row.onscroll = lit; lit();
   }
   function markPick() {                              // the "your pick" tag moves to the picked card (no re-render: the focus stays put)
     const p = BrodiePopup.pick();
     for (const t of document.querySelectorAll('#dances-list [data-pick]')) t.hidden = t.dataset.pick !== p;
+    for (const c of document.querySelectorAll('#dances-list [data-card]')) c.classList.toggle('picked', c.dataset.card === p);
   }
   renderDances(FALLBACK_DANCES);
   fetch(API + '/api/dances').then((r) => r.json()).then((d) => { if (d.dances && d.dances.length) renderDances(d.dances); }).catch(() => {});
@@ -440,7 +482,7 @@
     { name: 'Hot To Go!', song: 'HOT TO GO!', artist: 'Chappell Roan' },
   ];
   const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
-  $('soon-list').innerHTML = SOON.map((d) => '<li>' + LOCK + '<div><b>' + esc(d.name) + '</b><span>' + esc(d.song) + ', ' + esc(d.artist) + '</span></div></li>').join('');
+  $('soon-list').innerHTML = SOON.map((d) => '<li title="' + esc(d.song) + ', ' + esc(d.artist) + '">' + LOCK + esc(d.name) + '</li>').join('');
   function openWaitlist() {
     $('foot-wl').hidden = false;
     $('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
