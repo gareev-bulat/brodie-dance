@@ -158,7 +158,12 @@
   .trackcard.picked { border-color: var(--volt); box-shadow: 0 0 0 2px var(--volt), 0 0 50px rgba(217,255,61,0.28); }
   .trackcard .art { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 4 / 5; background: #000; }
   .trackcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
-  .trackcard .art .live-tag { position: absolute; top: 10px; left: 10px; }
+  .trackcard .art .live-tag { position: absolute; top: 10px; left: 10px; z-index: 2; }
+  .trackcard .art video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; opacity: 0; transition: opacity .25s; }
+  .trackcard .art.playing video { opacity: 1; }
+  .trackcard .art .peek { position: absolute; right: 10px; bottom: 10px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%;
+    background: rgba(18,12,44,0.65); backdrop-filter: blur(6px); color: #fff; font-size: 14px; transition: opacity .25s; pointer-events: none; }
+  .trackcard .art.playing .peek { opacity: 0; }
   .trackcard .info { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 0 4px 4px; }
   .live-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; background: var(--volt); color: var(--ink); font-size: 13px; font-weight: 700; }
   .live-tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
@@ -427,6 +432,7 @@
   const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave' };   // display names for lessons whose id is the creator's handle
   // the song each lesson dances to, shown on its card ("Song, Artist"); a lesson missing here just shows no song line
   const SONGS = {};
+  const CLIP = { sbbyj: 'assets/hero/sbbyj-preview', deatonioo: 'assets/hero/deatonioo-preview', bigbowee: 'assets/hero/bigbowee-preview' };   // muted preview (.mp4, .webm), played on hover (phones: the card in view)
   const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
   const DANCE_ID = /^[a-z0-9_]{1,40}$/;
@@ -440,6 +446,7 @@
       const stats = [Math.round(x.seconds) + ' sec', x.parts + (x.parts === 1 ? ' part' : ' parts')];
       const picked = picking ? x.name === mine : !!x.live;
       return '<article class="trackcard' + (picked ? ' picked' : '') + '"' + (picking && can(x) ? ' data-card="' + esc(x.name) + '"' : '') + '><div class="art"><img src="' + esc(ART[x.name] || 'assets/brodie/brodie-flex.png') + '" alt="">'
+        + (CLIP[x.name] ? '<video muted loop playsinline preload="none" aria-hidden="true"><source src="' + esc(CLIP[x.name]) + '.mp4" type="video/mp4"><source src="' + esc(CLIP[x.name]) + '.webm" type="video/webm"></video><span class="peek" aria-hidden="true">▶</span>' : '')
         + (picking ? (can(x) ? '<span class="live-tag" data-pick="' + esc(x.name) + '"' + (x.name === mine ? '' : ' hidden') + '><i></i>your pick</span>' : '')
           : x.live ? '<span class="live-tag"><i></i>live now</span>' : '')
         + '</div><div class="info">'
@@ -451,7 +458,22 @@
         + (can(x) ? '<button type="button" class="btn primary play"' + (picking ? ' data-dance="' + esc(x.name) + '" aria-label="play ' + esc(TITLES[x.name] || credit(x.name)) + ' with brodie"' : '') + '>play it with brodie</button>' : '') + '</div></article>';
     }).join('');
     for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => (b.dataset.dance ? BrodiePopup.open({ dance: b.dataset.dance }) : BrodiePopup.open()));
-    dots();
+    dots(); previews();
+  }
+  // the dance clips: desktop plays a card's clip while the mouse is over it; phones play the card swiped into view
+  // (not with reduced motion). Nothing downloads until a clip is first played.
+  let previewObs = null;
+  function previews() {
+    const arts = [...document.querySelectorAll('#dances-list .art')].filter((a) => a.querySelector('video'));
+    const play = (a) => { const v = a.querySelector('video'); v.play().then(() => a.classList.add('playing')).catch(() => {}); };
+    const stop = (a) => { const v = a.querySelector('video'); v.pause(); a.classList.remove('playing'); };
+    if (previewObs) { previewObs.disconnect(); previewObs = null; }
+    if (matchMedia('(hover: hover)').matches) {
+      for (const a of arts) { const card = a.closest('.trackcard'); card.onmouseenter = () => play(a); card.onmouseleave = () => { stop(a); a.querySelector('video').currentTime = 0; }; }
+    } else if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      previewObs = new IntersectionObserver((es) => { for (const e of es) (e.intersectionRatio >= 0.7 ? play : stop)(e.target); }, { threshold: [0, 0.7] });
+      arts.forEach((a) => previewObs.observe(a));
+    }
   }
   // phones: one dot per card under the swipe row, the card in view lit up
   function dots() {
