@@ -7,16 +7,18 @@ exists (and its .mp4 unless DANCE_VIDEO=0). DANCE_PICK=0 turns picking off (name
 import os, re
 from starter.dance import reference
 
-TITLES = {'sbbyj': 'Chest Sweep Twist', 'deatonioo': 'Sweep and Shoot', 'bigbowee': 'Palm Sway Wave'}
-WORDS = {'sbbyj': {'chest', 'sweep', 'twist'}, 'deatonioo': {'sweep', 'shoot'}, 'bigbowee': {'palm', 'sway', 'wave'}}
-STRONG = {'sbbyj': {'chest', 'twist'}, 'deatonioo': {'shoot'}, 'bigbowee': {'palm', 'sway', 'wave'}}   # one of these alone names the dance
+TITLES = {'sbbyj': 'Chest Sweep Twist', 'deatonioo': 'Sweep and Shoot', 'bigbowee': 'Palm Sway Wave', 'zoebaptistee': 'Stack and Punch'}
+WORDS = {'sbbyj': {'chest', 'sweep', 'twist'}, 'deatonioo': {'sweep', 'shoot'}, 'bigbowee': {'palm', 'sway', 'wave'},
+         'zoebaptistee': {'stack', 'punch'}}             # (never "frame": Brodie says it in his step-back lines)
+STRONG = {'sbbyj': {'chest', 'twist'}, 'deatonioo': {'shoot'}, 'bigbowee': {'palm', 'sway', 'wave'}, 'zoebaptistee': {'stack', 'punch'}}   # one of these alone names the dance
 KEYS = set().union(*WORDS.values())
 ALIAS = {'chess': 'chest', 'waving': 'wave', 'shot': 'shoot', 'shooting': 'shoot', 'swaying': 'sway'}
 SUFFIXES = ('ing', 'es', 's', 'y', 'ed')
 NEG = {'not', 'dont', 'no', 'never', 'except', 'without', 'hate', 'skip', 'nope'}
 FILLER = {'the', 'number', 'option', 'um', 'uh', 'please', 'like'}
-NUMBER_RE = re.compile(r'(one|two|three|1|2|3|first|second|third|last)( one)?')
-NUM = {'one': 0, '1': 0, 'first': 0, 'two': 1, '2': 1, 'second': 1, 'three': 2, '3': 2, 'third': 2}
+NUMBER_RE = re.compile(r'(one|two|three|four|five|six|[1-6]|first|second|third|fourth|fifth|sixth|last)( one)?')   # never "for" or "to"
+NUM = {w: i for i, ws in enumerate([('one', '1', 'first'), ('two', '2', 'second'), ('three', '3', 'third'), ('four', '4', 'fourth'),
+                                     ('five', '5', 'fifth'), ('six', '6', 'sixth')]) for w in ws}
 MAX_TOKENS = 40
 _REFS = {}
 

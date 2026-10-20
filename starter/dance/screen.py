@@ -238,8 +238,9 @@ class Screen:
                 for i, line in enumerate(['The whole dance', 'plays once first'] if set_ else ['Step back so I can', 'fit you in the frame']):
                     _text(img, line, (0, 170 + 34 * i), 0.8, WHITE, 2, center=True)
                 _text(img, 'SAY A NAME OR NUMBER TO PICK', (0, 262), 0.6, WHITE, 1, center=True)
-                for i, (num, title, cur) in enumerate(menu[:3]):
-                    _text(img, f'{"> " if cur else ""}{num}  {str(title).upper()}', (0, 302 + 38 * i), 0.75 if cur else 0.65,
+                y0, dy = (302, 38) if len(menu) <= 3 else (288, 30)        # four rows still end by y 378
+                for i, (num, title, cur) in enumerate(menu[:4]):
+                    _text(img, f'{"> " if cur else ""}{num}  {str(title).upper()}', (0, y0 + dy * i), 0.75 if cur else 0.65,
                           VOLT if cur else WHITE, 2 if cur else 1, center=True)
                 return self._finish(img, st, cam)
         if state == 'idle' or not st.get('visible'):

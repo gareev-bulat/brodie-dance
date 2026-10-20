@@ -221,7 +221,7 @@ async def part3_4():
 
         print('\n4. the heartbeat lists the lessons', flush=True)
         names = lessons.names()
-        check('this checkout offers all three (npz + mp4)', names == ['sbbyj', 'deatonioo', 'bigbowee'], names)
+        check('this checkout offers every titled lesson (npz + mp4), in menu order', names == list(lessons.TITLES) and len(names) >= 3, names)
         check('heartbeat_body: {agent, dances}', worker.heartbeat_body('brodie-coach', names) == {'agent': 'brodie-coach', 'dances': names})
         check('heartbeat_body with no dances: []', worker.heartbeat_body('brodie-coach') == {'agent': 'brodie-coach', 'dances': []})
         check('offered_dances(--dance): lessons.names()', worker.offered_dances(types.SimpleNamespace(dance=True)) == names)
@@ -247,7 +247,7 @@ async def part3_4():
                 if STUB['beats']: break
                 await asyncio.sleep(0.05)
             check('start_heartbeat posts {agent, dances} with the key', STUB['beats'][:1] == [('k3y', {'agent': 't-agent', 'dances': names})], STUB['beats'][:1])
-            check('...and says which lessons it offers', 'lessons to pick: sbbyj, deatonioo, bigbowee' in buf.getvalue(), buf.getvalue().strip())
+            check('...and says which lessons it offers', 'lessons to pick: ' + ', '.join(names) in buf.getvalue(), buf.getvalue().strip())
             STUB['beats'].clear()
             with captured(), env(DANCE_PICK='0'): worker.start_heartbeat('t-off')
             for _ in range(60):
@@ -260,7 +260,7 @@ async def part3_4():
 
 def part5():
     print('\n5. prewarm_dances: every lesson video in memory before any call', flush=True)
-    seen = []; fail = set()
+    seen = []; fail = set(); names = lessons.names(); mp4 = lambda ns: [n + '.mp4' for n in ns]
     def fake_preload(path):
         seen.append(os.path.basename(path or '')); n = os.path.splitext(os.path.basename(path or ''))[0]
         if n in fail: raise RuntimeError(SENTINEL)
@@ -269,15 +269,15 @@ def part5():
     A = lambda d: types.SimpleNamespace(dance=d)
     try:
         with env(DANCE='sbbyj', DANCE_VIDEO=None), captured() as buf: got = worker.prewarm_dances(A(True))
-        check('DANCE=sbbyj, --dance: all three, each once, menu order', seen == ['sbbyj.mp4', 'deatonioo.mp4', 'bigbowee.mp4'] and got == {'sbbyj': 7, 'deatonioo': 7, 'bigbowee': 7}, seen)
+        check('DANCE=sbbyj, --dance: every lesson, each once, menu order', seen == mp4(names) and got == {n: 7 for n in names}, seen)
         check('...one "ready" line per lesson', all(f'dance video {n} ready (7 frames' in buf.getvalue() for n in got), buf.getvalue().strip())
         seen.clear()
         with env(DANCE='deatonioo'), captured(): worker.prewarm_dances(A(True))
-        check('DANCE=deatonioo: the default first, then the rest', seen == ['deatonioo.mp4', 'sbbyj.mp4', 'bigbowee.mp4'], seen)
+        check('DANCE=deatonioo: the default first, then the rest', seen == mp4(['deatonioo'] + [n for n in names if n != 'deatonioo']), seen)
         seen.clear(); fail.add('deatonioo')
         with env(DANCE='sbbyj'), captured() as buf: got = worker.prewarm_dances(A(True))
         out = buf.getvalue()
-        check('one video failing: the others still load', got == {'sbbyj': 7, 'bigbowee': 7} and seen == ['sbbyj.mp4', 'deatonioo.mp4', 'bigbowee.mp4'], got)
+        check('one video failing: the others still load', got == {n: 7 for n in names if n != 'deatonioo'} and seen == mp4(names), got)
         check('...its line has the id and the type name only', 'dance video deatonioo not preloaded (RuntimeError): callers cannot switch to it' in out and SENTINEL not in out, out.strip())
         fail.clear(); seen.clear(); fail.add('sbbyj')
         with env(DANCE='sbbyj'), captured() as buf: worker.prewarm_dances(A(True))
@@ -295,7 +295,7 @@ def part5():
         with env(DANCE=None), captured(): got = worker.prewarm_dances(A(False))
         check('no --dance, no DANCE: nothing', seen == [] and got == {})
         with env(DANCE=None), captured(): got = worker.prewarm_dances(A(True))
-        check('--dance without DANCE: every lesson', seen == ['sbbyj.mp4', 'deatonioo.mp4', 'bigbowee.mp4'], seen)
+        check('--dance without DANCE: every lesson', seen == mp4(names), seen)
         seen.clear()
         with env(DANCE='sbbyj', DANCE_PICK='0'), captured(): worker.prewarm_dances(A(True))
         check('DANCE_PICK=0: only DANCE (no extra memory)', seen == ['sbbyj.mp4'], seen)

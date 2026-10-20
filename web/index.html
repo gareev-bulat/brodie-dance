@@ -428,12 +428,13 @@
   // ---- now playing: the lessons from the server when it is reachable, else the list baked in at the last deploy ----
   const FALLBACK_DANCES = [{"name":"sbbyj","parts":2,"bpm":66.0,"seconds":25.4,"steps":["Screen-right arm swings out | Both hands rise to the chest | Forearms cross over the chest","Both hands held in front | Twist to the screen-left | Twist left"],"music":true,"live":true},
     {"name":"deatonioo","parts":1,"bpm":90.0,"seconds":8.7,"steps":["Slow sweeps at stomach height | Quick double sweep | Both arms shoot up overhead"],"music":true,"live":false},
-    {"name":"bigbowee","parts":1,"bpm":90.0,"seconds":8.8,"steps":["Open palms sway right | Sway right again | Both arms swing up by the head"],"music":true,"live":false}];
-  const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave' };   // display names for lessons whose id is the creator's handle
+    {"name":"bigbowee","parts":1,"bpm":90.0,"seconds":8.8,"steps":["Open palms sway right | Sway right again | Both arms swing up by the head"],"music":true,"live":false},
+    {"name":"zoebaptistee","parts":2,"bpm":70.125,"seconds":20.0,"steps":["Stacked-arm sit-back | Frame the face | Low reach to the side","Punch up high | Arms fly up overhead | Bend over to look back"],"music":true,"live":false}];
+  const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave', zoebaptistee: 'Stack and Punch' };   // display names for lessons whose id is the creator's handle
   // the song each lesson dances to, shown on its card ("Song, Artist"); a lesson missing here just shows no song line
   const SONGS = {};
   const CLIP = { sbbyj: 'assets/hero/sbbyj-preview', deatonioo: 'assets/hero/deatonioo-preview', bigbowee: 'assets/hero/bigbowee-preview' };   // muted preview (.mp4, .webm), played on hover (phones: the card in view)
-  const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg' };   // a still of the creator's video per lesson; others show Brodie
+  const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg', zoebaptistee: 'assets/hero/zoebaptistee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
   const DANCE_ID = /^[a-z0-9_]{1,40}$/;
   let PICK = [], lastList = FALLBACK_DANCES, lineDance = '', linePrecall = false;   // PICK: /api/config pick; lineDance: the server's pick for this visitor

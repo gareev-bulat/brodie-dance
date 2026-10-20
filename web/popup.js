@@ -213,6 +213,7 @@ window.BrodiePopup = (() => {
   function tiles() {
     if (!el.root) return;
     const box = $('.bp-tiles'); box.textContent = '';
+    box.style.gridTemplateColumns = 'repeat(' + (dances.length === 4 ? 2 : Math.min(dances.length, 3)) + ', minmax(0, 1fr))';   // four: 2 x 2
     for (const d of dances) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bp-dance'; b.dataset.dance = d.name;
       b.textContent = d.title; b.setAttribute('aria-pressed', String(d.name === sel)); b.onclick = () => select(d.name, true);

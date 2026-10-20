@@ -122,7 +122,7 @@ PAIN_RE = re.compile(r"\b(?:hurts?|hurting|pain|painful|dizzy|can'?t breathe|out
                      r"my (?:knee|ankle|back|wrist|shoulder|neck|hip))\b")
 # picking the lesson ({t} the title, {menu} the titles in menu order, {a}/{b} two titles): the caller's words never go in a prompt
 GREET_MENU = ("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In TWO "
-              "short sentences, 35 words max: {greet}, say you are Brodie their dance coach in first person (I'm Brodie), then say "
+              "short sentences: {greet}, say you are Brodie their dance coach in first person (I'm Brodie), then say "
               "they pick the dance by saying its name, {menu}, word for word, or it's \"{t}\". Never say frame, fit, step back or "
               "camera, never describe what you can or cannot see of them, and no tip.")
 GREET_TITLE = ("A caller just joined and already heard your recorded line asking them to step back; they are not set yet. In ONE "
@@ -172,7 +172,7 @@ SITE_WAIT_S = float(os.environ.get('DANCE_SITE_WAIT_S') or 6)   # the preview wa
 # has played (livekit google realtime: the final transcript comes at turn_complete), so a pick lands after that reply, not before
 ANSWER_S = float(os.environ.get('DANCE_ANSWER_S') or 3)
 ANSWER_MAX_S = 25.0      # but never longer than this after the menu was offered
-MENU_TAIL = ' This turn only: two short sentences, up to 35 words, so every title fits.'
+MENU_TAIL = f' This turn only: two short sentences, up to {35 + 5 * max(0, len(MENU) - 3)} words, so every title fits.'
 print(f'[dance] pick menu: {", ".join(MENU)} (default {REF.name})' if len(MENU) >= 2 else
       '[dance] pick off' + ('' if not PICK_ON else ' (fewer than 2 lessons ready)'), flush=True)
 

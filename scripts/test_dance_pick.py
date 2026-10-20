@@ -21,6 +21,7 @@ voice layer whose job carries site_pick (what facetime/worker.py sets from the l
  15  the menu answer hold: no preview while Brodie or the caller talks (Gemini finalizes the caller's words after its own reply)
  16  "sweep" during the intro: the question holds the preview and the answer counts
  17  a site pick that is not on this call's menu: one log line, the default kept
+ 18  four songs: the greeting, the menu card, "four" and the new title's words (never "for" or "frame")
  14  the screen (needs cv2 and the videos; fills data/tmp/screen_cache once): set_ref swaps the lesson and its frames in one tick, a
      stale load never overwrites them, an uncached video is refused, and the menu, plain and title cards render in under 20 ms
      (PNGs into --png-dir)
@@ -33,7 +34,8 @@ import argparse, asyncio, contextlib, gc, io, logging, os, random, re, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 for k in ('DANCE_PICK', 'DANCE_MENU', 'DANCE_ROAST', 'DANCE_PREVIEW', 'DANCE_COUNT_ALOUD', 'DANCE_PASS'): os.environ.pop(k, None)
-os.environ.update(DANCE='sbbyj', DANCE_VIDEO='0', DANCE_REST_S='0.2', DANCE_SITE_WAIT_S='1')
+os.environ.update(DANCE='sbbyj', DANCE_VIDEO='0', DANCE_REST_S='0.2', DANCE_SITE_WAIT_S='1',
+                  DANCE_MENU='sbbyj,deatonioo,bigbowee')     # the cases below are written for these three (case 18: the full menu)
 from facetime.voice import load_handlers  # noqa: E402
 from starter.dance import lessons  # noqa: E402
 from starter.dance import screen as screen_mod  # noqa: E402
@@ -353,6 +355,23 @@ async def c17(out):
     c.close()
 
 
+async def c18(out):
+    M4 = ['sbbyj', 'deatonioo', 'bigbowee', 'zoebaptistee']
+    c = Call(site_pick='', env={'DANCE_MENU': ','.join(M4)}); await asyncio.sleep(0.45)
+    greet = c.asks('just joined')
+    check('18 four songs: the greeting lists all four in menu order, with room for them (40 words)', greet and
+          '"Chest Sweep Twist", "Sweep and Shoot", "Palm Sway Wave" or "Stack and Punch"' in greet[0] and 'up to 40 words' in greet[0], greet[0][-200:] if greet else '')
+    check('18 four songs: the menu card has four rows', [m[1] for m in c.S['menu']] == [T[n] for n in M4], c.S['menu'])
+    c.say('four'); await asyncio.sleep(0.25)
+    check('18 "four": Stack and Punch, confirmed', c.ref == 'zoebaptistee' and len(c.asks('They picked "Stack and Punch"')) == 1, c.ref)
+    c.close()
+    rows = [('stack and punch', 'zoebaptistee'), ('the punch one', 'zoebaptistee'), ('stacking', 'zoebaptistee'), ('the fourth one', 'zoebaptistee'),
+            ('the last one', 'zoebaptistee'), ('three', 'bigbowee'), ('for', None), ('frame the face', None), ('fit you in the frame', None),
+            ('Chest Sweep Twist, Sweep and Shoot, Palm Sway Wave or Stack and Punch', None), ('not the punch one', None)]
+    bad = [(x, lessons.match(x, M4), want) for x, want in rows if lessons.match(x, M4) != want]
+    check('18 four songs: the matcher table (title words, "four", never "for" or "frame")', not bad, bad)
+
+
 # ---------------- 12: the matcher ----------------
 def c12():
     table = {'deatonioo': ['Sweep and Shoot', 'the shooting one', 'shoot', 'number two', '2', 'the second one'],
@@ -458,7 +477,7 @@ def main():
     with contextlib.redirect_stdout(io.StringIO()):
         for n in M: lessons.ref(n)                                  # loaded once, shared by every case (as in a worker process)
     for name, fn in (('1', c1), ('2', c2), ('3', c3), ('4', c4), ('5', c5), ('6', c6), ('7', c7), ('8', c8), ('9', c9), ('10', c10), ('11', c11),
-                     ('15', c15), ('16', c16), ('17', c17)):
+                     ('15', c15), ('16', c16), ('17', c17), ('18', c18)):
         case(name, fn)
     c12()
     if not a.no_screen:
