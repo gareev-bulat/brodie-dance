@@ -153,9 +153,14 @@
   .np-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; margin-bottom: 28px; }
   .np-head h2 { margin: 0; }
   .np-head p { margin: 0; font-size: 16px; color: var(--muted); }
-  #dances-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  #dances-list { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: start; }
   .trackcard { display: flex; flex-direction: column; gap: 14px; padding: 14px; border-radius: 24px; background: var(--panel); border: 2px solid rgba(217,255,61,0.28); transition: border-color .2s, box-shadow .2s; }
   .trackcard.picked { border-color: var(--volt); box-shadow: 0 0 0 2px var(--volt), 0 0 50px rgba(217,255,61,0.28); }
+  @media (hover: hover) {               /* desktop: the frame follows the card being previewed; a click on a card picks it */
+    #dances-list:hover .trackcard.picked:not(:hover) { border-color: rgba(217,255,61,0.28); box-shadow: none; }
+    .trackcard:hover { border-color: var(--volt); box-shadow: 0 0 0 2px var(--volt), 0 0 50px rgba(217,255,61,0.28); }
+    .trackcard[data-card] { cursor: pointer; }
+  }
   .trackcard .art { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 4 / 5; background: #000; }
   .trackcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
   .trackcard .art .live-tag { position: absolute; top: 10px; left: 10px; z-index: 2; }
@@ -235,7 +240,7 @@
 
   @media (max-width: 820px) {
     .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-top: 4px; }
-    .stage-col { order: -1; }
+    .hero-grid { gap: 28px; }             /* phones: the headline and the FaceTime button first, the call preview under them */
     .stagebox { height: 456px; }
     .device { left: 12px; top: 34px; width: 196px; height: 400px; border-width: 6px; border-radius: 32px; }
     .callbar { top: 24px; padding: 6px 10px; font-size: 8px; }
@@ -251,6 +256,8 @@
     .lane span { width: auto; min-width: 0; flex: 1 1 0; height: auto; aspect-ratio: 1 / 1.1; font-size: 20px; border-radius: 10px; }
     .nav-links { display: none; }
     .account b { display: none; }
+    nav { gap: 12px; }
+    #nav-status { margin-left: auto; }
     section { padding: 64px 0; }
     .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
     .levels-wrap::before { display: none; }
@@ -258,6 +265,14 @@
     .rules { gap: 20px; }
     .wave { width: 160px; justify-self: end; }
     .follow-row a { flex: 1 1 100%; }
+  }
+  @media (max-width: 520px) {          /* phones: logo + status only; "log out" moves to the footer */
+    .account { display: none; }
+    h1 { font-size: 40px; text-shadow: 0 4px 0 var(--magenta), 0 10px 30px rgba(255,62,165,0.35); }
+    .lead { margin-top: 18px; font-size: 17px; }
+    .start, .linebox { margin-top: 22px; }
+    .trackcard .art { aspect-ratio: 4 / 3; }
+    .trackcard .title { font-size: 24px; }
   }
   @media (prefers-reduced-motion: reduce) {
     img.brodie, .chip i, .linebox .dot, .linebox.freed, .judge.pop { animation: none !important; }
@@ -383,6 +398,7 @@
       <a href="#" id="wl-open">email me when a new dance drops</a>
       <a id="foot-fork" href="https://github.com/zxpeng2007/ivyhacks-brodie-dance">github</a>
       <a href="https://brodie-character-kit.vercel.app/">Brodie character kit</a>
+      <a href="#" id="foot-logout" hidden>log out</a>
       <div class="foot-wl" id="foot-wl" hidden>
         <form class="waitlist" id="waitlist" autocomplete="on">
           <input type="email" id="wl-email" name="email" required placeholder="email for new dances" autocomplete="email" aria-label="your email for new dances">
@@ -433,7 +449,7 @@
   const TITLES = { sbbyj: 'Chest Sweep Twist', deatonioo: 'Sweep and Shoot', bigbowee: 'Palm Sway Wave', zoebaptistee: 'Stack and Punch' };   // display names for lessons whose id is the creator's handle
   // the song each lesson dances to, shown on its card ("Song, Artist"); a lesson missing here just shows no song line
   const SONGS = {};
-  const CLIP = { sbbyj: 'assets/hero/sbbyj-preview', deatonioo: 'assets/hero/deatonioo-preview', bigbowee: 'assets/hero/bigbowee-preview' };   // muted preview (.mp4, .webm), played on hover (phones: the card in view)
+  const CLIP = { sbbyj: 'assets/hero/sbbyj-preview', deatonioo: 'assets/hero/deatonioo-preview', bigbowee: 'assets/hero/bigbowee-preview', zoebaptistee: 'assets/hero/zoebaptistee-preview' };   // muted preview (.mp4, .webm), played on hover (phones: the card in view)
   const ART = { sbbyj: 'assets/hero/dance.jpg', deatonioo: 'assets/hero/deatonioo.jpg', bigbowee: 'assets/hero/bigbowee.jpg', zoebaptistee: 'assets/hero/zoebaptistee.jpg' };   // a still of the creator's video per lesson; others show Brodie
   const credit = (name) => /^[a-z0-9_]+$/i.test(name) ? '@' + name.replace(/_[0-9a-f]{6}$/, '') : pretty(name);
   const DANCE_ID = /^[a-z0-9_]{1,40}$/;
@@ -459,6 +475,9 @@
         + (can(x) ? '<button type="button" class="btn primary play"' + (picking ? ' data-dance="' + esc(x.name) + '" aria-label="play ' + esc(TITLES[x.name] || credit(x.name)) + ' with brodie"' : '') + '>play it with brodie</button>' : '') + '</div></article>';
     }).join('');
     for (const b of document.querySelectorAll('#dances-list .play')) b.addEventListener('click', () => (b.dataset.dance ? BrodiePopup.open({ dance: b.dataset.dance }) : BrodiePopup.open()));
+    for (const c of document.querySelectorAll('#dances-list [data-card]')) c.addEventListener('click', (e) => {   // a click anywhere on a card picks it
+      if (!e.target.closest('button, summary, a')) BrodiePopup.select(c.dataset.card, true);
+    });
     dots(); previews();
   }
   // the dance clips: desktop plays a card's clip while the mouse is over it; phones play the card swiped into view
@@ -486,7 +505,19 @@
       cards.forEach((c, i) => { const g = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid); if (g < gap) { gap = g; best = i; } });
       [...d.children].forEach((x, i) => x.classList.toggle('on', i === best));
     };
-    row.onscroll = lit; lit();
+    // phones: the card swiped to the middle becomes "your pick"; the row opens on the current pick
+    let settle = 0;
+    row.onscroll = () => {
+      lit(); clearTimeout(settle);
+      settle = setTimeout(() => {
+        if (getComputedStyle(row).display !== 'flex') return;          // desktop: the cards don't scroll
+        const on = [...d.children].findIndex((x) => x.classList.contains('on')), c = cards[on];
+        if (c && c.dataset.card && c.dataset.card !== BrodiePopup.pick()) BrodiePopup.select(c.dataset.card, true);
+      }, 150);
+    };
+    const cur = cards.find((c) => c.classList.contains('picked'));
+    if (cur && getComputedStyle(row).display === 'flex') row.scrollLeft = cur.offsetLeft - (row.clientWidth - cur.offsetWidth) / 2;
+    lit();
   }
   function markPick() {                              // the "your pick" tag moves to the picked card (no re-render: the focus stays put)
     const p = BrodiePopup.pick();
@@ -572,14 +603,16 @@
   function signedIn(u) {
     user = u || null;
     const named = !!(u && !u.guest);                 // a guest session (no email) shows no account in the nav
-    $('account').hidden = !named;
+    $('account').hidden = !named; $('foot-logout').hidden = !named;   // phones show only the footer's "log out"
+    const logout = async (e) => {
+      e.preventDefault(); await post('/api/logout').catch(() => {});
+      if (line) { line.stop(); line = null; }
+      $('line').hidden = true; $('start-box').hidden = false; $('nav-status').hidden = true; signedIn(null); boot();
+    };
+    $('foot-logout').onclick = logout;
     if (named) {
       $('account').innerHTML = '<b>' + u.email.replace(/[<>&]/g, '') + '</b><a href="#" id="nav-logout">log out</a>';
-      $('nav-logout').onclick = async (e) => {
-        e.preventDefault(); await post('/api/logout').catch(() => {});
-        if (line) { line.stop(); line = null; }
-        $('line').hidden = true; $('start-box').hidden = false; $('nav-status').hidden = true; signedIn(null); boot();
-      };
+      $('nav-logout').onclick = logout;
     } else { $('account').innerHTML = ''; }
     if (u) watchLine();
   }
