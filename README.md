@@ -4,7 +4,7 @@
 
 🥈 2nd place at IvyHacks 2026 (University of Pennsylvania). Built by a team of five, then launched to real users.
 
-<!-- Add a screenshot or a short demo GIF here. It is the most important part of this README. -->
+<img width="1024" height="768" alt="1792783958604" src="https://github.com/user-attachments/assets/b7540e8b-e32a-4a42-ab3f-a54b552c0b2f" />
 
 ## The idea
 
