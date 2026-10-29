@@ -1,96 +1,86 @@
-# Brodie starter
+# Brodie Dance
 
-> **Brodie Dance** (our hackathon build on this starter): Brodie teaches TikTok dances on a video call. Website with accounts and the call page: `python -m brodie.server` (docs/HOSTING.md); the coach: `bash scripts/demo_worker.sh`; lesson flow in `starter/handlers.py`, the judge in `src/rtcoach/dance_judge.py`, references built with `scripts/make_dance_ref.sh`.
+**An AI dance coach you call on FaceTime. No app to install.**
 
-A real-time video coach in one Python process. Your phone joins a LiveKit room, the coach watches through the camera, counts reps, corrects form out loud, and talks between sets.
+🥈 2nd place at IvyHacks 2026 (University of Pennsylvania). Built by a team of five, then launched to real users.
 
-You write the coaching. Perception is done for you.
+<!-- Add a screenshot or a short demo GIF here. It is the most important part of this README. -->
 
-## What you need
+## The idea
 
-- macOS or Linux, Python 3.12, [uv](https://docs.astral.sh/uv/) (`brew install uv`)
-- A free LiveKit Cloud project ([cloud.livekit.io](https://cloud.livekit.io))
-- A phone, or Safari on a Mac
-- Your team card (Gemini team token)
+Everyone wants to learn the latest TikTok dance, and everyone learns it the same way: pause, rewind, squint, give up. A 15-second clip has no counts, no feedback, and no way to tell which part you are getting wrong.
 
-## 1. Install (about 30 minutes, mostly waiting)
+So we asked: what if you could call a coach who watches you?
 
-```
-git clone https://github.com/seraphimlabs-dev/brodie-starter.git brodie-rt-coach && cd brodie-rt-coach
-uv venv --python 3.12 .venv && source .venv/bin/activate
-uv pip install -r requirements.txt
-mkdir -p models && for m in lite full heavy; do curl -sSfL -o models/pose_landmarker_$m.task https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_$m/float16/latest/pose_landmarker_$m.task; done
-```
+## What it does
 
-On Linux, run `uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` first to skip 3 GB of CUDA wheels.
+- Brodie shows you the dance, then teaches it part by part (8-counts) with the song
+- It tracks your whole body live and compares you to the creator, joint by joint
+- A model we trained scores each part, and an angle check names the body part that is off
+- Brodie coaches you by voice between parts, with one specific tip, and never talks over the music
+- It all happens on a real FaceTime call, with no app to install
 
-## 2. Get the data bundle
+## How it works
 
-The models, voice clips and sample recordings are not in git. Download them from this repo's release and unpack them at the repo root:
-
-```
-for p in part1_models_recordings part3_bank_puck; do curl -sSfLO https://github.com/seraphimlabs-dev/brodie-starter/releases/download/data-2026-10-09/rtcoach_starter_${p}_2026-10-09.tgz; done
-tar xzf rtcoach_starter_part1_models_recordings_2026-10-09.tgz && tar xzf rtcoach_starter_part3_bank_puck_2026-10-09.tgz
-```
-
-Check it worked:
+| Piece | What it does |
+|---|---|
+| **Eyes** | MediaPipe pose tracking: 33 body points, 10 times a second, streamed live to the lesson |
+| **Judge** | Aligns your moves with the creator's in time (DTW) and scores them with a trained model, with an angle comparison as backup |
+| **Voice** | Gemini Live coaches between parts |
+| **Music** | Each part is one audio clip: the song for exactly those beats with the count mixed on top, so they never drift apart |
+| **Call** | LiveKit carries audio and video. Chert connects it to a real FaceTime line |
+| **Any dance** | One command turns a TikTok video into a lesson: poses, beats, 8-count parts and the song |
 
 ```
-ls data/models/clf_pose.pt data/models/trigger_lr.json data/cues_audio_gemini/manifest.json models/pose_landmarker_full.task
+FaceTime call
+   -> FaceTime line (Chert)
+   -> real-time video room (LiveKit)
+   -> worker running the Brodie coach agent (Python)
+        pose tracking -> judge -> voice coaching
+
+Website (static, on Vercel)
+   -> API + SQLite (Docker container on a VM)
+        sign-ups, line status, stats page
 ```
 
-## 3. Prove the install (2 minutes, no phone)
+**The line.** The FaceTime line takes one call at a time, so the website manages a short queue: a visitor enters their email, sees whether the line is free, claims a 15-minute session, and gets the number. When a call ends, the worker tells the website, and the line frees itself about 15 seconds later. An "I'm done dancing" button and the 15-minute limit are backups.
 
-```
-python -m facetime.replay_local --video data/tmp/mac_handoff/crops/run3.mp4 --plan "squats:10,pushups:8,jumping jacks:20,lunges:10" --fast --events data/tmp/run3.events.jsonl
-python scripts/test_voice.py
-```
+**Outage detection.** When calls stop reaching Brodie, the site detects it and tells visitors, instead of sending them to a dead number.
 
-## 4. Configure
+## What we learned from launching
 
-Copy `.env.example` to `.env.local` and fill it in. The LiveKit values come from your project's Settings, then Keys. The Gemini token is on your team card.
+- Free usage limits on platforms like LiveKit run out faster than you expect, so watch them from day one
+- Bugs show up fast once users arrive, so fast troubleshooting matters
+- Real-time is a different world: syncing music, counts, voice and pose tracking to the beat took more work than the AI itself
+- After a change to the server code, redeploy the server too. Merging alone is not enough
+- A demo only has to work once. A launch has to keep working while strangers use it
 
-## 5. First call
+## My role
 
-Terminal A, the coach:
+During launch week I focused on keeping the team in sync, planning next steps and maintaining the product.
 
-```
-source .venv/bin/activate && set -a && source .env.local && set +a
-python -m facetime.worker --voice gemini dev
-```
+<!-- Add one or two lines on your technical contributions, for example the line auto-release change and its tests, deployments, monitoring and fixes after launch. Only include what you did. -->
 
-Terminal B, the link (use a new room name for every attempt):
+## Team
 
-```
-source .venv/bin/activate && set -a && source .env.local && set +a
-python -m facetime.mint_token --room team1-try1 --url
-```
+- Steven Peng
+- Jason Xiao
+- Thanish Malineni
+- Abrar Islam
+- Bulat Gareev
 
-Open the third printed line on your phone, tap to enable audio, prop the phone up and step back. You should hear "Let's do squats" and then the counts.
+## Thanks
 
-Always start Terminal A before the phone joins.
+- James Huang and Seraphim Labs for Brodie
+- Chert and Gary Gao for the FaceTime line
+- studyspace, AI @ Penn and WUEC for organizing IvyHacks
 
-## What you change
+## Running it
 
-Only these three files:
+This project depends on third-party services and API keys that are not included in this repository (LiveKit, Gemini, the FaceTime line provider, and admin and heartbeat keys). Create your own `.env.local` with placeholder values like `YOUR_KEY_HERE`, and never commit real keys.
 
-| File | What it is |
-| --- | --- |
-| `starter/persona.md` | Who Brodie is and how it talks between sets |
-| `starter/plan.txt` | The workout, e.g. `squats:10,pushups:8,jumping jacks:20,lunges:10` |
-| `starter/handlers.py` | `on_event(event, say_now, ask_voice)`, called for every rep, fault, cue and set change |
+<!-- Add the real setup steps here if you want others to be able to run it. -->
 
-- `say_now(text)` plays a pre-recorded line about 0.2 s later. Only strings in `data/cues_audio_gemini/manifest.json` work.
-- `ask_voice(prompt)` asks the conversational voice, which answers 1 to 2 s later. Only call it when `session.state` is `rest` or `done`, never during a set.
+## Status
 
-## Docs
-
-- [docs/STARTER_README.md](docs/STARTER_README.md): full setup, troubleshooting, FaceTime lines, licence
-- [docs/STARTER_EVENTS.md](docs/STARTER_EVENTS.md): every event and its fields
-- [docs/BUILD_ON_BRODIE.md](docs/BUILD_ON_BRODIE.md): what you can build and how
-
-The same pages are at [seraphimlabs.dev/hackathon](https://seraphimlabs.dev/hackathon).
-
-## Licence
-
-The models and the thresholds (`clf_pose.pt`, `trigger_lr.json`, `src/rtcoach/thresholds_e3c.json`, `src/rtcoach/cue_prior.json`) come from a research evaluation licence. Use them for this hackathon only and do not redistribute them.
+The FaceTime line is closed. This repository is kept as a record of what we built.
